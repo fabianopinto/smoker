@@ -1,0 +1,12 @@
+{
+  "name": "smoker",
+  "version": "0.1.0",
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "keywords": [],
+  "author": "Fabiano Pinto <fabianopinto@gmail.com>",
+  "license": "ISC",
+  "type": "module",
+  "description": "A smoke testing framework with BDD support"
+}
