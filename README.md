@@ -1,5 +1,7 @@
 # Smoker
 
+[![CI](https://github.com/fabianopinto/smoker/actions/workflows/ci.yml/badge.svg)](https://github.com/fabianopinto/smoker/actions/workflows/ci.yml)
+
 A smoke testing framework with BDD support through Cucumber.js, unit testing with Vitest, and modern TypeScript best practices. This project serves as a skeleton for building robust test suites with behavior-driven development.
 
 ## Project Structure
