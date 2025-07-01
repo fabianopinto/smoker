@@ -9,12 +9,14 @@
     "test:watch": "vitest watch",
     "test:coverage": "vitest run --coverage",
     "build": "tsup",
+    "postbuild": "find features -name '*.feature' -exec cp --parents {} dist \\;",
     "prestart": "npm run build",
-    "start": "node dist/index.cjs",
+    "start": "node dist/src/index.cjs",
     "clean": "rm -rf dist build coverage .tsbuildinfo .vitest *.log"
   },
   "keywords": [
     "smoketest",
+    "cucumberjs",
     "typescript"
   ],
   "author": "Fabiano Pinto <fabianopinto@gmail.com>",
@@ -32,5 +34,8 @@
     "typescript": "^5.8.3",
     "typescript-eslint": "^8.35.1",
     "vitest": "^3.2.4"
+  },
+  "dependencies": {
+    "@cucumber/cucumber": "^11.3.0"
   }
 }

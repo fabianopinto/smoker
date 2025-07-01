@@ -1,6 +1,6 @@
 # Smoker
 
-A smoke testing framework with BDD support, unit testing with Vitest, and modern TypeScript best practices.
+A smoke testing framework with BDD support through Cucumber.js, unit testing with Vitest, and modern TypeScript best practices. This project serves as a skeleton for building robust test suites with behavior-driven development.
 
 ## Project Structure
 
@@ -11,6 +11,9 @@ smoker/
 │   └── index.ts        # Main entry point
 ├── test/               # Unit tests
 │   └── lib/            # Unit tests for library code
+├── features/           # Cucumber BDD features
+│   ├── *.feature       # Feature files in Gherkin syntax
+│   └── step_definitions/ # Step definitions for Cucumber
 ├── dist/               # Compiled JavaScript output
 ├── eslint.config.mjs   # ESLint configuration (using flat config)
 ├── .prettierrc         # Prettier configuration
@@ -65,11 +68,11 @@ smoker/
 
 ### Building
 
-- `npm run build`: Build the TypeScript code with tsup
+- `npm run build`: Build the TypeScript code with tsup and copy feature files
 
 ### Running
 
-- `npm start`: Run the application
+- `npm start`: Run the application (executes Cucumber tests)
 - `npm run clean`: Clean up build artifacts (dist, build, coverage directories)
 
 ## Modern TypeScript Features
@@ -83,17 +86,19 @@ This project follows these TypeScript best practices and uses modern features:
 5. **Error handling**: Use proper error handling with typed errors
 6. **Module structure**: Organize code into modules with clear responsibilities
 7. **Code formatting**: Consistent code style with ESLint and Prettier
-8. **Testing**: Unit tests with Vitest
+8. **Testing**: Unit tests with Vitest and BDD with Cucumber
 
 ## Development Workflow
 
 1. Write code in the `src` directory
 2. Write unit tests in `test` directory with Vitest
-3. Run `npm run lint` to check for code quality issues
-4. Run `npm run format` to format code with Prettier
-5. Run `npm test` to run unit tests
-6. Run `npm run build` to build the project
-7. Run `npm start` to run the application
+3. Write BDD specifications in `features` with Cucumber
+4. Write step definitions in `features/step_definitions`
+5. Run `npm run lint` to check for code quality issues
+6. Run `npm run format` to format code with Prettier
+7. Run `npm test` to run unit tests
+8. Run `npm run build` to build the project
+9. Run `npm start` to run the application and execute Cucumber tests
 
 ## Project Configuration
 
@@ -103,6 +108,7 @@ This project follows these TypeScript best practices and uses modern features:
 - **Prettier**: Consistent code formatting with modern defaults
 - **tsup**: Modern TypeScript bundling with ESM support
 - **Vitest**: Unit testing with fast execution and built-in coverage reporting
+- **Cucumber**: BDD testing with feature files and step definitions
 - **GitHub Repository**: [github.com/fabianopinto/smoker](https://github.com/fabianopinto/smoker)
 
 ## Known Issues and Troubleshooting
@@ -111,16 +117,24 @@ This project follows these TypeScript best practices and uses modern features:
 
 - **Exit Code 130**: Commands like `npm run test`, `npm run build` and `npm start` may terminate with exit code 130. This is related to signal termination (SIGINT) in the interaction between ESM modules and Node.js.
 
+- **Module Resolution Errors**: When encountering `ERR_MODULE_NOT_FOUND` errors with Cucumber or Vitest, this is typically due to ESM module resolution issues.
+
+- **Path Resolution**: Cucumber may have trouble resolving paths to feature files or step definitions when running from different directories.
+
 ### Workarounds
 
 - Use the correct Node.js version specified in `.nvmrc` (v22.14.0)
 - For direct execution: `node --loader=ts-node/esm src/index.ts`
+- For Cucumber tests: `npx cucumber-js` with appropriate parameters
+- Ensure all import paths use proper ESM syntax (with file extensions where needed)
 
 ### Debugging Tips
 
 - Run build with verbose logging: `npm run build -- --verbose`
+- Add console.log statements to debug path resolution issues
 - Check the output directory structure to ensure files are being copied correctly
 - Review module configuration in `tsconfig.json` and bundling options in `tsup.config.ts`
+- For step definition issues, check that the glob patterns in `src/index.ts` are correctly pointing to your step files
 
 ## License
 
