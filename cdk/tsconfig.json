@@ -1,0 +1,20 @@
+{
+  "compilerOptions": {
+    "target": "es2022",
+    "module": "commonjs",
+    "typeRoots": ["./node_modules/@types"],
+    "declaration": true,
+    "inlineSourceMap": true,
+    "noEmit": true,
+    "outDir": "dist",
+    "inlineSources": true,
+    "strict": true,
+    "noImplicitAny": true,
+    "strictNullChecks": true,
+    "noImplicitThis": true,
+    "alwaysStrict": true,
+    "noImplicitReturns": true,
+    "skipLibCheck": true
+  },
+  "include": ["lib/**/*", "bin/**/*"]
+}

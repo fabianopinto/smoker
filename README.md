@@ -2,7 +2,9 @@
 
 [![CI](https://github.com/fabianopinto/smoker/actions/workflows/ci.yml/badge.svg)](https://github.com/fabianopinto/smoker/actions/workflows/ci.yml)
 
-A smoke testing framework with BDD support through Cucumber.js, unit testing with Vitest, and modern TypeScript best practices. This project implements the Cucumber.js World pattern for state management between steps and a configuration system for flexible test parameters. It serves as a skeleton for building robust test suites with behavior-driven development.
+A smoke testing framework designed to test external systems with BDD support through Cucumber.js. Built with modern TypeScript best practices and deployable as an AWS Lambda function, this framework allows you to run smoke tests against any target system either locally or in the cloud.
+
+This project implements the Cucumber.js World pattern for state management between test steps and provides a flexible configuration system for test parameters. **The BDD feature files are intended to test external target systems**, not the framework itself, which is fully tested with its own unit and integration tests.
 
 ## Project Structure
 
@@ -104,7 +106,7 @@ This project follows these TypeScript best practices and uses modern features:
 
 This project implements advanced Cucumber.js concepts:
 
-1. **World Pattern**: Custom World object for maintaining state between steps (fully tested)
+1. **World Pattern**: Custom World object for maintaining state between steps
 2. **Configuration System**: Flexible configuration system for test parameters
 3. **Interface-based Design**: TypeScript interfaces for World objects
 4. **Step Definition Structure**: Well-organized step definitions with proper typing
@@ -113,14 +115,14 @@ This project implements advanced Cucumber.js concepts:
 ## Development Workflow
 
 1. Write code in the `src` directory
-2. Write unit tests in `test` directory with Vitest
-3. Write BDD specifications in `features` with Cucumber
-4. Write step definitions in `features/step_definitions`
+2. Write unit tests in `test` directory with Vitest to test the framework components
+3. Write BDD specifications in `features` with Cucumber to test your target systems
+4. Write step definitions in `features/step_definitions` that interact with your target systems
 5. Run `npm run lint` to check for code quality issues
 6. Run `npm run format` to format code with Prettier
-7. Run `npm test` to run unit tests
+7. Run `npm test` to run unit tests for the framework itself
 8. Run `npm run build` to build the project
-9. Run `npm start` to run the application and execute Cucumber tests
+9. Run `npm start` to run the application and execute smoke tests against target systems
 
 ## Project Configuration
 
@@ -157,6 +159,52 @@ This project implements advanced Cucumber.js concepts:
 - Check the output directory structure to ensure files are being copied correctly
 - Review module configuration in `tsconfig.json` and bundling options in `tsup.config.ts`
 - For step definition issues, check that the glob patterns in `src/index.ts` are correctly pointing to your step files
+
+## AWS Lambda Deployment
+
+This project can be deployed as an AWS Lambda function to run smoke tests in the cloud. The project includes AWS CDK integration for infrastructure as code deployment.
+
+### Deployment Options
+
+The project uses AWS CDK for deployment with GitHub Actions CI/CD integration:
+
+1. **Local Deployment**: Use npm scripts to deploy directly from your machine
+2. **CI/CD Pipeline**: Automatic deployment via GitHub Actions when pushing to main branch
+
+### Environment Configurations
+
+The CDK infrastructure supports different environments:
+
+- **dev**: 1GB memory, 5 minute timeout, one week log retention, no alarms
+- **test**: 1.5GB memory, 10 minute timeout, two weeks log retention, with alarms
+- **prod**: 2GB memory, 15 minute timeout, one month log retention, with alarms
+
+### Deployment Process
+
+1. **Setup AWS Credentials**:
+
+   ```bash
+   aws configure
+   ```
+
+2. **Bootstrap AWS Environment** (first time only):
+
+   ```bash
+   npm run cdk:bootstrap
+   ```
+
+3. **Deploy to AWS**:
+
+   ```bash
+   npm run deploy:prod
+   ```
+
+4. **View Deployment Status**:
+   ```bash
+   npm run cdk:diff
+   ```
+
+For more details on AWS Lambda deployment and configuration, see [src/README.md](src/README.md).
 
 ## License
 

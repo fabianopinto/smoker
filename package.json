@@ -1,6 +1,6 @@
 {
   "name": "smoker",
-  "version": "0.1.0",
+  "version": "0.2.0",
   "scripts": {
     "check": "tsc",
     "lint": "eslint",
@@ -12,6 +12,12 @@
     "postbuild": "find features -name '*.feature' -exec cp --parents {} dist \\;",
     "prestart": "npm run build",
     "start": "node dist/src/index.cjs",
+    "cdk:bootstrap": "npm run bootstrap --prefix cdk",
+    "cdk:synth": "npm run synth --prefix cdk",
+    "cdk:diff": "npm run diff --prefix cdk",
+    "cdk:deploy": "npm run deploy --prefix cdk",
+    "deploy:prepare": "npm run clean && npm run build",
+    "deploy:prod": "npm run deploy:prepare && npm run cdk:deploy",
     "clean": "rm -rf dist build coverage .tsbuildinfo .vitest *.log"
   },
   "keywords": [
