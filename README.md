@@ -2,7 +2,7 @@
 
 [![CI](https://github.com/fabianopinto/smoker/actions/workflows/ci.yml/badge.svg)](https://github.com/fabianopinto/smoker/actions/workflows/ci.yml)
 
-A smoke testing framework with BDD support through Cucumber.js, unit testing with Vitest, and modern TypeScript best practices. This project serves as a skeleton for building robust test suites with behavior-driven development.
+A smoke testing framework with BDD support through Cucumber.js, unit testing with Vitest, and modern TypeScript best practices. This project implements the Cucumber.js World pattern for state management between steps and a configuration system for flexible test parameters. It serves as a skeleton for building robust test suites with behavior-driven development.
 
 ## Project Structure
 
@@ -10,6 +10,8 @@ A smoke testing framework with BDD support through Cucumber.js, unit testing wit
 smoker/
 ├── src/                # Source code
 │   ├── lib/            # Library code (utility functions)
+│   ├── support/         # Configuration system
+│   ├── world/           # Cucumber.js World implementation
 │   └── index.ts        # Main entry point
 ├── test/               # Unit tests
 │   └── lib/            # Unit tests for library code
@@ -89,6 +91,15 @@ This project follows these TypeScript best practices and uses modern features:
 6. **Module structure**: Organize code into modules with clear responsibilities
 7. **Code formatting**: Consistent code style with ESLint and Prettier
 8. **Testing**: Unit tests with Vitest and BDD with Cucumber
+
+## Cucumber.js Implementation
+
+This project implements advanced Cucumber.js concepts:
+
+1. **World Pattern**: Custom World object for maintaining state between steps
+2. **Configuration System**: Flexible configuration system for test parameters
+3. **Interface-based Design**: TypeScript interfaces for World objects
+4. **Step Definition Structure**: Well-organized step definitions with proper typing
 
 ## Development Workflow
 
