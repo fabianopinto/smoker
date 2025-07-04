@@ -1,5 +1,7 @@
 # Cucumber.js Implementation Guide
 
+> **Testing Status**: All components have 100% test coverage with both unit and integration tests.
+
 ## Project Structure
 
 ```
@@ -75,3 +77,32 @@ export function dummy(target: string): string {
 - **Configuration**: Settings can be changed during test execution
 - **Type safety**: TypeScript interfaces ensure proper typing
 - **Reusability**: World and configuration patterns can be reused across features
+
+## Testing Strategy
+
+### Unit Testing
+
+Unit tests focus on testing individual components in isolation:
+
+- **SmokeWorld Unit Tests**: Test all methods independently
+  - Mock external dependencies (dummy function)
+  - Test edge cases including non-string inputs
+  - Verify state management between method calls
+  - Mock Cucumber's setWorldConstructor for isolated testing
+
+### Integration Testing
+
+Integration tests verify that components work together correctly:
+
+- **SmokeWorld Integration Tests**: Test the complete workflow
+  - Use real dependencies instead of mocks
+  - Verify end-to-end behavior
+  - Test with actual configuration system
+
+### Test Coverage
+
+All components have 100% test coverage for:
+- Statements
+- Branches
+- Functions
+- Lines

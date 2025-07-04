@@ -68,7 +68,15 @@ smoker/
 
 - `npm test`: Run Vitest tests
 - `npm run test:watch`: Run Vitest tests in watch mode
-- `npm run test:coverage`: Run tests with coverage reporting
+- `npm run test:coverage`: Run tests with coverage reporting (100% coverage)
+
+#### Test Structure
+
+- **Unit tests**: Located in `/test` directory, mirroring the source structure
+  - Tests for World objects in `/test/world`
+  - Tests for libraries in `/test/lib`
+- **Integration tests**: Named with `.integration.test.ts` suffix
+- **BDD tests**: Located in `/features` directory (Cucumber.js)
 
 ### Building
 
@@ -90,16 +98,17 @@ This project follows these TypeScript best practices and uses modern features:
 5. **Error handling**: Use proper error handling with typed errors
 6. **Module structure**: Organize code into modules with clear responsibilities
 7. **Code formatting**: Consistent code style with ESLint and Prettier
-8. **Testing**: Unit tests with Vitest and BDD with Cucumber
+8. **Testing**: Comprehensive unit tests with Vitest (100% coverage) and BDD with Cucumber
 
 ## Cucumber.js Implementation
 
 This project implements advanced Cucumber.js concepts:
 
-1. **World Pattern**: Custom World object for maintaining state between steps
+1. **World Pattern**: Custom World object for maintaining state between steps (fully tested)
 2. **Configuration System**: Flexible configuration system for test parameters
 3. **Interface-based Design**: TypeScript interfaces for World objects
 4. **Step Definition Structure**: Well-organized step definitions with proper typing
+5. **Testing Strategy**: Complete test coverage with both unit and integration tests
 
 ## Development Workflow
 

@@ -27,9 +27,11 @@ export class SmokeWorld extends World implements SmokeWorldInterface {
 
   /**
    * Sets the target
+   * Converts any input to string for consistent behavior
    */
   setTarget(target: string): void {
-    this.target = target;
+    // Explicitly convert target to string to handle non-string inputs
+    this.target = String(target);
   }
 
   /**

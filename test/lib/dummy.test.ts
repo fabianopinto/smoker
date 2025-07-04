@@ -6,7 +6,7 @@ describe("Dummy function", () => {
   // Store original config to restore after tests
   let originalPhrase: string;
   let originalTemplate: string;
-  
+
   beforeEach(() => {
     // Store original values
     const config = getConfig();
@@ -18,7 +18,7 @@ describe("Dummy function", () => {
     // Restore original configuration
     updateConfig({
       defaultPhrase: originalPhrase,
-      phraseTemplate: originalTemplate
+      phraseTemplate: originalTemplate,
     });
   });
 
@@ -52,7 +52,7 @@ describe("Dummy function", () => {
   it("should handle both configuration changes at once", () => {
     updateConfig({
       defaultPhrase: "Testing",
-      phraseTemplate: "{phrase} | {target}"
+      phraseTemplate: "{phrase} | {target}",
     });
     const result = dummy("System");
     expect(result).toBe("Testing | System");
