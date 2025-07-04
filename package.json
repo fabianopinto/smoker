@@ -1,6 +1,6 @@
 {
   "name": "smoker",
-  "version": "0.2.0",
+  "version": "0.4.0",
   "scripts": {
     "check": "tsc",
     "lint": "eslint",
@@ -14,8 +14,9 @@
     "start": "node dist/src/index.cjs",
     "cdk:bootstrap": "npm run bootstrap --prefix cdk",
     "cdk:synth": "npm run synth --prefix cdk",
-    "cdk:diff": "npm run diff --prefix cdk",
     "cdk:deploy": "npm run deploy --prefix cdk",
+    "cdk:diff": "npm run diff --prefix cdk",
+    "cdk:destroy": "npm run destroy --prefix cdk",
     "deploy:prepare": "npm run clean && npm run build",
     "deploy:prod": "npm run deploy:prepare && npm run cdk:deploy",
     "clean": "rm -rf dist build coverage .tsbuildinfo .vitest *.log"
@@ -42,6 +43,7 @@
     "vitest": "^3.2.4"
   },
   "dependencies": {
+    "@aws-sdk/client-s3": "^3.842.0",
     "@cucumber/cucumber": "^11.3.0"
   }
 }

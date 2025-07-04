@@ -11,16 +11,16 @@ This project implements the Cucumber.js World pattern for state management betwe
 ```
 smoker/
 ├── src/                # Source code
-│   ├── lib/            # Library code (utility functions)
+│   ├── lib/            # Library code (utility functions - includes dummy sample code)
 │   ├── support/        # Configuration system
 │   ├── world/          # Cucumber.js World implementation
 │   └── index.ts        # Main entry point with Lambda handler
 ├── test/               # Unit tests for framework components
 │   ├── lib/            # Unit tests for library code
 │   └── world/          # Unit tests for World implementation
-├── features/           # Cucumber BDD features for target systems
-│   ├── *.feature       # Feature files in Gherkin syntax
-│   └── step_definitions/ # Step definitions for target systems
+├── features/           # Cucumber BDD features for target systems (includes dummy sample feature)
+│   ├── *.feature       # Feature files in Gherkin syntax (sample file can be removed)
+│   └── step_definitions/ # Step definitions for target systems (includes sample definitions)
 ├── cdk/                # AWS CDK infrastructure as code
 │   ├── bin/            # CDK app entry point
 │   │   └── smoker-cdk.ts  # CDK application definition
@@ -29,12 +29,12 @@ smoker/
 │   ├── cdk.json        # CDK configuration
 │   └── package.json    # CDK dependencies and scripts
 ├── dist/               # Compiled JavaScript output
-├── eslint.config.mjs   # ESLint configuration (using flat config)
-├── .prettierrc         # Prettier configuration
-├── tsup.config.ts      # Build configuration
-├── vitest.config.mts   # Test configuration
 ├── package.json        # Project dependencies and scripts
 ├── tsconfig.json       # TypeScript configuration
+├── tsup.config.ts      # Build configuration
+├── eslint.config.mjs   # ESLint configuration (using flat config)
+├── vitest.config.mts   # Test configuration
+├── .prettierrc         # Prettier configuration
 ├── .nvmrc              # Node version configuration
 ├── .gitignore          # Git ignore file
 └── README.md           # Project documentation
@@ -47,6 +47,7 @@ smoker/
 - Node.js (v22.14.0 or compatible version)
 - npm (v10 or higher)
 - AWS CLI (for Lambda deployment)
+- JSON configuration files (optional, for test configuration)
 
 ### Installation
 
@@ -65,7 +66,7 @@ smoker/
    For CDK deployment, also install CDK dependencies:
 
    ```bash
-   cd cdk && npm install
+   npm install --prefix cdk
    ```
 
 3. Verify the installation:
@@ -92,7 +93,120 @@ smoker/
 
 1. Write feature files in the `features` directory using Gherkin syntax
 2. Implement step definitions in `features/step_definitions` that interact with your target systems
-3. Configure the target system details in environment variables or configuration files
+3. Configure the target system details using the flexible configuration system
+
+### Configuration System
+
+Smoker includes a powerful configuration system that supports various data types and multiple configuration sources:
+
+#### Configuration Data Types
+
+The configuration system supports:
+
+- Strings, numbers, and boolean values
+- Arrays of values
+- Nested objects with any level of hierarchy
+- Any combination of the above
+
+#### Configuration Methods
+
+You can provide configuration values in several ways:
+
+1. **JSON Configuration Files**
+
+   Create JSON files to store configuration values:
+
+   ```json
+   // config/test-env.json
+   {
+     "apiUrl": "https://test-api.example.com",
+     "credentials": {
+       "username": "test-user",
+       "password": "test-password"
+     },
+     "timeouts": {
+       "request": 3000,
+       "browser": 10000
+     }
+   }
+   ```
+
+   Load configuration files in your code:
+
+   ```typescript
+   import { addConfigurationFile, loadConfigurations } from "./support/config";
+
+   // Add configuration files
+   addConfigurationFile("./config/base.json");
+   addConfigurationFile("./config/test-env.json");
+
+   // Load and merge all configurations
+   await loadConfigurations();
+   ```
+
+2. **In-code Configuration Objects**
+
+   Provide configuration values directly in code:
+
+   ```typescript
+   import { addConfigurationObject, loadConfigurations } from "./support/config";
+
+   // Add configuration object
+   addConfigurationObject({
+     apiUrl: process.env.API_URL || "https://default-api.example.com",
+     debug: process.env.DEBUG === "true",
+     retries: 3,
+   });
+
+   // Load and merge configurations
+   await loadConfigurations();
+   ```
+
+3. **Lambda Event Configuration**
+
+   When running as an AWS Lambda function, provide configuration in the event object:
+
+   ```json
+   {
+     "paths": ["dist/features/api/**/*.feature"],
+     "tags": "@api and not @wip",
+     "config": {
+       "apiUrl": "https://api.example.com",
+       "timeout": 5000
+     },
+     "configFiles": ["./config/prod-env.json", "s3://my-bucket/configs/prod-settings.json"]
+   }
+   ```
+
+   Note that configuration files can be loaded from S3 using the `s3://bucket-name/path/to/file.json` format.
+
+#### Accessing Configuration
+
+In your step definitions and test code, access configuration values:
+
+```typescript
+import { getConfig, getValue } from "../support/config";
+
+Given("I connect to the API", function () {
+  // Get the entire configuration
+  const config = getConfig();
+  this.apiClient = new ApiClient(config.apiUrl, config.timeout);
+});
+
+When("I access a protected resource", async function () {
+  // Get nested configuration values with dot notation
+  const username = getValue("credentials.username");
+  const password = getValue("credentials.password");
+
+  // Use default values for missing configuration
+  const timeout = getValue("timeouts.request", 5000);
+
+  await this.apiClient.login(username, password);
+  this.response = await this.apiClient.getResource("/protected", { timeout });
+});
+```
+
+For more detailed technical documentation about the configuration system, see [src/README.md](src/README.md).
 
 ### Available Scripts
 
@@ -100,7 +214,7 @@ smoker/
 
 - `npm test`: Run Vitest tests for the framework itself
 - `npm run test:watch`: Run Vitest tests in watch mode
-- `npm run test:coverage`: Run tests with coverage reporting (100% coverage)
+- `npm run test:coverage`: Run tests with coverage reporting
 
 #### Development
 
@@ -189,30 +303,30 @@ The framework can be deployed as an AWS Lambda function to run smoke tests in th
 2. **Bootstrap AWS Environment** (first time only):
 
    ```bash
-   cd cdk && npm run bootstrap
+   npm run cdk:bootstrap
    ```
 
 3. **Deploy to AWS**:
 
    ```bash
-   cd cdk && npm run deploy
+   npm run cdk:deploy
    ```
 
    For production deployment without approval prompts:
 
    ```bash
-   cd cdk && npm run deploy:prod
+   npm run deploy:prod
    ```
 
 4. **View Deployment Status**:
 
    ```bash
-   cd cdk && npm run diff
+   npm run cdk:diff
    ```
 
 5. **Remove Deployment**:
    ```bash
-   cd cdk && npm run destroy
+   npm run cdk:destroy
    ```
 
 ### Environment Configurations
@@ -240,6 +354,80 @@ Customize test execution with Lambda event parameters:
 ```
 
 For more details, see [src/README.md](src/README.md).
+
+### Lambda Event Structure
+
+The Lambda handler accepts an event with optional parameters to customize test execution:
+
+```json
+{
+  "paths": ["dist/features/smoke/**/*.feature"],
+  "formats": ["json"],
+  "tags": "@smoke and not @wip"
+}
+```
+
+#### Setting Environment Variables
+
+```json
+{
+  "environment": {
+    "API_URL": "https://api.example.com",
+    "DEBUG": "true",
+    "TIMEOUT": "5000"
+  }
+}
+```
+
+#### Configuration Options
+
+The Lambda event supports several configuration options:
+
+```json
+{
+  "config": {
+    "apiUrl": "https://api.example.com",
+    "credentials": {
+      "username": "lambda-user",
+      "password": "lambda-password"
+    },
+    "timeouts": {
+      "request": 3000,
+      "browser": 10000
+    }
+  },
+  "configFiles": ["./config/base.json", "s3://my-bucket/environments/prod.json"],
+  "configObjects": [
+    {
+      "region": "us-west-2",
+      "debug": true
+    }
+  ]
+}
+```
+
+##### Using S3 Configuration Files
+
+You can load configuration from S3 by providing URLs in the `configFiles` array using the format: `s3://bucket-name/path/to/file.json`. The Lambda function must have appropriate IAM permissions to access these S3 objects.
+
+##### Removing Configuration Properties
+
+You can remove configuration properties by setting them to `null` in a configuration object or file that is loaded later in the sequence:
+
+```json
+{
+  "configObjects": [
+    {
+      "debug": true,
+      "logging": { "level": "debug", "format": "json" }
+    },
+    {
+      "logging": null, // This removes the entire logging object
+      "debug": null // This removes the debug property
+    }
+  ]
+}
+```
 
 ## Troubleshooting
 

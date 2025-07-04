@@ -7,6 +7,12 @@
  */
 
 import { loadConfiguration, runCucumber } from "@cucumber/cucumber/api";
+import {
+  addConfigurationFile,
+  addConfigurationObject,
+  type ConfigObject,
+  loadConfigurations,
+} from "./support/config";
 
 /**
  * AWS Lambda event type definition
@@ -17,6 +23,11 @@ export interface LambdaEvent {
   formats?: string[];
   tags?: string;
   environment?: Record<string, string>;
+
+  // Configuration options
+  configFiles?: string[]; // Paths to JSON configuration files
+  configObjects?: ConfigObject[]; // Configuration objects to be loaded directly
+  config?: ConfigObject; // Single configuration object
 }
 
 /**
@@ -44,6 +55,9 @@ export async function main(
         process.env[key] = value;
       });
     }
+
+    // Load configuration from various sources if provided
+    await loadTestConfigurations(event);
 
     // Load configuration with options from event or defaults
     const { runConfiguration } = await loadConfiguration({
@@ -122,6 +136,41 @@ export async function handler(event: LambdaEvent, context: LambdaContext): Promi
         error: error instanceof Error ? error.message : String(error),
       }),
     };
+  }
+}
+
+/**
+ * Load test configurations from various sources
+ * @param event Lambda event object with configuration sources
+ */
+async function loadTestConfigurations(event: LambdaEvent): Promise<void> {
+  try {
+    // Add configuration files if provided
+    if (event.configFiles && Array.isArray(event.configFiles)) {
+      console.log(`Loading configuration from ${event.configFiles.length} files`);
+      event.configFiles.forEach((filePath) => {
+        addConfigurationFile(filePath);
+      });
+    }
+
+    // Add configuration objects if provided
+    if (event.configObjects && Array.isArray(event.configObjects)) {
+      console.log(`Loading ${event.configObjects.length} configuration objects`);
+      event.configObjects.forEach((configObject) => {
+        addConfigurationObject(configObject);
+      });
+    }
+
+    // Add single configuration object if provided
+    if (event.config) {
+      console.log("Loading configuration from event.config");
+      addConfigurationObject(event.config);
+    }
+
+    // Load all configurations from added sources
+    await loadConfigurations();
+  } catch (error) {
+    console.error("Error loading test configurations:", error);
   }
 }
 

@@ -4,6 +4,34 @@
 
 Smoker is a specialized framework for conducting smoke tests against **external target systems**. The framework itself is thoroughly tested, while the BDD features you create are meant to test other systems. Think of Smoker as a tool that helps you verify the basic functionality of your production systems.
 
+## Sample Code
+
+This framework includes sample/dummy code to demonstrate usage patterns:
+
+- **Dummy Feature File**: The `features/*.feature` file is a sample demonstrating Gherkin syntax and can be replaced with your actual test scenarios
+- **Sample Step Definitions**: The `features/step_definitions/*.steps.ts` files contain example step implementations that should be replaced with your actual test code
+- **Dummy Library Code**: The `src/lib/dummy.ts` file is a placeholder demonstrating the use of configuration and can be removed or replaced
+
+All these sample components are provided for demonstration purposes and should be replaced or removed when implementing real smoke tests. They are fully tested to show proper testing patterns but are not intended for production use.
+
+### Replacing Sample Code with Real Implementations
+
+1. **Feature Files**:
+   - Remove the sample feature file in the `features` directory
+   - Create your own `.feature` files with scenarios specific to your target systems
+   - Organize features into subdirectories by target system or functionality
+
+2. **Step Definitions**:
+   - Remove the sample step definitions in `features/step_definitions`
+   - Create your own step definition files with implementation logic
+   - Use the `SmokeWorld` pattern demonstrated in the examples
+   - Leverage the configuration system for target-specific settings
+
+3. **Library Code**:
+   - Remove `src/lib/dummy.ts` and its associated tests
+   - Create your own utility modules under `src/lib` as needed
+   - Organize code based on functionality or target systems
+
 ## Project Structure
 
 ```
@@ -36,28 +64,173 @@ Given("a target named {string}", function (this: SmokeWorld, userTarget: string)
 
 ## Configuration Pattern
 
-The configuration system provides a way to manage settings used across the application:
+The configuration system provides a robust way to manage settings used across the application:
 
 - Singleton pattern ensures consistent configuration throughout the test run
+- Support for multiple configuration sources (files, objects, Lambda event)
+- Deep merging of configuration values from multiple sources
+- Nested configuration properties with dot notation access
+- Type-safe configuration access with TypeScript
 - Configuration values can be modified during test execution
-- Step definitions can change configuration values
-- Business logic accesses configuration through helper functions
+- Graceful error handling with fallbacks to default values
 
-### Usage in Features
+### Configuration Value Types
+
+The configuration system supports various types of data:
+
+```typescript
+// Supported configuration value types
+export type ConfigValue = string | number | boolean | ConfigObject | ConfigValue[] | null;
+
+// Example configuration with multiple data types
+const config = {
+  // Core BDD settings
+  defaultPhrase: "Smoking", // String
+  phraseTemplate: "{phrase} {target}!", // String
+
+  // Custom settings
+  apiUrl: "https://api.example.com", // String
+  timeout: 5000, // Number
+  debug: true, // Boolean
+  flags: ["feature1", "feature2"], // Array
+  credentials: {
+    // Nested object
+    username: "testuser",
+    password: "password123",
+  },
+};
+```
+
+### Configuration Sources
+
+The system supports multiple configuration sources that can be loaded and merged:
+
+1. **File-based Configuration**:
+   Load settings from local JSON files
+
+   ```typescript
+   // Load from a single file
+   addConfigurationFile("/path/to/config.json");
+
+   // Load from multiple files
+   loadConfigurationFiles(["./config/base.json", "./config/environment.json"]);
+   ```
+
+2. **S3-based Configuration**:
+   Load settings from Amazon S3 using s3:// URL format
+
+   ```typescript
+   // Load from S3 with default region
+   addConfigurationFile("s3://my-bucket/path/to/config.json");
+
+   // Load from S3 with specific region
+   addS3ConfigurationFile("s3://my-bucket/path/to/config.json", "us-west-2");
+
+   // Load multiple files including S3 URLs
+   loadConfigurationFiles(["./config/base.json", "s3://my-bucket/environments/prod-config.json"]);
+   ```
+
+3. **Object-based Configuration**:
+   Load settings directly from JavaScript objects
+
+   ```typescript
+   // Add configuration from an object
+   addConfigurationObject({
+     apiUrl: "https://api.example.com",
+     credentials: {
+       username: "apiuser",
+       password: "secret",
+     },
+   });
+   ```
+
+4. **Lambda Event Configuration**:
+   Load settings from Lambda event parameters
+
+   ```json
+   {
+     "paths": ["dist/features/api/**/*.feature"],
+     "tags": "@api and not @wip",
+     "config": {
+       "apiUrl": "https://api.example.com",
+       "timeout": 5000
+     },
+     "configFiles": ["./config/test-env.json", "s3://my-bucket/configs/prod.json"]
+   }
+   ```
+
+### Accessing Configuration
+
+#### Basic Configuration Access
+
+```typescript
+// Get the entire configuration
+const config = getConfig();
+console.log(config.apiUrl); // "https://api.example.com"
+
+// Update configuration
+updateConfig({
+  apiUrl: "https://updated-api.example.com",
+});
+```
+
+#### Accessing Nested Configuration
+
+```typescript
+// Access nested configuration with dot notation
+const username = getValue("credentials.username", "default");
+console.log(username); // "testuser"
+
+// Access with default value if path doesn't exist
+const missing = getValue("non.existent.path", "default value");
+console.log(missing); // "default value"
+
+// Access array values
+const firstEndpoint = getValue("endpoints.0");
+console.log(firstEndpoint); // First item in the endpoints array
+
+// Handle null values safely
+const valueOrDefault = getValue("possibly.null.value", "default for null");
+```
+
+### Usage in BDD Features
 
 ```gherkin
-Scenario: Phrase with custom phrase text
-  Given the phrase is set to "Testing"
-  And a target named "System"
-  When I generate a phrase
-  Then I should get "Testing System!"
+Scenario: API smoke test with configuration
+  Given the API URL is "https://api.example.com"
+  And the request timeout is 3000
+  When I send a GET request to the endpoint "/health"
+  Then I should receive a 200 status code
 ```
+
+### Error Handling
+
+The configuration system is designed with robust error handling capabilities:
+
+- **Invalid JSON**: When loading from files with invalid JSON, the system logs errors and falls back to empty objects
+- **Missing Files**: When configuration files don't exist, the system handles this gracefully
+- **Validation**: Missing required properties are reported but the system continues with default values
+- **Type Safety**: Incorrect property types are handled with appropriate type coercion when possible
+- **Invalid S3 URLs**: Malformed S3 URLs are detected and logged without disrupting execution
+- **Null/Undefined Sources**: The system properly handles null or undefined configuration sources
 
 ### Usage in Step Definitions
 
 ```typescript
-Given("the phrase is set to {string}", function (phrase: string) {
-  updateConfig({ defaultPhrase: phrase });
+Given("the API URL is {string}", function (url: string) {
+  updateConfig({ apiUrl: url });
+});
+
+Given("the request timeout is {int}", function (timeout: number) {
+  updateConfig({ timeout });
+});
+
+When("I send a GET request to the endpoint {string}", async function (endpoint: string) {
+  const config = getConfig();
+  const response = await axios.get(`${config.apiUrl}${endpoint}`, {
+    timeout: config.timeout,
+  });
+  this.response = response;
 });
 ```
 
@@ -70,14 +243,60 @@ export function dummy(target: string): string {
     .replace("{phrase}", config.defaultPhrase)
     .replace("{target}", target);
 }
+
+// Using getValue for nested properties with default values
+export async function makeApiRequest(endpoint: string): Promise<any> {
+  const baseUrl = getValue("api.baseUrl", "https://default-api.com");
+  const timeout = getValue("api.timeout", 5000);
+  const headers = getValue("api.headers", {});
+
+  return axios.get(`${baseUrl}${endpoint}`, { timeout, headers });
+}
+```
+
+### Removing Configuration Properties
+
+You can remove specific properties or entire branches of the configuration tree by setting them to `null` in a later configuration source:
+
+```typescript
+// Initial configuration
+updateConfig({
+  apiUrl: "https://api.example.com",
+  debug: true,
+  logging: {
+    level: "info",
+    format: "json",
+    target: "console",
+  },
+});
+
+// Remove properties by setting them to null
+addConfigurationObject({
+  debug: null, // Removes the debug property entirely
+  logging: {
+    format: null, // Removes only the format property
+    target: null, // Removes only the target property
+  },
+});
+
+// After merging, the configuration will be:
+// {
+//   apiUrl: "https://api.example.com",
+//   logging: {
+//     level: "info"     // Only this property remains
+//   }
+// }
 ```
 
 ## Benefits
 
 - **Separation of concerns**: Business logic in src/lib, World in src/world, Configuration in src/support
 - **State management**: World object maintains state between steps
-- **Configuration**: Settings can be changed during test execution
+- **Multiple sources**: Configuration from files, S3, objects and Lambda events
+- **Environment-aware**: Easy to switch between dev, test, and prod configurations
+- **Property removal**: Ability to remove unwanted properties with null values
 - **Type safety**: TypeScript interfaces ensure proper typing
+- **Flexible access**: Dot notation for nested property access with default values
 - **Reusability**: World and configuration patterns can be reused across features
 
 ## Testing Strategy
@@ -103,12 +322,19 @@ Integration tests verify that components work together correctly:
 
 ### Test Coverage
 
-All components have 100% test coverage for:
+The codebase has high test coverage across components:
 
-- Statements
-- Branches
-- Functions
-- Lines
+- ~95% Statement coverage
+- ~94% Branch coverage
+- 100% Function coverage
+- ~95% Line coverage
+
+This comprehensive testing approach ensures robustness while allowing for pragmatic trade-offs in edge cases. The test suite includes dedicated validation tests that verify:
+
+- Proper handling of missing configuration properties
+- Correct type coercion for non-string values
+- Graceful handling of null/undefined configurations
+- Proper error reporting for configuration issues
 
 ## AWS Lambda Implementation
 
