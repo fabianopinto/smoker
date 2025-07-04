@@ -12,14 +12,22 @@ This project implements the Cucumber.js World pattern for state management betwe
 smoker/
 ├── src/                # Source code
 │   ├── lib/            # Library code (utility functions)
-│   ├── support/         # Configuration system
-│   ├── world/           # Cucumber.js World implementation
-│   └── index.ts        # Main entry point
-├── test/               # Unit tests
-│   └── lib/            # Unit tests for library code
-├── features/           # Cucumber BDD features
+│   ├── support/        # Configuration system
+│   ├── world/          # Cucumber.js World implementation
+│   └── index.ts        # Main entry point with Lambda handler
+├── test/               # Unit tests for framework components
+│   ├── lib/            # Unit tests for library code
+│   └── world/          # Unit tests for World implementation
+├── features/           # Cucumber BDD features for target systems
 │   ├── *.feature       # Feature files in Gherkin syntax
-│   └── step_definitions/ # Step definitions for Cucumber
+│   └── step_definitions/ # Step definitions for target systems
+├── cdk/                # AWS CDK infrastructure as code
+│   ├── bin/            # CDK app entry point
+│   │   └── smoker-cdk.ts  # CDK application definition
+│   ├── lib/            # CDK stack definitions
+│   │   └── smoker-stack.ts # Lambda function stack
+│   ├── cdk.json        # CDK configuration
+│   └── package.json    # CDK dependencies and scripts
 ├── dist/               # Compiled JavaScript output
 ├── eslint.config.mjs   # ESLint configuration (using flat config)
 ├── .prettierrc         # Prettier configuration
@@ -32,12 +40,15 @@ smoker/
 └── README.md           # Project documentation
 ```
 
-## Prerequisites
+## Quick Start
+
+### Prerequisites
 
 - Node.js (v22.14.0 or compatible version)
 - npm (v10 or higher)
+- AWS CLI (for Lambda deployment)
 
-## Installation and Setup
+### Installation
 
 1. Ensure you're using the correct Node.js version:
 
@@ -45,12 +56,16 @@ smoker/
    nvm use
    ```
 
-   Or install Node.js v22.14.0 if you don't have it.
-
 2. Install dependencies:
 
    ```bash
    npm install
+   ```
+
+   For CDK deployment, also install CDK dependencies:
+
+   ```bash
+   cd cdk && npm install
    ```
 
 3. Verify the installation:
@@ -58,73 +73,97 @@ smoker/
    npm run check
    ```
 
-## Available Scripts
+### Running Smoke Tests
 
-### Development
+1. Build the project:
+
+   ```bash
+   npm run build
+   ```
+
+2. Run smoke tests against target systems:
+   ```bash
+   npm start
+   ```
+
+## Usage
+
+### Creating Smoke Tests
+
+1. Write feature files in the `features` directory using Gherkin syntax
+2. Implement step definitions in `features/step_definitions` that interact with your target systems
+3. Configure the target system details in environment variables or configuration files
+
+### Available Scripts
+
+#### Testing Framework Components
+
+- `npm test`: Run Vitest tests for the framework itself
+- `npm run test:watch`: Run Vitest tests in watch mode
+- `npm run test:coverage`: Run tests with coverage reporting (100% coverage)
+
+#### Development
 
 - `npm run check`: Run TypeScript type checking
 - `npm run lint`: Run ESLint to check code quality
 - `npm run format`: Format code with Prettier
 
-### Testing
-
-- `npm test`: Run Vitest tests
-- `npm run test:watch`: Run Vitest tests in watch mode
-- `npm run test:coverage`: Run tests with coverage reporting (100% coverage)
-
-#### Test Structure
-
-- **Unit tests**: Located in `/test` directory, mirroring the source structure
-  - Tests for World objects in `/test/world`
-  - Tests for libraries in `/test/lib`
-- **Integration tests**: Named with `.integration.test.ts` suffix
-- **BDD tests**: Located in `/features` directory (Cucumber.js)
-
-### Building
+#### Building and Running
 
 - `npm run build`: Build the TypeScript code with tsup and copy feature files
+- `npm start`: Run smoke tests against target systems
+- `npm run clean`: Clean up build artifacts
 
-### Running
+## Framework Architecture
 
-- `npm start`: Run the application (executes Cucumber tests)
-- `npm run clean`: Clean up build artifacts (dist, build, coverage directories)
+### Core Concepts
 
-## Modern TypeScript Features
+This project implements a BDD-based smoke testing framework with these key components:
 
-This project follows these TypeScript best practices and uses modern features:
+1. **AWS Lambda Execution**: Run smoke tests in the cloud or locally
+2. **Cucumber.js Integration**: BDD approach to testing external systems
+3. **World Pattern**: Custom World object maintaining state between test steps
+4. **Configuration System**: Flexible configuration for test parameters
 
-1. **Strong typing**: Always define explicit types and avoid using `any`
-2. **Immutability**: Use `const` by default and `readonly` for properties that shouldn't change
-3. **Functional programming**: Favor pure functions and immutable data structures
+### Cucumber.js Implementation
+
+The framework uses advanced Cucumber.js patterns:
+
+1. **World Pattern**: SmokeWorld object maintains state between steps
+2. **Interface-based Design**: TypeScript interfaces for proper typing
+3. **Step Definition Structure**: Well-organized, reusable step definitions
+4. **Configuration System**: Dynamic configuration management
+
+### Test Structure
+
+- **Framework Tests**: Unit and integration tests for the framework itself
+  - Unit tests in `/test` directory (100% coverage)
+  - Integration tests with `.integration.test.ts` suffix
+- **Smoke Tests**: BDD tests targeting external systems
+  - Feature files in `/features` directory
+  - Step definitions in `/features/step_definitions`
+
+## Development Guidelines
+
+### TypeScript Best Practices
+
+1. **Strong typing**: Explicit types, avoid `any`
+2. **Immutability**: `const` by default, `readonly` for properties
+3. **Functional programming**: Pure functions and immutable data
 4. **Interface usage**: Define interfaces for object shapes
-5. **Error handling**: Use proper error handling with typed errors
-6. **Module structure**: Organize code into modules with clear responsibilities
-7. **Code formatting**: Consistent code style with ESLint and Prettier
-8. **Testing**: Comprehensive unit tests with Vitest (100% coverage) and BDD with Cucumber
+5. **Error handling**: Proper error handling with typed errors
 
-## Cucumber.js Implementation
+### Development Workflow
 
-This project implements advanced Cucumber.js concepts:
+1. Write framework code in `src/`
+2. Write unit tests in `test/` for framework components
+3. Write BDD features in `features/` for target systems
+4. Implement step definitions in `features/step_definitions/`
+5. Run quality checks: `npm run lint`, `npm run format`
+6. Test framework: `npm test`
+7. Build and run: `npm run build && npm start`
 
-1. **World Pattern**: Custom World object for maintaining state between steps
-2. **Configuration System**: Flexible configuration system for test parameters
-3. **Interface-based Design**: TypeScript interfaces for World objects
-4. **Step Definition Structure**: Well-organized step definitions with proper typing
-5. **Testing Strategy**: Complete test coverage with both unit and integration tests
-
-## Development Workflow
-
-1. Write code in the `src` directory
-2. Write unit tests in `test` directory with Vitest to test the framework components
-3. Write BDD specifications in `features` with Cucumber to test your target systems
-4. Write step definitions in `features/step_definitions` that interact with your target systems
-5. Run `npm run lint` to check for code quality issues
-6. Run `npm run format` to format code with Prettier
-7. Run `npm test` to run unit tests for the framework itself
-8. Run `npm run build` to build the project
-9. Run `npm start` to run the application and execute smoke tests against target systems
-
-## Project Configuration
+### Configuration
 
 - **ESM Modules**: Uses ES modules for modern module system
 - **TypeScript**: Configured with strict mode and modern settings (NodeNext module resolution)
@@ -135,51 +174,11 @@ This project implements advanced Cucumber.js concepts:
 - **Cucumber**: BDD testing with feature files and step definitions
 - **GitHub Repository**: [github.com/fabianopinto/smoker](https://github.com/fabianopinto/smoker)
 
-## Known Issues and Troubleshooting
-
-### Common Issues
-
-- **Exit Code 130**: Commands like `npm run test`, `npm run build` and `npm start` may terminate with exit code 130. This is related to signal termination (SIGINT) in the interaction between ESM modules and Node.js.
-
-- **Module Resolution Errors**: When encountering `ERR_MODULE_NOT_FOUND` errors with Cucumber or Vitest, this is typically due to ESM module resolution issues.
-
-- **Path Resolution**: Cucumber may have trouble resolving paths to feature files or step definitions when running from different directories.
-
-### Workarounds
-
-- Use the correct Node.js version specified in `.nvmrc` (v22.14.0)
-- For direct execution: `node --loader=ts-node/esm src/index.ts`
-- For Cucumber tests: `npx cucumber-js` with appropriate parameters
-- Ensure all import paths use proper ESM syntax (with file extensions where needed)
-
-### Debugging Tips
-
-- Run build with verbose logging: `npm run build -- --verbose`
-- Add console.log statements to debug path resolution issues
-- Check the output directory structure to ensure files are being copied correctly
-- Review module configuration in `tsconfig.json` and bundling options in `tsup.config.ts`
-- For step definition issues, check that the glob patterns in `src/index.ts` are correctly pointing to your step files
-
 ## AWS Lambda Deployment
 
-This project can be deployed as an AWS Lambda function to run smoke tests in the cloud. The project includes AWS CDK integration for infrastructure as code deployment.
+The framework can be deployed as an AWS Lambda function to run smoke tests in the cloud:
 
-### Deployment Options
-
-The project uses AWS CDK for deployment with GitHub Actions CI/CD integration:
-
-1. **Local Deployment**: Use npm scripts to deploy directly from your machine
-2. **CI/CD Pipeline**: Automatic deployment via GitHub Actions when pushing to main branch
-
-### Environment Configurations
-
-The CDK infrastructure supports different environments:
-
-- **dev**: 1GB memory, 5 minute timeout, one week log retention, no alarms
-- **test**: 1.5GB memory, 10 minute timeout, two weeks log retention, with alarms
-- **prod**: 2GB memory, 15 minute timeout, one month log retention, with alarms
-
-### Deployment Process
+### CDK Deployment
 
 1. **Setup AWS Credentials**:
 
@@ -190,21 +189,78 @@ The CDK infrastructure supports different environments:
 2. **Bootstrap AWS Environment** (first time only):
 
    ```bash
-   npm run cdk:bootstrap
+   cd cdk && npm run bootstrap
    ```
 
 3. **Deploy to AWS**:
 
    ```bash
-   npm run deploy:prod
+   cd cdk && npm run deploy
+   ```
+
+   For production deployment without approval prompts:
+
+   ```bash
+   cd cdk && npm run deploy:prod
    ```
 
 4. **View Deployment Status**:
+
    ```bash
-   npm run cdk:diff
+   cd cdk && npm run diff
    ```
 
-For more details on AWS Lambda deployment and configuration, see [src/README.md](src/README.md).
+5. **Remove Deployment**:
+   ```bash
+   cd cdk && npm run destroy
+   ```
+
+### Environment Configurations
+
+The CDK infrastructure supports different environments:
+
+- **dev**: 1GB memory, 5 minute timeout, one week log retention, no alarms
+- **test**: 1.5GB memory, 10 minute timeout, two weeks log retention, with alarms
+- **prod**: 2GB memory, 15 minute timeout, one month log retention, with alarms
+
+### Lambda Event Configuration
+
+Customize test execution with Lambda event parameters:
+
+```json
+{
+  "paths": ["dist/features/smoke/**/*.feature"],
+  "formats": ["json"],
+  "tags": "@smoke and not @wip",
+  "environment": {
+    "API_URL": "https://api.example.com",
+    "DEBUG": "true"
+  }
+}
+```
+
+For more details, see [src/README.md](src/README.md).
+
+## Troubleshooting
+
+### Common Issues
+
+- **Exit Code 130**: Commands may terminate with exit code 130 due to signal termination (SIGINT) between ESM modules and Node.js
+- **Module Resolution Errors**: `ERR_MODULE_NOT_FOUND` errors typically come from ESM module resolution issues
+- **Path Resolution**: Cucumber may have trouble resolving paths to feature files or step definitions
+
+### Workarounds
+
+- Use Node.js v22.14.0 specified in `.nvmrc`
+- For direct execution: `node --loader=ts-node/esm src/index.ts`
+- For Cucumber tests: `npx cucumber-js` with appropriate parameters
+- Ensure all import paths use proper ESM syntax
+
+### Debugging Tips
+
+- Run build with verbose logging: `npm run build -- --verbose`
+- Check the output directory structure to ensure files are properly copied
+- Review module configuration in `tsconfig.json` and bundling options in `tsup.config.ts`
 
 ## License
 
