@@ -36,12 +36,14 @@ All these sample components are provided for demonstration purposes and should b
 
 ```
 src/
-├── support/           # Configuration management
-│   └── config.ts      # Configuration system implementation
-├── lib/               # Core business logic
-│   └── dummy.ts       # Dummy functionality using configuration
-└── world/             # Cucumber.js World implementation
-    └── SmokeWorld.ts  # Custom World with interface for maintaining state between steps
+├── support/              # Configuration management
+│   ├── config.ts         # Configuration system implementation
+│   ├── parameter-resolver.ts # Parameter reference resolution implementation
+│   └── aws-clients.ts    # AWS client wrappers for S3 and SSM
+├── lib/                  # Core business logic
+│   └── dummy.ts          # Dummy functionality using configuration
+└── world/                # Cucumber.js World implementation
+    └── SmokeWorld.ts     # Custom World with interface for maintaining state between steps
 ```
 
 ## World Pattern
@@ -73,6 +75,9 @@ The configuration system provides a robust way to manage settings used across th
 - Type-safe configuration access with TypeScript
 - Configuration values can be modified during test execution
 - Graceful error handling with fallbacks to default values
+- **Parameter resolution** from AWS SSM Parameter Store and S3 JSON files
+- **Nested parameter references** for complex configuration scenarios
+- **Circular reference detection** to prevent infinite loops
 
 ### Configuration Value Types
 
@@ -131,7 +136,7 @@ The system supports multiple configuration sources that can be loaded and merged
    ```
 
 3. **Object-based Configuration**:
-   Load settings directly from JavaScript objects
+   Load settings from a JavaScript object
 
    ```typescript
    // Add configuration from an object
@@ -144,7 +149,29 @@ The system supports multiple configuration sources that can be loaded and merged
    });
    ```
 
-4. **Lambda Event Configuration**:
+4. **AWS SSM Parameter Store**:
+   Load sensitive or environment-specific settings from AWS SSM Parameter Store
+
+   ```typescript
+   // Create configuration object with SSM parameter references
+   const config = {
+     apiUrl: "https://api.example.com",
+     apiKey: "ssm://my-app/api-key", // Will be fetched from SSM
+     database: {
+       username: "ssm://my-app/db/username",
+       password: "ssm://my-app/db/password", // SecureString parameters are automatically decrypted
+     },
+   };
+
+   // Add the configuration with SSM parameter resolution
+   addSSMParameterSource(config);
+   await loadConfigurations();
+
+   // Access the resolved values (SSM parameters are now replaced with actual values)
+   const apiKey = getValue("apiKey"); // Value retrieved from SSM
+   ```
+
+5. **Lambda Event Configuration**:
    Load settings from Lambda event parameters
 
    ```json
@@ -212,7 +239,13 @@ The configuration system is designed with robust error handling capabilities:
 - **Validation**: Missing required properties are reported but the system continues with default values
 - **Type Safety**: Incorrect property types are handled with appropriate type coercion when possible
 - **Invalid S3 URLs**: Malformed S3 URLs are detected and logged without disrupting execution
+- **Parameter Resolution**: AWS SSM Parameter references and S3 JSON file references are automatically detected and resolved
+- **Cached Parameters**: Resolved parameters are cached to avoid redundant API calls
+- **Recursive Resolution**: Supports nested parameter references with configurable maximum depth protection
 - **Null/Undefined Sources**: The system properly handles null or undefined configuration sources
+- **Parameter Reference Resolution**: Automatically resolves references to AWS SSM parameters and S3 JSON files
+- **Parameter Caching**: Caches resolved parameter values to avoid redundant API calls
+- **Circular Reference Detection**: Identifies and prevents infinite loops in parameter references
 
 ### Usage in Step Definitions
 
@@ -329,6 +362,31 @@ The codebase has high test coverage across components:
 - 100% Function coverage
 - ~95% Line coverage
 
+### Parameter Resolution Architecture
+
+The parameter resolution system uses a modular architecture for flexibility and testability:
+
+1. **ParameterResolver Class**: Central component responsible for resolving parameter references
+   - Supports both AWS SSM parameters and S3 JSON file references
+   - Handles nested references with circular reference detection
+   - Implements parameter caching for improved performance
+
+2. **AWS Client Wrappers**: Abstraction layer for AWS SDK operations
+   - S3ClientWrapper for S3 operations
+   - SSMClientWrapper for Parameter Store operations
+   - Supports client injection for testability
+
+3. **ConfigurationSource Interface**: Common interface for all configuration sources
+   - FileConfigurationSource for local files
+   - S3ConfigurationSource for S3 JSON files
+   - ObjectConfigurationSource for in-memory objects
+   - SSMParameterSource for AWS SSM parameters
+
+4. **Cache Implementation**: In-memory cache for resolved parameters
+   - Avoids redundant API calls to AWS services
+   - Improves test execution performance
+   - Cache is cleared between test runs
+
 This comprehensive testing approach ensures robustness while allowing for pragmatic trade-offs in edge cases. The test suite includes dedicated validation tests that verify:
 
 - Proper handling of missing configuration properties
@@ -373,6 +431,8 @@ export interface LambdaEvent {
   formats?: string[]; // Custom output formats (e.g., json, html, junit)
   tags?: string; // Cucumber tags to filter tests (e.g., @critical or @api)
   environment?: Record<string, string>; // Additional environment variables (e.g., API URLs, credentials)
+  config?: ConfigObject; // Configuration object with possible parameter references
+  configFiles?: string[]; // Configuration files to load (including S3 URLs)
 }
 ```
 

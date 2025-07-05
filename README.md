@@ -127,22 +127,30 @@ You can provide configuration values in several ways:
      "timeouts": {
        "request": 3000,
        "browser": 10000
-     }
+     },
+     "features": ["api", "auth", "reporting"]
    }
    ```
 
-   Load configuration files in your code:
+   Load configuration from files:
 
    ```typescript
    import { addConfigurationFile, loadConfigurations } from "./support/config";
 
-   // Add configuration files
-   addConfigurationFile("./config/base.json");
+   // Load from local file
    addConfigurationFile("./config/test-env.json");
+
+   // Load from S3
+   addConfigurationFile("s3://my-bucket/config/test-env.json");
+
+   // Load multiple files
+   loadConfigurationFiles(["./config/base.json", "./config/test-env.json"]);
 
    // Load and merge all configurations
    await loadConfigurations();
    ```
+
+   Configuration files can also contain parameter references that will be automatically resolved (see Parameter References below).
 
 2. **In-code Configuration Objects**
 
@@ -151,7 +159,7 @@ You can provide configuration values in several ways:
    ```typescript
    import { addConfigurationObject, loadConfigurations } from "./support/config";
 
-   // Add configuration object
+   // Create configuration from object
    addConfigurationObject({
      apiUrl: process.env.API_URL || "https://default-api.example.com",
      debug: process.env.DEBUG === "true",
@@ -162,7 +170,57 @@ You can provide configuration values in several ways:
    await loadConfigurations();
    ```
 
-3. **Lambda Event Configuration**
+3. **Object Configuration**
+
+   Provide configuration values programmatically in JavaScript/TypeScript code:
+
+   ```typescript
+   // Create configuration from object
+   addConfigurationObject({
+     apiUrl: process.env.API_URL || "https://default-api.example.com",
+     debug: process.env.DEBUG === "true",
+     retries: 3,
+   });
+
+   // Load and merge configurations
+   await loadConfigurations();
+   ```
+
+4. **Parameter References**
+
+   The configuration system supports several types of parameter references that are automatically resolved:
+   - **AWS SSM Parameter References**: Use the `ssm://` prefix to retrieve values from AWS SSM Parameter Store
+   - **S3 JSON References**: Use the `s3://` prefix with a `.json` extension to load and parse JSON content from S3
+   - **S3 JSON Content References**: Reference an S3 JSON file that will be fetched and parsed
+   - **Nested References**: Parameters can reference other parameters
+
+   Examples:
+
+   ```typescript
+   // Create configuration with parameter references
+
+   const configObject = {
+     // SSM Parameter Store references
+     apiKey: "ssm://my-app/api-key", // Resolves to value stored in SSM
+     credentials: {
+       username: "ssm://my-app/username",
+       password: "ssm://my-app/credentials/password", // Supports nested parameters
+     },
+     // S3 JSON file reference (loads and parses entire JSON file)
+     environmentConfig: "s3://my-config-bucket/environments/dev.json",
+     // You can mix reference types and regular values
+     endpoint: "https://api.example.com",
+     debug: true,
+   };
+
+   // Add the configuration object (references will be resolved automatically)
+   addConfigurationObject(configObject);
+
+   // Load and merge configurations
+   await loadConfigurations();
+   ```
+
+5. **Lambda Event Configuration**
 
    When running as an AWS Lambda function, provide configuration in the event object:
 
@@ -215,6 +273,42 @@ For more detailed technical documentation about the configuration system, see [s
 - `npm test`: Run Vitest tests for the framework itself
 - `npm run test:watch`: Run Vitest tests in watch mode
 - `npm run test:coverage`: Run tests with coverage reporting
+
+### Testing Infrastructure
+
+#### Test Framework
+
+This project uses Vitest as the testing framework with the following features:
+
+- **Fast execution**: Vitest offers modern, fast testing with native ESM support
+- **Watch mode**: Real-time test execution when files change
+- **Coverage reporting**: Generate detailed coverage reports in multiple formats (text, lcov, html)
+- **TypeScript integration**: First-class TypeScript support with no additional configuration
+
+#### AWS SDK Mock Integration
+
+The tests utilize `aws-sdk-client-mock` and `aws-sdk-client-mock-vitest` for robust AWS service mocking:
+
+- **Service Mocking**: Mock AWS SDK v3 client interactions without making actual AWS calls
+- **Command Assertions**: Verify command calls, parameters, and frequency
+- **Stream Handling**: Proper mocking of AWS response streams
+- **Type Safety**: Full TypeScript support for mocked responses and assertions
+
+#### Best Practices for Testing AWS Services
+
+1. **Mock AWS clients** instead of making real AWS calls in tests
+2. **Assert AWS calls** using the appropriate matchers and assertions
+3. **Handle edge cases** like error conditions and service failures
+4. **Test non-JSON file handling** for S3 references appropriately
+5. **Clear caches** between tests to ensure isolation
+
+#### Writing Effective Tests
+
+- **Test file organization**: Place test files alongside their implementation in the same directory structure
+- **Naming conventions**: Use `.test.ts` suffix for unit tests, `.integration.test.ts` for integration tests
+- **Test isolation**: Ensure each test properly resets mocks and shared state
+- **Edge case coverage**: Test error conditions, invalid inputs, and boundary conditions
+- **Mock realism**: Ensure mocked AWS responses match real AWS behavior including error patterns
 
 #### Development
 
@@ -328,6 +422,49 @@ The framework can be deployed as an AWS Lambda function to run smoke tests in th
    ```bash
    npm run cdk:destroy
    ```
+
+### IAM Permissions
+
+When deploying as a Lambda function, ensure the Lambda execution role has the appropriate permissions:
+
+#### Required Permissions for Parameter References
+
+```json
+{
+  "Version": "2012-10-17",
+  "Statement": [
+    {
+      "Effect": "Allow",
+      "Action": ["ssm:GetParameter", "ssm:GetParameters"],
+      "Resource": "arn:aws:ssm:*:*:parameter/my-app/*"
+    },
+    {
+      "Effect": "Allow",
+      "Action": ["s3:GetObject"],
+      "Resource": "arn:aws:s3:::my-bucket/config/*"
+    },
+    {
+      "Effect": "Allow",
+      "Action": ["kms:Decrypt"],
+      "Resource": "*",
+      "Condition": {
+        "StringEquals": {
+          "kms:ViaService": "ssm.*.amazonaws.com"
+        }
+      }
+    }
+  ]
+}
+```
+
+The KMS permission is required for accessing encrypted `SecureString` parameters in SSM Parameter Store.
+
+#### Advanced Parameter Resolution Features
+
+- **Nested References**: Parameters can contain references to other parameters
+- **Circular Reference Detection**: Automatically detects and prevents infinite loops
+- **Parameter Caching**: Improves performance by caching resolved parameters
+- **Mixed Reference Types**: You can combine different reference types in the same configuration
 
 ### Environment Configurations
 

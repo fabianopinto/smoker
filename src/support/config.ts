@@ -2,10 +2,11 @@
  * Configuration for the cucumber tests
  * This provides a centralized location for all configurable parameters
  */
-import { GetObjectCommand, S3Client } from "@aws-sdk/client-s3";
+import { S3Client } from "@aws-sdk/client-s3";
+import { S3ClientWrapper, parseS3Url } from "./aws-clients";
+import { ParameterResolver } from "./parameter-resolver";
 import { existsSync, readFileSync } from "node:fs";
 import { resolve } from "node:path";
-import { Readable } from "node:stream";
 
 /**
  * ConfigValue represents any type of configuration value that can be stored
@@ -79,54 +80,26 @@ export class FileConfigurationSource implements ConfigurationSource {
   }
 }
 
-/**
- * Parse S3 URL into bucket and key components
- * @param s3Url S3 URL in the format s3://bucket/path/file.json
- */
-function parseS3Url(s3Url: string): { bucket: string; key: string } | null {
-  const s3UrlRegex = /^s3:\/\/([^/]+)\/(.+)$/;
-  const match = s3Url.match(s3UrlRegex);
-
-  if (!match) {
-    return null;
-  }
-
-  return {
-    bucket: match[1],
-    key: match[2],
-  };
-}
-
-/**
- * Convert a stream to a string
- * @param stream Readable stream
- */
-async function streamToString(stream: Readable): Promise<string> {
-  return new Promise<string>((resolve, reject) => {
-    const chunks: Buffer[] = [];
-    stream.on("data", (chunk) => chunks.push(Buffer.from(chunk)));
-    stream.on("error", (err) => reject(err));
-    stream.on("end", () => resolve(Buffer.concat(chunks).toString("utf8")));
-  });
-}
+// S3 and SSM client utilities have been moved to aws-clients.ts
 
 /**
  * S3ConfigurationSource loads configuration from an S3 JSON file
  */
 export class S3ConfigurationSource implements ConfigurationSource {
   private s3Url: string;
-  private s3Client: S3Client;
+  private s3Client: S3ClientWrapper;
+  private resolver: ParameterResolver;
 
   /**
    * Create a new S3 configuration source
    * @param s3Url S3 URL in the format s3://bucket/path/file.json
    * @param region Optional AWS region (defaults to environment variable or us-east-1)
+   * @param s3ClientInstance Optional S3Client instance for testing
    */
-  constructor(s3Url: string, region?: string) {
+  constructor(s3Url: string, region?: string, s3ClientInstance?: S3Client) {
     this.s3Url = s3Url;
-    this.s3Client = new S3Client({
-      region: region || process.env.AWS_REGION || "us-east-1",
-    });
+    this.s3Client = new S3ClientWrapper(region, s3ClientInstance);
+    this.resolver = new ParameterResolver(region, s3ClientInstance);
   }
 
   /**
@@ -143,23 +116,19 @@ export class S3ConfigurationSource implements ConfigurationSource {
       }
 
       const { bucket, key } = parsedUrl;
-      const command = new GetObjectCommand({
-        Bucket: bucket,
-        Key: key,
-      });
 
-      const response = await this.s3Client.send(command);
+      // Get JSON content from S3
+      try {
+        const configObject = await this.s3Client.getObjectAsJson<ConfigObject>(bucket, key);
 
-      if (!response.Body) {
-        console.error(`Empty response body for S3 object: ${this.s3Url}`);
+        // Resolve any parameter references in the configuration
+        return await this.resolver.resolveConfig(configObject);
+      } catch (error) {
+        console.error(`Error loading configuration from S3 ${this.s3Url}:`, error);
         return {};
       }
-
-      // Convert the readable stream to a string
-      const content = await streamToString(response.Body as Readable);
-      return JSON.parse(content) as ConfigObject;
     } catch (error) {
-      console.error(`Error loading configuration from S3 ${this.s3Url}:`, error);
+      console.error(`Error in S3ConfigurationSource.load for ${this.s3Url}:`, error);
       return {};
     }
   }
@@ -185,6 +154,39 @@ export class ObjectConfigurationSource implements ConfigurationSource {
    */
   async load(): Promise<ConfigObject> {
     return this.configObject;
+  }
+}
+
+/**
+ * SSMParameterSource loads configuration by resolving SSM parameters references
+ * in an existing configuration object
+ */
+export class SSMParameterSource implements ConfigurationSource {
+  private baseConfig: ConfigObject;
+  private resolver: ParameterResolver;
+
+  /**
+   * Create a new SSM parameter source
+   * @param baseConfig The base configuration object containing SSM references
+   * @param region Optional AWS region (defaults to environment variable or us-east-1)
+   */
+  constructor(baseConfig: ConfigObject, region?: string) {
+    this.baseConfig = baseConfig;
+    this.resolver = new ParameterResolver(region);
+  }
+
+  /**
+   * Load configuration by resolving SSM parameter references
+   * @returns The configuration object with resolved SSM values
+   */
+  async load(): Promise<ConfigObject> {
+    try {
+      // Resolve all parameter references in the configuration
+      return await this.resolver.resolveConfig(this.baseConfig);
+    } catch (error) {
+      console.error("Error resolving parameters:", error);
+      return this.baseConfig; // Return original config if resolution fails
+    }
   }
 }
 
@@ -454,6 +456,17 @@ export function addS3ConfigurationFile(s3Url: string, region?: string): void {
  */
 export function addConfigurationObject(config: ConfigObject): void {
   const source = new ObjectConfigurationSource(config);
+  Configuration.getInstance().addConfigurationSource(source);
+}
+
+/**
+ * Helper function to add an SSM parameter source that will resolve SSM parameter references
+ * This is useful when you have a configuration object that may contain SSM references
+ * @param config Configuration object with potential SSM references
+ * @param region Optional AWS region (defaults to environment variable or us-east-1)
+ */
+export function addSSMParameterSource(config: ConfigObject, region?: string): void {
+  const source = new SSMParameterSource(config, region);
   Configuration.getInstance().addConfigurationSource(source);
 }
 
