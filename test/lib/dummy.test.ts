@@ -1,4 +1,4 @@
-import { describe, it, expect, beforeEach, afterEach } from "vitest";
+import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import { dummy } from "../../src/lib/dummy";
 import { getConfig, updateConfig } from "../../src/support/config";
 

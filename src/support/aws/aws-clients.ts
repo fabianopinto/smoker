@@ -1,10 +1,17 @@
 /**
  * AWS client implementations and utilities
- * This file centralizes all AWS client interactions for better organization and testability
+ *
+ * This file centralizes all AWS client interactions for better organization and testability.
+ * It provides wrapper classes for S3 and SSM clients with utility methods for common operations.
+ *
+ * @module support/aws/aws-clients
  */
 import { GetObjectCommand, S3Client } from "@aws-sdk/client-s3";
 import { GetParameterCommand, SSMClient } from "@aws-sdk/client-ssm";
 import { Readable } from "node:stream";
+
+// Import interfaces
+import type { IS3Client, ISSMClient, ParsedS3Url } from "../interfaces";
 
 /**
  * Default AWS region to use when no region is specified
@@ -12,19 +19,13 @@ import { Readable } from "node:stream";
 export const DEFAULT_AWS_REGION = process.env.AWS_REGION || "us-east-1";
 
 /**
- * Interface for parsed S3 URL components
- */
-export interface ParsedS3Url {
-  bucket: string;
-  key: string;
-}
-
-/**
- * Parse S3 URL into bucket and key components
- * @param s3Url S3 URL in the format s3://bucket/path/file.json
+ * Parse an S3 URL into bucket and key components
+ * @param s3Url S3 URL to parse (s3://bucket/key)
  * @returns Parsed S3 URL components or null if invalid
  */
-export function parseS3Url(s3Url: string): ParsedS3Url | null {
+export function parseS3Url(s3Url: string | undefined): ParsedS3Url | null {
+  if (!s3Url) return null;
+
   const s3UrlRegex = /^s3:\/\/([^/]+)\/(.+)$/;
   const match = s3Url.match(s3UrlRegex);
 
@@ -39,23 +40,56 @@ export function parseS3Url(s3Url: string): ParsedS3Url | null {
 }
 
 /**
- * Convert a readable stream to a string
- * @param stream Readable stream
- * @returns Promise that resolves to the stream content as string
+ * Convert a stream or buffer response to a string
+ * @param streamOrData Stream, Buffer, or string data from AWS SDK response
+ * @returns Promise that resolves to the content as string
  */
-export async function streamToString(stream: Readable): Promise<string> {
-  return new Promise<string>((resolve, reject) => {
-    const chunks: Buffer[] = [];
-    stream.on("data", (chunk) => chunks.push(Buffer.from(chunk)));
-    stream.on("error", (err) => reject(err));
-    stream.on("end", () => resolve(Buffer.concat(chunks).toString("utf8")));
-  });
+export async function streamToString(
+  streamOrData: Readable | Buffer | string | unknown
+): Promise<string> {
+  // If already a string, return it directly
+  if (typeof streamOrData === "string") {
+    return streamOrData;
+  }
+
+  // If it's a Buffer, convert to string
+  if (Buffer.isBuffer(streamOrData)) {
+    return streamOrData.toString("utf8");
+  }
+
+  // If it has a toString method (some AWS SDK responses), use it
+  interface WithToString {
+    toString(encoding?: string): string;
+  }
+
+  // Check if the object has a custom toString method
+  if (
+    streamOrData &&
+    typeof (streamOrData as WithToString).toString === "function" &&
+    (streamOrData as WithToString).toString !== Object.prototype.toString
+  ) {
+    return (streamOrData as WithToString).toString("utf8");
+  }
+
+  // Handle readable stream
+  if (streamOrData && typeof (streamOrData as Readable).on === "function") {
+    return new Promise<string>((resolve, reject) => {
+      const stream = streamOrData as Readable;
+      const chunks: Buffer[] = [];
+      stream.on("data", (chunk) => chunks.push(Buffer.from(chunk)));
+      stream.on("error", (err) => reject(err));
+      stream.on("end", () => resolve(Buffer.concat(chunks).toString("utf8")));
+    });
+  }
+
+  // For unhandled types, convert to string safely
+  return String(streamOrData || "");
 }
 
 /**
  * S3 client wrapper for common S3 operations
  */
-export class S3ClientWrapper {
+export class S3ClientWrapper implements IS3Client {
   private client: S3Client;
 
   /**
@@ -138,7 +172,7 @@ export class S3ClientWrapper {
       throw new Error(`Invalid S3 URL format: ${s3Url}`);
     }
 
-    return this.getObjectAsJson<T>(parsed.bucket, parsed.key);
+    return await this.getObjectAsJson<T>(parsed.bucket, parsed.key);
   }
 
   /**
@@ -166,7 +200,7 @@ export class S3ClientWrapper {
     }
 
     // Return as string for non-JSON files
-    return content;
+    return content as unknown as T;
   }
 }
 
@@ -181,7 +215,7 @@ export const ssmParameterCache: Record<
 /**
  * SSM client wrapper for common Parameter Store operations
  */
-export class SSMClientWrapper {
+export class SSMClientWrapper implements ISSMClient {
   private client: SSMClient;
 
   /**

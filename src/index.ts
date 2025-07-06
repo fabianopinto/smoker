@@ -12,7 +12,7 @@ import {
   addConfigurationObject,
   type ConfigObject,
   loadConfigurations,
-} from "./support/config";
+} from "./support";
 
 /**
  * AWS Lambda event type definition

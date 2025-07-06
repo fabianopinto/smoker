@@ -1,16 +1,21 @@
 /**
  * Parameter resolution system
- * Handles resolving different types of parameter references (SSM, S3 JSON, etc.)
+ *
+ * This module handles resolving different types of parameter references (SSM, S3 JSON, etc.)
+ * in configuration objects. It supports recursive resolution with circular reference detection
+ * and depth limiting to prevent infinite recursion.
+ *
+ * @module support/config/parameter-resolver
  */
 import { S3Client } from "@aws-sdk/client-s3";
 import { SSMClient } from "@aws-sdk/client-ssm";
-import { S3ClientWrapper, SSMClientWrapper } from "./aws-clients";
-import type { ConfigObject, ConfigValue } from "./config";
+import { S3ClientWrapper, SSMClientWrapper } from "../aws/aws-clients";
+import type { ConfigObject, ConfigValue, IParameterResolver } from "../interfaces";
 
 /**
  * Class to handle resolution of configuration parameters from various sources
  */
-export class ParameterResolver {
+export class ParameterResolver implements IParameterResolver {
   private s3Client: S3ClientWrapper;
   private ssmClient: SSMClientWrapper;
   private processingStack: string[] = [];
@@ -94,8 +99,13 @@ export class ParameterResolver {
             // Recursively resolve references in the JSON content
             return await this.resolveValue(jsonContent);
           } catch (error) {
+            // Rethrow circular reference errors instead of catching them
+            if (error instanceof Error && error.message.includes("Circular reference")) {
+              throw error;
+            }
+
             console.error(`Error resolving S3 JSON reference ${value}:`, error);
-            // Return the original reference on error
+            // Return the original reference on non-circular reference errors
             return value;
           } finally {
             this.processingStack.pop();

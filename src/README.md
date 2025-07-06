@@ -36,14 +36,24 @@ All these sample components are provided for demonstration purposes and should b
 
 ```
 src/
-├── support/              # Configuration management
-│   ├── config.ts         # Configuration system implementation
-│   ├── parameter-resolver.ts # Parameter reference resolution implementation
-│   └── aws-clients.ts    # AWS client wrappers for S3 and SSM
-├── lib/                  # Core business logic
-│   └── dummy.ts          # Dummy functionality using configuration
-└── world/                # Cucumber.js World implementation
-    └── SmokeWorld.ts     # Custom World with interface for maintaining state between steps
+├── support/                   # Support modules
+│   ├── aws/                 # AWS integration components
+│   │   ├── aws-clients.ts    # AWS client wrappers for S3 and SSM
+│   │   └── index.ts         # Re-exports of AWS components
+│   ├── config/              # Configuration system
+│   │   ├── configuration.ts  # Configuration singleton and helpers
+│   │   ├── configuration-sources.ts # Configuration source implementations
+│   │   ├── parameter-resolver.ts # Parameter reference resolution
+│   │   └── index.ts         # Re-exports of configuration components
+│   ├── interfaces/          # TypeScript interfaces
+│   │   ├── aws.interface.ts  # AWS interface definitions
+│   │   ├── config.interface.ts # Configuration interface definitions
+│   │   └── index.ts         # Re-exports of interfaces
+│   └── index.ts             # Re-exports of all support modules
+├── lib/                       # Core business logic
+│   └── dummy.ts               # Dummy functionality using configuration
+└── world/                     # Cucumber.js World implementation
+    └── SmokeWorld.ts          # Custom World with interface for maintaining state between steps
 ```
 
 ## World Pattern

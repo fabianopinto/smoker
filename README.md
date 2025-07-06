@@ -12,7 +12,10 @@ This project implements the Cucumber.js World pattern for state management betwe
 smoker/
 ├── src/                # Source code
 │   ├── lib/            # Library code (utility functions - includes dummy sample code)
-│   ├── support/        # Configuration system
+│   ├── support/        # Support modules (configuration system, AWS integration)
+│   │   ├── aws/        # AWS client wrappers and utilities
+│   │   ├── config/     # Configuration system implementation
+│   │   └── interfaces/ # TypeScript interfaces and types
 │   ├── world/          # Cucumber.js World implementation
 │   └── index.ts        # Main entry point with Lambda handler
 ├── test/               # Unit tests for framework components
@@ -97,7 +100,7 @@ smoker/
 
 ### Configuration System
 
-Smoker includes a powerful configuration system that supports various data types and multiple configuration sources:
+Smoker includes a powerful configuration system that supports various data types and multiple configuration sources. The system is built with modularity and flexibility in mind, allowing for configuration values to be loaded from local files, AWS S3, or directly as objects.
 
 #### Configuration Data Types
 
@@ -193,6 +196,26 @@ You can provide configuration values in several ways:
    - **S3 JSON References**: Use the `s3://` prefix with a `.json` extension to load and parse JSON content from S3
    - **S3 JSON Content References**: Reference an S3 JSON file that will be fetched and parsed
    - **Nested References**: Parameters can reference other parameters
+   - **Circular Reference Detection**: The system automatically detects and prevents circular references
+
+### AWS Integration
+
+The framework includes comprehensive AWS integration capabilities:
+
+1. **S3 Client Wrapper**
+   - Load configuration files directly from S3 buckets
+   - Parse and validate JSON content from S3
+   - Efficient streaming and content handling
+
+2. **SSM Parameter Store Integration**
+   - Retrieve sensitive configuration values from AWS SSM Parameter Store
+   - Automatic parameter resolution with caching for improved performance
+   - Secure storage of credentials and sensitive information
+
+3. **Region Configuration**
+   - Configure specific AWS regions for different resources
+   - Fall back to default region when specific region not provided
+   - Support for custom client instances for testing
 
    Examples:
 
@@ -220,7 +243,7 @@ You can provide configuration values in several ways:
    await loadConfigurations();
    ```
 
-5. **Lambda Event Configuration**
+4. **Lambda Event Configuration**
 
    When running as an AWS Lambda function, provide configuration in the event object:
 

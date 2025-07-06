@@ -2,7 +2,7 @@
  * A simple smoke module to demonstrate TypeScript functionality
  * Uses configuration for customizable phrase templates
  */
-import { getConfig } from "../support/config";
+import { getConfig } from "../support";
 
 /**
  * Generates a smoke phrase message
