@@ -42,7 +42,7 @@ export class ParameterResolver implements IParameterResolver {
   async resolveValue(value: ConfigValue): Promise<ConfigValue> {
     if (this.resolutionDepth >= this.MAX_DEPTH) {
       throw new Error(
-        `Maximum parameter resolution depth (${this.MAX_DEPTH}) exceeded. Possible circular reference detected.`
+        `Maximum parameter resolution depth (${this.MAX_DEPTH}) exceeded. Possible circular reference detected.`,
       );
     }
 
@@ -56,7 +56,7 @@ export class ParameterResolver implements IParameterResolver {
             // Check for circular references
             if (this.processingStack.includes(value)) {
               throw new Error(
-                `Circular reference detected: ${this.processingStack.join(" -> ")} -> ${value}`
+                `Circular reference detected: ${this.processingStack.join(" -> ")} -> ${value}`,
               );
             }
 
@@ -87,7 +87,7 @@ export class ParameterResolver implements IParameterResolver {
           // Check for circular references
           if (this.processingStack.includes(value)) {
             throw new Error(
-              `Circular reference detected: ${this.processingStack.join(" -> ")} -> ${value}`
+              `Circular reference detected: ${this.processingStack.join(" -> ")} -> ${value}`,
             );
           }
 

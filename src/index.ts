@@ -44,7 +44,7 @@ export interface LambdaResponse {
  * @returns {Promise<object>} Promise resolving with test results
  */
 export async function main(
-  event: LambdaEvent = {}
+  event: LambdaEvent = {},
 ): Promise<{ success: boolean; statusCode: number }> {
   try {
     console.log(`Starting Smoker tests with event:`, JSON.stringify(event, null, 2));
@@ -113,7 +113,7 @@ export async function handler(event: LambdaEvent, context: LambdaContext): Promi
       functionVersion: context.functionVersion,
       awsRequestId: context.awsRequestId,
       remainingTime: context.getRemainingTimeInMillis(),
-    })
+    }),
   );
 
   try {

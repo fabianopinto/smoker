@@ -17,7 +17,7 @@ export function expectCommandToHaveBeenCalledWith<Input extends object>(
   mockedClient: ReturnType<typeof mockClient>,
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   commandClass: any,
-  expectedParams: Partial<Input>
+  expectedParams: Partial<Input>,
 ): void {
   const calls = mockedClient.commandCalls(commandClass);
   expect(calls.length).toBeGreaterThan(0);
@@ -25,7 +25,7 @@ export function expectCommandToHaveBeenCalledWith<Input extends object>(
   const matchingCall = calls.some((call) => {
     const actualInput = call.args[0].input as Input;
     return Object.entries(expectedParams).every(
-      ([key, value]) => key in actualInput && actualInput[key as keyof Input] === value
+      ([key, value]) => key in actualInput && actualInput[key as keyof Input] === value,
     );
   });
 
@@ -45,7 +45,7 @@ export function createS3Response(content: string) {
     on: vi.fn().mockImplementation(function (
       this: Record<string, unknown>,
       event: string,
-      callback: (arg?: Buffer) => void
+      callback: (arg?: Buffer) => void,
     ) {
       if (event === "data") {
         callback(Buffer.from(content));

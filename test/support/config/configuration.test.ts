@@ -109,7 +109,7 @@ describe("Configuration Module", () => {
       expect(config).toEqual({});
       expect(consoleSpy).toHaveBeenCalledWith(
         expect.stringContaining("Error loading"),
-        expect.any(Error)
+        expect.any(Error),
       );
 
       consoleSpy.mockRestore();
@@ -127,7 +127,7 @@ describe("Configuration Module", () => {
       expect(config).toEqual({});
       expect(consoleSpy).toHaveBeenCalledWith(
         expect.stringContaining("Error loading"),
-        expect.any(Error)
+        expect.any(Error),
       );
 
       consoleSpy.mockRestore();
@@ -220,7 +220,7 @@ describe("Configuration Module", () => {
       const sourceWithCustomClient = new S3ConfigurationSource(
         validS3Url,
         "us-west-2",
-        customClient
+        customClient,
       );
 
       // Verify the configuration is loaded correctly using the custom client
@@ -1041,7 +1041,7 @@ describe("Edge cases", () => {
       // Should log error
       expect(errorSpy).toHaveBeenCalledWith(
         expect.stringContaining("Error loading configuration from source:"),
-        expect.any(Error)
+        expect.any(Error),
       );
 
       // Should retain default configuration

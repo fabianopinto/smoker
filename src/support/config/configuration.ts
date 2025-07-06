@@ -127,7 +127,7 @@ export class Configuration {
    */
   private deepMerge(
     target: Record<string, ConfigValue>,
-    source: Record<string, ConfigValue>
+    source: Record<string, ConfigValue>,
   ): Record<string, ConfigValue> {
     const result: Record<string, ConfigValue> = { ...target };
 
@@ -160,7 +160,7 @@ export class Configuration {
           // Recursively merge objects
           const mergedObj = this.deepMerge(
             targetValue as Record<string, ConfigValue>,
-            sourceValue as Record<string, ConfigValue>
+            sourceValue as Record<string, ConfigValue>,
           );
 
           // Only add the property if the merged object has properties
@@ -217,7 +217,7 @@ export class Configuration {
         if (!hasRequiredProperties) {
           console.warn(
             "Loaded configuration is missing required properties (defaultPhrase, phraseTemplate). " +
-              "These will not be updated from default values."
+              "These will not be updated from default values.",
           );
 
           // Create a validated config with only valid properties
@@ -225,7 +225,7 @@ export class Configuration {
           // Filter out entries with undefined values
           const filteredEntries = Object.entries(mergedConfig).filter(
             // eslint-disable-next-line @typescript-eslint/no-unused-vars
-            ([_, value]) => value !== undefined
+            ([_, value]) => value !== undefined,
           );
 
           for (const [key, value] of filteredEntries) {

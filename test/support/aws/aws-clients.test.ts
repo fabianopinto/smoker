@@ -21,7 +21,7 @@ function expectCommandToHaveBeenCalledWith<Input extends object>(
   // We need to use any here because the AWS SDK types are complex
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   commandClass: any,
-  expectedParams: Partial<Input>
+  expectedParams: Partial<Input>,
 ): void {
   const calls = mockedClient.commandCalls(commandClass);
   expect(calls.length).toBeGreaterThan(0);
@@ -29,7 +29,7 @@ function expectCommandToHaveBeenCalledWith<Input extends object>(
   const matchingCall = calls.some((call) => {
     const actualInput = call.args[0].input as Input;
     return Object.entries(expectedParams).every(
-      ([key, value]) => key in actualInput && actualInput[key as keyof Input] === value
+      ([key, value]) => key in actualInput && actualInput[key as keyof Input] === value,
     );
   });
 
@@ -51,7 +51,7 @@ function createS3Response(content: string) {
     on: vi.fn().mockImplementation(function (
       this: Record<string, unknown>,
       event: string,
-      callback: (arg?: Buffer) => void
+      callback: (arg?: Buffer) => void,
     ) {
       if (event === "data") {
         callback(Buffer.from(content));
@@ -249,7 +249,7 @@ describe("S3ClientWrapper", () => {
       });
 
       await expect(s3Wrapper.getObjectAsString(testBucket, testKey)).rejects.toThrow(
-        `Empty response body for S3 object: ${testBucket}/${testKey}`
+        `Empty response body for S3 object: ${testBucket}/${testKey}`,
       );
     });
 
@@ -258,7 +258,7 @@ describe("S3ClientWrapper", () => {
       mockS3.on(GetObjectCommand).rejects(new Error("S3 access denied"));
 
       await expect(s3Wrapper.getObjectAsString("bucket", "key")).rejects.toThrow(
-        "S3 access denied"
+        "S3 access denied",
       );
     });
   });
@@ -295,7 +295,7 @@ describe("S3ClientWrapper", () => {
       await expect(s3Wrapper.getObjectAsJson(testBucket, testKey)).rejects.toThrow(
         expect.objectContaining({
           name: "SyntaxError", // JSON.parse will throw SyntaxError
-        })
+        }),
       );
     });
   });
@@ -324,7 +324,7 @@ describe("S3ClientWrapper", () => {
       const invalidUrl = "invalid-url";
 
       await expect(s3Wrapper.getJsonFromUrl(invalidUrl)).rejects.toThrow(
-        `Invalid S3 URL format: ${invalidUrl}`
+        `Invalid S3 URL format: ${invalidUrl}`,
       );
     });
   });
@@ -369,7 +369,7 @@ describe("S3ClientWrapper", () => {
       mockS3.on(GetObjectCommand).resolves(createS3Response(invalidJson));
 
       await expect(s3Wrapper.getContentFromUrl(s3Url)).rejects.toThrow(
-        `Error parsing JSON from S3 (${s3Url}):`
+        `Error parsing JSON from S3 (${s3Url}):`,
       );
     });
 
@@ -385,7 +385,7 @@ describe("S3ClientWrapper", () => {
 
       for (const url of invalidUrls) {
         await expect(s3Wrapper.getContentFromUrl(url)).rejects.toThrow(
-          `Invalid S3 URL format: ${url}`
+          `Invalid S3 URL format: ${url}`,
         );
       }
     });
@@ -543,7 +543,7 @@ describe("SSMClientWrapper", () => {
       });
 
       await expect(ssmWrapper.getParameter(paramName)).rejects.toThrow(
-        `Parameter ${paramName} has no value`
+        `Parameter ${paramName} has no value`,
       );
     });
 
@@ -554,7 +554,7 @@ describe("SSMClientWrapper", () => {
       mockSSM.on(GetParameterCommand).rejects(new Error(errorMsg));
 
       await expect(ssmWrapper.getParameter(paramName)).rejects.toThrow(
-        `Error fetching SSM parameter ${paramName}: Error: ${errorMsg}`
+        `Error fetching SSM parameter ${paramName}: Error: ${errorMsg}`,
       );
     });
   });
@@ -589,7 +589,7 @@ describe("SSMClientWrapper", () => {
       "should return null for invalid SSM reference: %s",
       (invalidRef) => {
         expect(ssmWrapper.parseSSMUrl(invalidRef)).toBeNull();
-      }
+      },
     );
 
     // Test non-string inputs with proper type handling
@@ -607,7 +607,7 @@ describe("SSMClientWrapper", () => {
       "should identify SSM reference: %s",
       (validRef) => {
         expect(ssmWrapper.isSSMReference(validRef)).toBe(true);
-      }
+      },
     );
 
     // Use it.each for invalid SSM references

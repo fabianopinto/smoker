@@ -45,7 +45,7 @@ export function parseS3Url(s3Url: string | undefined): ParsedS3Url | null {
  * @returns Promise that resolves to the content as string
  */
 export async function streamToString(
-  streamOrData: Readable | Buffer | string | unknown
+  streamOrData: Readable | Buffer | string | unknown,
 ): Promise<string> {
   // If already a string, return it directly
   if (typeof streamOrData === "string") {

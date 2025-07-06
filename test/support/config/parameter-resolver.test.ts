@@ -74,8 +74,8 @@ describe("ParameterResolver", () => {
         JSON.stringify({
           fromS3: "s3-value",
           nestedSSM: "ssm://test/nested",
-        })
-      )
+        }),
+      ),
     );
 
     // Create the resolver with default clients (which will be mocked)
@@ -168,8 +168,8 @@ describe("ParameterResolver", () => {
             JSON.stringify({
               fromS3: "s3-value",
               nestedSSM: "ssm://test/nested",
-            })
-          )
+            }),
+          ),
         );
 
       // Mock the SSM response for the nested parameter
@@ -251,7 +251,7 @@ describe("ParameterResolver", () => {
 
       // This should throw due to exceeding max depth (default is 10)
       await expect(resolver.resolveValue(testValue)).rejects.toThrow(
-        "Maximum parameter resolution depth"
+        "Maximum parameter resolution depth",
       );
 
       // Should have made calls for each depth level up to the max (default is 10)
@@ -341,7 +341,7 @@ describe("ParameterResolver", () => {
       // Should propagate the circular reference error
       // Use direct assertion with rejects.toThrow instead of a try/catch
       await expect(circularResolver.resolveConfig(config)).rejects.toThrow(
-        /Circular reference detected/
+        /Circular reference detected/,
       );
 
       // Clean up
@@ -369,7 +369,7 @@ describe("ParameterResolver", () => {
       // Attempt to resolve the circular reference
       // This should throw an error containing the circular reference chain
       await expect(resolver.resolveValue("ssm://test/param1")).rejects.toThrow(
-        /Circular reference detected: ssm:\/\/test\/param1 -> ssm:\/\/test\/param2 -> ssm:\/\/test\/param1/
+        /Circular reference detected: ssm:\/\/test\/param1 -> ssm:\/\/test\/param2 -> ssm:\/\/test\/param1/,
       );
     });
 
@@ -403,7 +403,7 @@ describe("ParameterResolver", () => {
         else if (callCount === 2 && value === "s3://bucket/file1.json") {
           // This should trigger circular reference detection
           throw new Error(
-            "Circular reference detected: s3://bucket/file1.json -> s3://bucket/file2.json -> s3://bucket/file1.json"
+            "Circular reference detected: s3://bucket/file1.json -> s3://bucket/file2.json -> s3://bucket/file1.json",
           );
         }
 
@@ -413,7 +413,7 @@ describe("ParameterResolver", () => {
 
       // This should now properly reject with the circular reference error
       await expect(resolver.resolveValue("s3://bucket/file1.json")).rejects.toThrow(
-        /Circular reference detected/
+        /Circular reference detected/,
       );
 
       // Clean up spy
@@ -440,7 +440,7 @@ describe("ParameterResolver", () => {
       // Verify that an error was logged
       expect(consoleSpy).toHaveBeenCalledWith(
         `Error resolving S3 JSON reference ${s3Url}:`,
-        expect.any(Error)
+        expect.any(Error),
       );
 
       // Clean up
@@ -480,7 +480,7 @@ describe("ParameterResolver", () => {
           // Manually simulate the circular reference error that would be thrown
           // by the actual implementation
           throw new Error(
-            "Circular reference detected: s3://circular-bucket/file1.json -> s3://circular-bucket/file2.json -> s3://circular-bucket/file1.json"
+            "Circular reference detected: s3://circular-bucket/file1.json -> s3://circular-bucket/file2.json -> s3://circular-bucket/file1.json",
           );
         }
 
@@ -490,7 +490,7 @@ describe("ParameterResolver", () => {
 
       // This should now properly reject with the circular reference error
       await expect(
-        circularResolver.resolveValue("s3://circular-bucket/file1.json")
+        circularResolver.resolveValue("s3://circular-bucket/file1.json"),
       ).rejects.toThrow(/Circular reference detected/);
 
       // Clean up the spy
