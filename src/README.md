@@ -4,6 +4,75 @@
 
 Smoker is a specialized framework for conducting smoke tests against **external target systems**. The framework itself is thoroughly tested, while the BDD features you create are meant to test other systems. Think of Smoker as a tool that helps you verify the basic functionality of your production systems.
 
+## Source Code Documentation
+
+This directory contains the framework source code, organized into logical modules following TypeScript best practices.
+
+## Testing Structure and Best Practices
+
+The framework is thoroughly tested using Vitest, with tests located in the `/test` directory. The test structure mirrors the source code structure, making it easy to locate tests for specific components.
+
+### Test Directory Structure
+
+```
+test/
+├── clients/           # Tests for service clients
+│   ├── cloudwatch.test.ts
+│   ├── kafka.test.ts
+│   ├── kinesis.test.ts
+│   ├── mqtt.test.ts
+│   ├── rest.test.ts
+│   ├── s3.test.ts
+│   ├── sqs.test.ts
+│   └── ssm.test.ts
+├── lib/              # Tests for utility libraries
+└── world/            # Tests for Cucumber.js World implementation
+```
+
+### Testing Guidelines
+
+When writing tests for the framework, follow these best practices:
+
+1. **AWS SDK Mocking**
+   - Use `aws-sdk-client-mock` and `aws-sdk-client-mock-vitest` for AWS service clients (S3, CloudWatch, SSM, SQS, Kinesis)
+   - Use proper command matchers (`toHaveReceivedCommandWith`) for more readable assertions
+
+2. **Non-AWS Service Mocking**
+   - Use standard Vitest mocking capabilities (`vi.mock()`) for non-AWS services (MQTT, Kafka, REST)
+
+3. **Fake Timers**
+   - Use `vi.useFakeTimers()` for predictable time-based testing
+   - Always restore real timers with `vi.useRealTimers()` in afterEach hooks
+
+4. **Test Organization**
+   - Structure tests with describe blocks that mirror the client's functionality
+   - Include separate test groups for initialization, operations, error handling, and edge cases
+
+5. **Consistent Patterns**
+   - Reset mocks in beforeEach hooks
+   - Set up test fixtures consistently
+   - Follow a consistent naming convention for test cases
+
+For detailed guidance on testing AWS services, see [clients/README.md](./clients/README.md).
+
+## Directory Structure
+
+- `clients/`: Service client implementations for various APIs and services
+- `lib/`: Utility libraries and reusable functions
+- `support/`: Support modules for AWS integration and configuration
+- `world/`: Cucumber.js World implementation
+- `index.ts`: Main entry point
+
+## Client Architecture
+
+The `clients/` directory implements a hierarchical service client system that provides standardized access to various services:
+
+- **Base Client Interface**: Common contract for all service clients
+- **Service-Specific Clients**: Implementations for REST, MQTT, AWS services, and more
+- **Integration with BDD**: All clients integrate with the Cucumber.js World object
+
+See [clients/README.md](./clients/README.md) for detailed documentation on the service client implementation.
+
 ## Sample Code
 
 This framework includes sample/dummy code to demonstrate usage patterns:

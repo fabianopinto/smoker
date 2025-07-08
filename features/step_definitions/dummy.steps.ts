@@ -1,7 +1,7 @@
-import { Given, When, Then } from "@cucumber/cucumber";
-import { SmokeWorld } from "../../src/world/SmokeWorld";
-import { updateConfig } from "../../src/support/config";
+import { Given, Then, When } from "@cucumber/cucumber";
 import { strictEqual } from "node:assert";
+import { updateConfig } from "../../src/support/config";
+import type { SmokeWorld } from "../../src/world";
 
 Given("a target named {string}", function (this: SmokeWorld, userTarget: string) {
   this.setTarget(userTarget);

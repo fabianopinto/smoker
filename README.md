@@ -11,6 +11,16 @@ This project implements the Cucumber.js World pattern for state management betwe
 ```
 smoker/
 ├── src/                # Source code
+│   ├── clients/        # Service client implementations (REST, MQTT, AWS services)
+│   │   ├── clients.ts  # Base service client interfaces and implementations
+│   │   ├── rest.ts     # REST API client
+│   │   ├── mqtt.ts     # MQTT messaging client
+│   │   ├── s3.ts       # AWS S3 client
+│   │   ├── cloudwatch.ts # AWS CloudWatch client
+│   │   ├── ssm.ts      # AWS SSM Parameter Store client
+│   │   ├── sqs.ts      # AWS SQS client
+│   │   ├── kinesis.ts  # AWS Kinesis client
+│   │   └── kafka.ts    # Apache Kafka client
 │   ├── lib/            # Library code (utility functions - includes dummy sample code)
 │   ├── support/        # Support modules (configuration system, AWS integration)
 │   │   ├── aws/        # AWS client wrappers and utilities
@@ -297,6 +307,79 @@ For more detailed technical documentation about the configuration system, see [s
 - `npm run test:watch`: Run Vitest tests in watch mode
 - `npm run test:coverage`: Run tests with coverage reporting
 
+### Test Structure and Mocking Strategy
+
+The framework uses comprehensive testing to ensure reliability and maintainability:
+
+#### Test Organization
+
+- **Mirror Directory Structure**: Tests mirror the source code directory structure
+- **Descriptive Test Names**: Test files and cases use descriptive naming for clarity
+- **Consistent Test Groups**: Tests are organized into groups for basic functionality, initialization, operations, error handling, and edge cases
+
+#### AWS SDK Testing
+
+For AWS service clients (S3, CloudWatch, SSM, SQS, Kinesis):
+
+```typescript
+import { mockClient } from "aws-sdk-client-mock";
+import { S3Client as AwsS3Client, GetObjectCommand } from "@aws-sdk/client-s3";
+import "aws-sdk-client-mock-vitest"; // Adds matchers for testing
+
+const s3Mock = mockClient(AwsS3Client);
+
+describe("S3Client", () => {
+  beforeEach(() => {
+    s3Mock.reset();
+    vi.useFakeTimers();
+  });
+
+  it("should read data correctly", async () => {
+    s3Mock.on(GetObjectCommand).resolves({
+      Body: mockResponseBody,
+    });
+
+    const result = await client.read("key");
+
+    expect(s3Mock).toHaveReceivedCommandWith(GetObjectCommand, {
+      Bucket: "test-bucket",
+      Key: "key",
+    });
+  });
+});
+```
+
+#### Non-AWS Service Testing
+
+For non-AWS clients (MQTT, Kafka, REST), use standard Vitest mocking:
+
+```typescript
+// Mock entire modules
+vi.mock("mqtt", () => ({
+  connect: vi.fn(() => mockMqttClient),
+}));
+
+// Create mock functions
+const mockPublish = vi.fn();
+const mockMqttClient = {
+  publish: mockPublish,
+  on: vi.fn(),
+};
+
+describe("MqttClient", () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+    vi.useFakeTimers();
+  });
+});
+```
+
+#### Test Environment Setup
+
+- **Fake Timers**: Use `vi.useFakeTimers()` for predictable time-based testing
+- **Clean Mocks**: Reset mocks in `beforeEach` hooks to ensure test isolation
+- **Environment Variables**: Use controlled environment variables for consistent tests
+
 ### Testing Infrastructure
 
 #### Test Framework
@@ -361,9 +444,24 @@ This project implements a BDD-based smoke testing framework with these key compo
 The framework uses advanced Cucumber.js patterns:
 
 1. **World Pattern**: SmokeWorld object maintains state between steps
-2. **Interface-based Design**: TypeScript interfaces for proper typing
-3. **Step Definition Structure**: Well-organized, reusable step definitions
-4. **Configuration System**: Dynamic configuration management
+2. **Service Client Architecture**: Hierarchical service client system for accessing external services
+3. **Interface-based Design**: TypeScript interfaces for proper typing
+4. **Step Definition Structure**: Well-organized, reusable step definitions
+
+### Service Client Architecture
+
+The framework implements a comprehensive service client hierarchy for interacting with various services:
+
+1. **Common Interface**: All service clients implement a common `ServiceClient` interface
+2. **Base Implementation**: Shared functionality in `BaseServiceClient` class
+3. **Service-Specific Clients**:
+   - REST API client (using Axios)
+   - MQTT messaging client
+   - AWS service clients (S3, CloudWatch, SSM, SQS, Kinesis)
+   - Apache Kafka client
+4. **World Integration**: Clients are registered and accessible via the SmokeWorld
+
+See [src/clients/README.md](src/clients/README.md) for detailed documentation. 4. **Configuration System**: Dynamic configuration management
 
 ### Test Structure
 

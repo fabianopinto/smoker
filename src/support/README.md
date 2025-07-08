@@ -1,8 +1,54 @@
 # Support Modules Documentation
 
-## Overview
+## Support Modules
 
-This directory contains support modules used by the Smoker application. These modules provide foundational services like configuration management and AWS integration.
+This directory contains support modules for the framework that provide core infrastructure for the service client architecture.
+
+## Directory Structure
+
+- `aws/`: AWS integration and client wrappers
+- `config/`: Configuration system implementation
+- `interfaces/`: TypeScript interfaces and types
+
+## Integration with Service Clients
+
+The support modules provide critical infrastructure for the service client hierarchy:
+
+### Configuration System
+
+The configuration system (`config/`) enables service clients to retrieve their configuration values from various sources:
+
+- Environment variables
+- Configuration files
+- AWS SSM Parameter Store
+- In-memory configuration objects
+
+This allows service clients to be configured flexibly without hardcoding connection details, endpoints, or credentials.
+
+### AWS Integration
+
+The AWS support module (`aws/`) provides foundational services for AWS-based service clients:
+
+- Client instantiation with proper credentials
+- Region-specific configuration
+- Service endpoints and options
+
+### Type Definitions
+
+The interfaces module (`interfaces/`) provides common TypeScript interfaces and types used throughout the system:
+
+- Configuration system types
+- AWS service interfaces
+- Shared utility types
+
+## Usage by Service Clients
+
+Service clients leverage these support modules in several ways:
+
+1. **Configuration Retrieval**: Using the `getConfig<T>()` method to access typed configuration values
+2. **AWS Client Instantiation**: Creating properly configured AWS SDK clients
+3. **Parameter References**: Resolving parameter references within configuration
+4. **Type Safety**: Ensuring proper typing throughout the client implementations
 
 ## Configuration System (`/config`)
 
