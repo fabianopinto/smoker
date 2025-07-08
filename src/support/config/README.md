@@ -1,5 +1,7 @@
 # Configuration System
 
+[← Back to Main README](../../../README.md) | [← Back to Support Modules](../README.md)
+
 The Smoker framework includes a robust configuration system that supports loading and managing application configurations from multiple sources with parameter resolution capabilities.
 
 ## Architecture

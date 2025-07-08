@@ -1,12 +1,14 @@
 # Smoker Implementation Guide
 
+[← Back to Main README](../README.md)
+
 ## Framework Purpose
 
 Smoker is a specialized framework for conducting smoke tests against **external target systems**. The framework itself is thoroughly tested, while the BDD features you create are meant to test other systems. Think of Smoker as a tool that helps you verify the basic functionality of your production systems.
 
 ## Source Code Documentation
 
-This directory contains the framework source code, organized into logical modules following TypeScript best practices.
+This directory contains the source code for the Smoker framework, organized into logical modules following TypeScript best practices.
 
 ## Testing Structure and Best Practices
 

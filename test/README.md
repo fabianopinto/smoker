@@ -1,5 +1,7 @@
 # Testing Guide for Smoker Framework
 
+[← Back to Main README](../README.md)
+
 This guide outlines the testing approach for the Smoker framework, covering strategies, best practices, and test organization principles.
 
 ## Test Structure

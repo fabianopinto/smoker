@@ -155,12 +155,12 @@ The Smoker framework includes a flexible configuration system that supports mult
 #### Basic Usage
 
 ```typescript
-import { 
-  addConfigurationFile, 
-  addConfigurationObject, 
+import {
+  addConfigurationFile,
+  addConfigurationObject,
   addSSMParameterSource,
   loadConfigurations,
-  getValue 
+  getValue,
 } from "./support/config";
 
 // Add configuration from multiple sources
@@ -170,7 +170,7 @@ addConfigurationFile("s3://my-bucket/config.json");
 // Add object with SSM parameter references
 addConfigurationObject({
   apiKey: "ssm://my-app/api-key",
-  debug: process.env.DEBUG === "true"
+  debug: process.env.DEBUG === "true",
 });
 
 // Load and merge all configurations
@@ -255,24 +255,41 @@ The framework includes comprehensive AWS integration capabilities:
 In your step definitions and test code, access configuration values:
 
 ```typescript
-import { getConfig, getValue } from "../support/config";
+import { Given, When } from "@cucumber/cucumber";
+import { getValue } from "../support/config";
+import type { SmokeWorld } from "../src/world";
 
-Given("I connect to the API", function () {
-  // Get the entire configuration
-  const config = getConfig();
-  this.apiClient = new ApiClient(config.apiUrl, config.timeout);
+// Step to initialize the API client with the proper configuration
+Given("I connect to the API", async function (this: SmokeWorld) {
+  // Get the API client from the world's client registry
+  const apiClient = this.getClient("api");
+
+  // Initialize with configuration values
+  await apiClient.init({
+    baseURL: getValue("apiUrl", "https://default-api.example.com"),
+    timeout: getValue("timeouts.request", 5000),
+  });
 });
 
-When("I access a protected resource", async function () {
-  // Get nested configuration values with dot notation
-  const username = getValue("credentials.username");
-  const password = getValue("credentials.password");
+When("I access a protected resource", async function (this: SmokeWorld) {
+  try {
+    // Get nested configuration values with dot notation
+    const username = getValue("credentials.username");
+    const password = getValue("credentials.password");
 
-  // Use default values for missing configuration
-  const timeout = getValue("timeouts.request", 5000);
+    // Use the API client from the world's client registry
+    const apiClient = this.getClient("api");
 
-  await this.apiClient.login(username, password);
-  this.response = await this.apiClient.getResource("/protected", { timeout });
+    // Login and make the request
+    await apiClient.login(username, password);
+    const response = await apiClient.getResource("/protected");
+
+    // Store the response for later assertions
+    this.attachResponse(response);
+  } catch (error) {
+    // Properly handle and store errors
+    this.attachError(error instanceof Error ? error : new Error(String(error)));
+  }
 });
 ```
 
@@ -419,6 +436,7 @@ The Smoker framework is built on a modular architecture with several key compone
 4. **World Implementation**: BDD state management between test steps
 
 For detailed architecture documentation, see:
+
 - [Source Code Documentation](src/README.md)
 - [Service Client Documentation](src/clients/README.md)
 - [Support Module Documentation](src/support/README.md)

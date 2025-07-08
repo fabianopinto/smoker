@@ -1,5 +1,7 @@
 # Library Utilities
 
+[← Back to Main README](../../README.md)
+
 This directory contains utility functions and core library code for the Smoker framework. These modules provide foundational capabilities used throughout the application.
 
 ## Overview
