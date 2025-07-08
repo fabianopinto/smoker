@@ -6,6 +6,39 @@ A smoke testing framework designed to test external systems with BDD support thr
 
 This project implements the Cucumber.js World pattern for state management between test steps and provides a flexible configuration system for test parameters. **The BDD feature files are intended to test external target systems**, not the framework itself, which is fully tested with its own unit and integration tests.
 
+## Table of Contents
+
+- [Project Structure](#project-structure)
+- [Quick Start](#quick-start)
+  - [Prerequisites](#prerequisites)
+  - [Installation](#installation)
+  - [Running Smoke Tests](#running-smoke-tests)
+- [Usage](#usage)
+  - [Creating Smoke Tests](#creating-smoke-tests)
+  - [Configuration System](#configuration-system)
+  - [AWS Integration](#aws-integration)
+- [Documentation Structure](#documentation-structure)
+- [Available Scripts](#available-scripts)
+  - [Development](#development)
+  - [Testing](#testing)
+  - [Building and Running](#building-and-running)
+  - [CDK Deployment](#cdk-deployment)
+- [Framework Architecture](#framework-architecture)
+  - [Core Concepts](#core-concepts)
+  - [Service Client Architecture](#service-client-architecture)
+  - [Development Workflow](#development-workflow)
+- [Cloud Deployment](#cloud-deployment)
+  - [Lambda Function](#lambda-function)
+  - [Required IAM Permissions](#required-iam-permissions)
+  - [Environment Configurations](#environment-configurations)
+  - [Lambda Event Configuration](#lambda-event-configuration)
+- [Testing Practices](#testing-practices)
+- [Troubleshooting](#troubleshooting)
+  - [Common Issues](#common-issues)
+  - [Workarounds](#workarounds)
+  - [Debugging Tips](#debugging-tips)
+- [License](#license)
+
 ## Project Structure
 
 ```
@@ -110,103 +143,49 @@ smoker/
 
 ### Configuration System
 
-Smoker includes a powerful configuration system that supports various data types and multiple configuration sources. The system is built with modularity and flexibility in mind, allowing for configuration values to be loaded from local files, AWS S3, or directly as objects.
+The Smoker framework includes a flexible configuration system that supports multiple sources and parameter resolution.
 
-#### Configuration Data Types
+#### Key Features
 
-The configuration system supports:
+- **Multiple Sources**: Load configuration from JSON files, S3 buckets, code objects, and environment variables
+- **Parameter References**: Automatically resolve references to AWS SSM parameters and S3 files
+- **Type Safety**: Full TypeScript typing for configuration values
+- **Deep Merging**: Intelligent merging of configuration from multiple sources
 
-- Strings, numbers, and boolean values
-- Arrays of values
-- Nested objects with any level of hierarchy
-- Any combination of the above
+#### Basic Usage
 
-#### Configuration Methods
+```typescript
+import { 
+  addConfigurationFile, 
+  addConfigurationObject, 
+  addSSMParameterSource,
+  loadConfigurations,
+  getValue 
+} from "./support/config";
 
-You can provide configuration values in several ways:
+// Add configuration from multiple sources
+addConfigurationFile("./config/default.json");
+addConfigurationFile("s3://my-bucket/config.json");
 
-1. **JSON Configuration Files**
+// Add object with SSM parameter references
+addConfigurationObject({
+  apiKey: "ssm://my-app/api-key",
+  debug: process.env.DEBUG === "true"
+});
 
-   Create JSON files to store configuration values:
+// Load and merge all configurations
+await loadConfigurations();
 
-   ```json
-   // config/test-env.json
-   {
-     "apiUrl": "https://test-api.example.com",
-     "credentials": {
-       "username": "test-user",
-       "password": "test-password"
-     },
-     "timeouts": {
-       "request": 3000,
-       "browser": 10000
-     },
-     "features": ["api", "auth", "reporting"]
-   }
-   ```
+// Access configuration values
+const apiUrl = getValue("apiUrl", "https://default-api.example.com");
+```
 
-   Load configuration from files:
+#### Documentation
 
-   ```typescript
-   import { addConfigurationFile, loadConfigurations } from "./support/config";
+For comprehensive documentation of the configuration system, including advanced features and usage patterns, see:
 
-   // Load from local file
-   addConfigurationFile("./config/test-env.json");
-
-   // Load from S3
-   addConfigurationFile("s3://my-bucket/config/test-env.json");
-
-   // Load multiple files
-   loadConfigurationFiles(["./config/base.json", "./config/test-env.json"]);
-
-   // Load and merge all configurations
-   await loadConfigurations();
-   ```
-
-   Configuration files can also contain parameter references that will be automatically resolved (see Parameter References below).
-
-2. **In-code Configuration Objects**
-
-   Provide configuration values directly in code:
-
-   ```typescript
-   import { addConfigurationObject, loadConfigurations } from "./support/config";
-
-   // Create configuration from object
-   addConfigurationObject({
-     apiUrl: process.env.API_URL || "https://default-api.example.com",
-     debug: process.env.DEBUG === "true",
-     retries: 3,
-   });
-
-   // Load and merge configurations
-   await loadConfigurations();
-   ```
-
-3. **Object Configuration**
-
-   Provide configuration values programmatically in JavaScript/TypeScript code:
-
-   ```typescript
-   // Create configuration from object
-   addConfigurationObject({
-     apiUrl: process.env.API_URL || "https://default-api.example.com",
-     debug: process.env.DEBUG === "true",
-     retries: 3,
-   });
-
-   // Load and merge configurations
-   await loadConfigurations();
-   ```
-
-4. **Parameter References**
-
-   The configuration system supports several types of parameter references that are automatically resolved:
-   - **AWS SSM Parameter References**: Use the `ssm://` prefix to retrieve values from AWS SSM Parameter Store
-   - **S3 JSON References**: Use the `s3://` prefix with a `.json` extension to load and parse JSON content from S3
-   - **S3 JSON Content References**: Reference an S3 JSON file that will be fetched and parsed
-   - **Nested References**: Parameters can reference other parameters
-   - **Circular Reference Detection**: The system automatically detects and prevents circular references
+- [Configuration System Documentation](src/support/config/README.md)
+- [AWS Integration Documentation](src/support/aws/README.md) for SSM and S3 integration
 
 ### AWS Integration
 
@@ -380,47 +359,43 @@ describe("MqttClient", () => {
 - **Clean Mocks**: Reset mocks in `beforeEach` hooks to ensure test isolation
 - **Environment Variables**: Use controlled environment variables for consistent tests
 
-### Testing Infrastructure
+## Documentation Structure
 
-#### Test Framework
+The Smoker framework uses a modular documentation approach with detailed README files in each key directory:
 
-This project uses Vitest as the testing framework with the following features:
+### Core Documentation
 
-- **Fast execution**: Vitest offers modern, fast testing with native ESM support
-- **Watch mode**: Real-time test execution when files change
-- **Coverage reporting**: Generate detailed coverage reports in multiple formats (text, lcov, html)
-- **TypeScript integration**: First-class TypeScript support with no additional configuration
+- [Main README.md](README.md) - Project overview and getting started guide
+- [Source Code Documentation](src/README.md) - Core framework structure and components
 
-#### AWS SDK Mock Integration
+### Module Documentation
 
-The tests utilize `aws-sdk-client-mock` and `aws-sdk-client-mock-vitest` for robust AWS service mocking:
+- [Service Clients](src/clients/README.md) - Available clients and usage patterns
+- [Support Modules](src/support/README.md) - Support utilities and shared components
+- [AWS Integration](src/support/aws/README.md) - AWS client wrappers and utilities
+- [Configuration System](src/support/config/README.md) - Configuration management system
+- [Library Utilities](src/lib/README.md) - Core utility functions
 
-- **Service Mocking**: Mock AWS SDK v3 client interactions without making actual AWS calls
-- **Command Assertions**: Verify command calls, parameters, and frequency
-- **Stream Handling**: Proper mocking of AWS response streams
-- **Type Safety**: Full TypeScript support for mocked responses and assertions
+### Testing Documentation
 
-#### Best Practices for Testing AWS Services
+- [Testing Guide](test/README.md) - Testing approach and best practices
+- [Client Testing](test/clients/README.md) - Client-specific testing strategies
 
-1. **Mock AWS clients** instead of making real AWS calls in tests
-2. **Assert AWS calls** using the appropriate matchers and assertions
-3. **Handle edge cases** like error conditions and service failures
-4. **Test non-JSON file handling** for S3 references appropriately
-5. **Clear caches** between tests to ensure isolation
+These documentation files provide comprehensive information about different aspects of the framework, from high-level architecture to detailed implementation guides.
 
-#### Writing Effective Tests
-
-- **Test file organization**: Place test files alongside their implementation in the same directory structure
-- **Naming conventions**: Use `.test.ts` suffix for unit tests, `.integration.test.ts` for integration tests
-- **Test isolation**: Ensure each test properly resets mocks and shared state
-- **Edge case coverage**: Test error conditions, invalid inputs, and boundary conditions
-- **Mock realism**: Ensure mocked AWS responses match real AWS behavior including error patterns
+### Available Scripts
 
 #### Development
 
-- `npm run check`: Run TypeScript type checking
-- `npm run lint`: Run ESLint to check code quality
+- `npm install`: Install dependencies
+- `npm run check`: Run TypeScript checks and linting
 - `npm run format`: Format code with Prettier
+
+#### Testing
+
+- `npm test`: Run framework tests with Vitest
+- `npm run test:watch`: Run tests in watch mode
+- `npm run test:coverage`: Generate test coverage report
 
 #### Building and Running
 
@@ -428,7 +403,25 @@ The tests utilize `aws-sdk-client-mock` and `aws-sdk-client-mock-vitest` for rob
 - `npm start`: Run smoke tests against target systems
 - `npm run clean`: Clean up build artifacts
 
+#### CDK Deployment
+
+- `npm run cdk:deploy`: Deploy the Lambda function stack
+- `npm run cdk:diff`: Show changes between local and deployed stack
+- `npm run cdk:destroy`: Remove the deployed stack
+
 ## Framework Architecture
+
+The Smoker framework is built on a modular architecture with several key components:
+
+1. **Service Clients**: Standardized interfaces for interacting with external services
+2. **Configuration System**: Flexible parameter management across environments
+3. **Support Modules**: Shared utilities and AWS integration
+4. **World Implementation**: BDD state management between test steps
+
+For detailed architecture documentation, see:
+- [Source Code Documentation](src/README.md)
+- [Service Client Documentation](src/clients/README.md)
+- [Support Module Documentation](src/support/README.md)
 
 ### Core Concepts
 
