@@ -2,12 +2,12 @@
  * Unit tests for Configuration
  * Tests the functionality of the Configuration class and related utilities
  */
-import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { mockClient } from "aws-sdk-client-mock";
 import { GetObjectCommand, S3Client } from "@aws-sdk/client-s3";
 import { GetParameterCommand, SSMClient } from "@aws-sdk/client-ssm";
+import { mockClient } from "aws-sdk-client-mock";
 import { existsSync, readFileSync } from "node:fs";
-import { createS3Response, expectCommandToHaveBeenCalledWith } from "../aws-test-utils";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { createS3Response } from "../aws-test-utils";
 
 // Mock filesystem operations
 vi.mock("node:fs", () => ({
@@ -160,7 +160,7 @@ describe("Configuration Module", () => {
       expect(config).toEqual(testConfig);
 
       // Verify correct S3 command was called
-      expectCommandToHaveBeenCalledWith(mockS3, GetObjectCommand, {
+      expect(mockS3).toHaveReceivedCommandWith(GetObjectCommand, {
         Bucket: "test-bucket",
         Key: "config.json",
       });

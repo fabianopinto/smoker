@@ -1,3 +1,7 @@
+/**
+ * Unit tests for SSM client implementation
+ * Tests the SsmClient functionality using aws-sdk-client-mock
+ */
 import {
   SSMClient as AwsSSMClient,
   DeleteParameterCommand,
@@ -7,12 +11,13 @@ import {
 } from "@aws-sdk/client-ssm";
 import { mockClient } from "aws-sdk-client-mock";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
-import { SsmClient } from "../../src/clients/ssm";
+import { SsmClient } from "../../../src/clients/aws/ssm";
 
 // Create the mock client
 const ssmMock = mockClient(AwsSSMClient);
 
 describe("SsmClient with aws-sdk-client-mock", () => {
+  // With module augmentation, TypeScript should recognize the inheritance
   let client: SsmClient;
 
   beforeEach(() => {
@@ -66,7 +71,9 @@ describe("SsmClient with aws-sdk-client-mock", () => {
         endpoint: "http://localhost:4566",
       };
 
-      await client.init(config);
+      // Create client with config in constructor
+      client = new SsmClient("SsmClient", config);
+      await client.init();
 
       // Verify the client was properly initialized
       // Note: Creating an SSM client doesn't actually make any AWS calls,
@@ -234,11 +241,12 @@ describe("SsmClient with aws-sdk-client-mock", () => {
         const kmsKeyId =
           "arn:aws:kms:us-east-1:123456789012:key/1234abcd-12ab-34cd-56ef-1234567890ab";
 
-        // Initialize with KMS key ID
+        // Create new client with KMS key configuration
         await client.destroy();
-        await client.init({
+        client = new SsmClient("SsmClient", {
           kmsKeyId,
         });
+        await client.init();
 
         ssmMock.on(PutParameterCommand).resolves({});
 
@@ -301,7 +309,7 @@ describe("SsmClient with aws-sdk-client-mock", () => {
 
   describe("Error handling", () => {
     it("should throw error if client is not initialized", async () => {
-      const newClient = new SsmClient();
+      const newClient = new SsmClient("SsmClient");
 
       await expect(newClient.read("/test/parameter")).rejects.toThrow("not initialized");
       await expect(newClient.write("/test/parameter", "value")).rejects.toThrow("not initialized");

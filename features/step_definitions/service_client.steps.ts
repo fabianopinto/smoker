@@ -1,3 +1,9 @@
+/**
+ * Step definitions for service clients
+ *
+ * These step definitions provide a way to interact with service clients
+ * registered in the SmokeWorld instance.
+ */
 import { After, Before, Given, Then, When } from "@cucumber/cucumber";
 import { strictEqual } from "node:assert";
 import type { SmokeWorld } from "../../src/world";
@@ -15,9 +21,9 @@ After(async function (this: SmokeWorld) {
 
 // REST client steps
 Given("a REST client with base URL {string}", async function (this: SmokeWorld, baseUrl: string) {
-  // Get the REST client and initialize it with specific configuration
-  const restClient = this.getClient("rest");
-  await restClient.init({ baseURL: baseUrl });
+  // Register REST client with configuration in constructor
+  const restClient = this.registerClientWithConfig("rest", { baseURL: baseUrl });
+  await restClient.init();
 });
 
 When("I send a GET request to {string}", async function (this: SmokeWorld, path: string) {
@@ -38,14 +44,14 @@ Then("I should receive a status code {int}", function (this: SmokeWorld, statusC
 
 // S3 client steps
 Given("an S3 client for bucket {string}", async function (this: SmokeWorld, bucket: string) {
-  // Get the S3 client and initialize it with specific configuration
-  const s3Client = this.getClient("s3");
-  await s3Client.init({
+  // Register S3 client with configuration in constructor
+  const s3Client = this.registerClientWithConfig("s3", {
     bucket,
     region: process.env.AWS_REGION || "us-east-1",
     accessKeyId: process.env.AWS_ACCESS_KEY_ID,
     secretAccessKey: process.env.AWS_SECRET_ACCESS_KEY,
   });
+  await s3Client.init();
 });
 
 When(
@@ -75,13 +81,13 @@ Then("I should see the content {string}", function (this: SmokeWorld, expectedCo
 
 // SSM client steps
 Given("an SSM client in region {string}", async function (this: SmokeWorld, region: string) {
-  // Get the SSM client and initialize it with specific configuration
-  const ssmClient = this.getClient("ssm");
-  await ssmClient.init({
+  // Register SSM client with configuration in constructor
+  const ssmClient = this.registerClientWithConfig("ssm", {
     region,
     accessKeyId: process.env.AWS_ACCESS_KEY_ID,
     secretAccessKey: process.env.AWS_SECRET_ACCESS_KEY,
   });
+  await ssmClient.init();
 });
 
 When(

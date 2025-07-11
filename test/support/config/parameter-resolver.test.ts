@@ -2,12 +2,12 @@
  * Unit tests for ParameterResolver
  * Tests the resolution of configuration parameters from various sources
  */
-import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { mockClient } from "aws-sdk-client-mock";
 import { GetObjectCommand, S3Client } from "@aws-sdk/client-s3";
 import { GetParameterCommand, SSMClient } from "@aws-sdk/client-ssm";
+import { mockClient } from "aws-sdk-client-mock";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { type ConfigObject, ParameterResolver, ssmParameterCache } from "../../../src/support";
-import { createS3Response, expectCommandToHaveBeenCalledWith } from "../aws-test-utils";
+import { createS3Response } from "../aws-test-utils";
 
 // Create mock clients using aws-sdk-client-mock
 const mockSSM = mockClient(SSMClient);
@@ -92,7 +92,7 @@ describe("ParameterResolver", () => {
       const result = await resolver.resolveValue(testValue);
 
       expect(result).toBe("param1-value");
-      expectCommandToHaveBeenCalledWith(mockSSM, GetParameterCommand, {
+      expect(mockSSM).toHaveReceivedCommandWith(GetParameterCommand, {
         Name: "test/param1",
         WithDecryption: true,
       });
@@ -195,13 +195,13 @@ describe("ParameterResolver", () => {
       expect(mockS3.calls().length).toBeGreaterThan(0);
 
       // Verify the bucket and key were correctly extracted from the S3 URL
-      expectCommandToHaveBeenCalledWith(mockS3, GetObjectCommand, {
+      expect(mockS3).toHaveReceivedCommandWith(GetObjectCommand, {
         Bucket: "test-bucket",
         Key: "config/test.json",
       });
 
       // Verify the SSM client was called to resolve the nested parameter
-      expectCommandToHaveBeenCalledWith(mockSSM, GetParameterCommand, {
+      expect(mockSSM).toHaveReceivedCommandWith(GetParameterCommand, {
         Name: "test/nested",
         WithDecryption: true,
       });
@@ -258,7 +258,7 @@ describe("ParameterResolver", () => {
       expect(mockSSM.calls().length).toBe(10);
 
       // Verify the first call was to the starting parameter
-      expectCommandToHaveBeenCalledWith(mockSSM, GetParameterCommand, {
+      expect(mockSSM).toHaveReceivedCommandWith(GetParameterCommand, {
         Name: "test/depth/1",
         WithDecryption: true,
       });

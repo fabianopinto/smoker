@@ -1,3 +1,7 @@
+/**
+ * Unit tests for SQS client implementation
+ * Tests the SqsClient functionality using aws-sdk-client-mock
+ */
 import {
   SQSClient as AwsSQSClient,
   DeleteMessageCommand,
@@ -8,12 +12,13 @@ import {
 } from "@aws-sdk/client-sqs";
 import { mockClient } from "aws-sdk-client-mock";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { SqsClient } from "../../src/clients/sqs";
+import { SqsClient } from "../../../src/clients/aws/sqs";
 
 // Create the mock client
 const sqsMock = mockClient(AwsSQSClient);
 
 describe("SqsClient", () => {
+  // With module augmentation, TypeScript should recognize the inheritance
   let client: SqsClient;
 
   beforeEach(() => {
@@ -43,12 +48,16 @@ describe("SqsClient", () => {
     });
 
     it("should be initialized after init is called", async () => {
-      await client.init({ queueUrl: "https://sqs.example.com/queue" });
+      // Create client with queue config in constructor
+      client = new SqsClient("SqsClient", { queueUrl: "https://sqs.example.com/queue" });
+      await client.init();
       expect(client.isInitialized()).toBe(true);
     });
 
     it("should not be initialized after destroy is called", async () => {
-      await client.init({ queueUrl: "https://sqs.example.com/queue" });
+      // Create client with queue config in constructor
+      client = new SqsClient("SqsClient", { queueUrl: "https://sqs.example.com/queue" });
+      await client.init();
       expect(client.isInitialized()).toBe(true);
 
       await client.destroy();
@@ -58,13 +67,21 @@ describe("SqsClient", () => {
 
   describe("Initialization with config", () => {
     it("should throw an error if queueUrl is not provided", async () => {
+      // Arrange - client without queue URL config
+      client = new SqsClient("SqsClientNoUrl");
+
+      // Act & Assert - verify initialization fails with the correct error
       await expect(client.init()).rejects.toThrow("SQS queue URL is required");
+
+      // Verify client is not initialized after error
+      expect(client.isInitialized()).toBe(false);
     });
 
     it("should use default region when none provided", async () => {
       // With the aws-sdk-client-mock approach, we can't directly check the constructor arguments
       // Instead, we'll verify that initialization completes successfully and the client works
-      await client.init({ queueUrl: "https://sqs.example.com/queue" });
+      client = new SqsClient("SqsClient", { queueUrl: "https://sqs.example.com/queue" });
+      await client.init();
       expect(client.isInitialized()).toBe(true);
 
       // Verify we can use the client with default region
@@ -87,7 +104,9 @@ describe("SqsClient", () => {
         endpoint: "http://localhost:4566",
       };
 
-      await client.init(config);
+      // Create client with full config in constructor
+      client = new SqsClient("SqsClient", config);
+      await client.init();
       expect(client.isInitialized()).toBe(true);
 
       // Reset and setup mock for testing
@@ -109,7 +128,9 @@ describe("SqsClient", () => {
     const queueUrl = "https://sqs.example.com/queue";
 
     beforeEach(async () => {
-      await client.init({ queueUrl });
+      // Create client with queue config in constructor
+      client = new SqsClient("SqsClient", { queueUrl });
+      await client.init();
     });
 
     describe("sendMessage", () => {
@@ -389,7 +410,7 @@ describe("SqsClient", () => {
   describe("Error handling", () => {
     it("should throw error if client is not initialized", async () => {
       // Create a new client instance without initializing it
-      const newClient = new SqsClient();
+      const newClient = new SqsClient("SqsClient");
 
       // Verify all methods properly check for initialization
       await expect(newClient.sendMessage("test")).rejects.toThrow("SqsClient is not initialized");
@@ -402,7 +423,8 @@ describe("SqsClient", () => {
 
     it("should propagate AWS errors", async () => {
       // Initialize the client
-      await client.init({ queueUrl: "https://sqs.example.com/queue" });
+      client = new SqsClient("SqsClient", { queueUrl: "https://sqs.example.com/queue" });
+      await client.init();
 
       // Setup mock to reject with an AWS error
       const awsError = new Error("AWS service error");
@@ -415,14 +437,15 @@ describe("SqsClient", () => {
   });
 
   describe("Edge cases", () => {
-    it("should handle multiple initializations", async () => {
-      // First initialization
-      await client.init({ queueUrl: "https://sqs.example.com/queue1" });
-      expect(client.isInitialized()).toBe(true);
+    it("should handle multiple client instances with different configurations", async () => {
+      // First client instance with first queue URL
+      const client1 = new SqsClient("SqsClient1", { queueUrl: "https://sqs.example.com/queue1" });
+      await client1.init();
+      expect(client1.isInitialized()).toBe(true);
 
       // Mock response for first queue URL
       sqsMock.on(SendMessageCommand).resolves({ MessageId: "msg-1" });
-      await client.sendMessage("test-msg-1");
+      await client1.sendMessage("test-msg-1");
 
       // Verify first queue URL was used
       expect(sqsMock).toHaveReceivedCommandWith(SendMessageCommand, {
@@ -430,26 +453,32 @@ describe("SqsClient", () => {
         MessageBody: "test-msg-1",
       });
 
-      // Second initialization with different queue URL
-      await client.init({ queueUrl: "https://sqs.example.com/queue2" });
-      expect(client.isInitialized()).toBe(true);
+      // Second client instance with different queue URL
+      const client2 = new SqsClient("SqsClient2", { queueUrl: "https://sqs.example.com/queue2" });
+      await client2.init();
+      expect(client2.isInitialized()).toBe(true);
 
       // Reset mock to clear previous calls
       sqsMock.reset();
 
       // Mock response for second queue URL
       sqsMock.on(SendMessageCommand).resolves({ MessageId: "msg-2" });
-      await client.sendMessage("test-msg-2");
+      await client2.sendMessage("test-msg-2");
 
       // Verify second queue URL was used
       expect(sqsMock).toHaveReceivedCommandWith(SendMessageCommand, {
         QueueUrl: "https://sqs.example.com/queue2",
         MessageBody: "test-msg-2",
       });
+
+      // Cleanup
+      await client1.destroy();
+      await client2.destroy();
     });
 
     it("should handle empty message body", async () => {
-      await client.init({ queueUrl: "https://sqs.example.com/queue" });
+      client = new SqsClient("SqsClient", { queueUrl: "https://sqs.example.com/queue" });
+      await client.init();
 
       // Reset mock and setup response for empty message
       sqsMock.reset();

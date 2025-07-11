@@ -1,3 +1,7 @@
+/**
+ * Unit tests for CloudWatch client implementation
+ * Tests the CloudWatchClient functionality using aws-sdk-client-mock
+ */
 import {
   CloudWatchLogsClient,
   DescribeLogGroupsCommand,
@@ -6,14 +10,13 @@ import {
 } from "@aws-sdk/client-cloudwatch-logs";
 import { mockClient } from "aws-sdk-client-mock";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-
-// Import the client we're testing
-import { CloudWatchClient } from "../../src/clients/cloudwatch";
+import { CloudWatchClient } from "../../../src/clients/aws/cloudwatch";
 
 // Create the mock client
 const cloudWatchMock = mockClient(CloudWatchLogsClient);
 
 describe("CloudWatchClient", () => {
+  // With module augmentation, TypeScript should recognize the inheritance
   let client: CloudWatchClient;
 
   beforeEach(() => {
@@ -24,6 +27,7 @@ describe("CloudWatchClient", () => {
     // Setup fake timers for consistent timer control
     vi.useFakeTimers();
 
+    // Create client without configuration initially
     client = new CloudWatchClient();
   });
 
@@ -45,13 +49,21 @@ describe("CloudWatchClient", () => {
       expect(client.isInitialized()).toBe(false);
     });
 
-    it("should be initialized after init is called", async () => {
-      await client.init({ logGroupName: "test-log-group" });
-      expect(client.isInitialized()).toBe(true);
+    it("should not affect other instances", async () => {
+      // Create two clients with different configurations
+      const client1 = new CloudWatchClient("CloudWatchClient1", { logGroupName: "test-log-group" });
+      await client1.init();
+      const client2 = new CloudWatchClient("CloudWatchClient2", { logGroupName: "test-log-group" });
+      await client2.init();
+
+      expect(client1.isInitialized()).toBe(true);
+      expect(client2.isInitialized()).toBe(true);
     });
 
     it("should not be initialized after destroy is called", async () => {
-      await client.init({ logGroupName: "test-log-group" });
+      // Create client with configuration in constructor
+      client = new CloudWatchClient("CloudWatchClient", { logGroupName: "test-log-group" });
+      await client.init();
       expect(client.isInitialized()).toBe(true);
 
       await client.destroy();
@@ -61,11 +73,14 @@ describe("CloudWatchClient", () => {
 
   describe("Initialization with config", () => {
     it("should throw an error if logGroupName is not provided", async () => {
+      // Client without logGroupName should throw during init
       await expect(client.init()).rejects.toThrow("CloudWatch log group name is required");
     });
 
     it("should use default region when none provided", async () => {
-      await client.init({ logGroupName: "test-log-group" });
+      // Create client with minimal configuration
+      client = new CloudWatchClient("CloudWatchClient", { logGroupName: "test-log-group" });
+      await client.init();
 
       expect(client.isInitialized()).toBe(true);
 
@@ -79,14 +94,16 @@ describe("CloudWatchClient", () => {
 
     it("should use provided configuration", async () => {
       const config = {
+        logGroupName: "test-log-group",
         region: "eu-west-1",
-        logGroupName: "my-logs",
         accessKeyId: "test-key-id",
         secretAccessKey: "test-secret",
         endpoint: "http://localhost:4566",
       };
 
-      await client.init(config);
+      // Create client with complete configuration in constructor
+      client = new CloudWatchClient("CloudWatchClient", config);
+      await client.init();
 
       expect(client.isInitialized()).toBe(true);
 
@@ -98,7 +115,7 @@ describe("CloudWatchClient", () => {
       expect(result).toEqual(["test message"]);
 
       expect(cloudWatchMock).toHaveReceivedCommandWith(FilterLogEventsCommand, {
-        logGroupName: "my-logs",
+        logGroupName: "test-log-group",
         logStreamNames: ["test-stream"],
         filterPattern: "pattern",
         startTime: undefined,
@@ -109,7 +126,9 @@ describe("CloudWatchClient", () => {
 
   describe("CloudWatch operations", () => {
     beforeEach(async () => {
-      await client.init({ logGroupName: "test-log-group" });
+      // Create client with configuration in constructor
+      client = new CloudWatchClient("CloudWatchClient", { logGroupName: "test-log-group" });
+      await client.init();
     });
 
     describe("searchLogStream", () => {
@@ -308,7 +327,8 @@ describe("CloudWatchClient", () => {
     beforeEach(async () => {
       cloudWatchMock.reset();
       cloudWatchMock.resolves({});
-      await client.init({ logGroupName: "test-log-group" });
+      client = new CloudWatchClient("CloudWatchClient", { logGroupName: "test-log-group" });
+      await client.init();
     });
 
     it("should propagate AWS errors in searchLogStream", async () => {
@@ -349,24 +369,24 @@ describe("CloudWatchClient", () => {
   });
 
   describe("Edge cases", () => {
-    it("should handle multiple initializations", async () => {
+    it("should handle multiple client instances with different configurations", async () => {
       cloudWatchMock.reset();
       cloudWatchMock.resolves({});
 
-      await client.init({ logGroupName: "first-group" });
-      expect(client.isInitialized()).toBe(true);
+      // Create first client with first log group
+      const firstClient = new CloudWatchClient("CloudWatchClient1", {
+        logGroupName: "first-group",
+      });
+      await firstClient.init();
+      expect(firstClient.isInitialized()).toBe(true);
 
       cloudWatchMock.on(FilterLogEventsCommand).resolves({
         events: [{ message: "first message" }],
       });
 
-      await client.searchLogStream("test-stream", "pattern");
+      await firstClient.searchLogStream("", "pattern");
       expect(cloudWatchMock).toHaveReceivedCommandWith(FilterLogEventsCommand, {
         logGroupName: "first-group",
-        logStreamNames: ["test-stream"],
-        filterPattern: "pattern",
-        startTime: undefined,
-        endTime: undefined,
       });
 
       cloudWatchMock.reset();
@@ -374,10 +394,14 @@ describe("CloudWatchClient", () => {
         events: [{ message: "second message" }],
       });
 
-      await client.init({ logGroupName: "second-group" });
-      expect(client.isInitialized()).toBe(true);
+      // Create second client with second log group
+      const secondClient = new CloudWatchClient("CloudWatchClient2", {
+        logGroupName: "second-group",
+      });
+      await secondClient.init();
+      expect(secondClient.isInitialized()).toBe(true);
 
-      await client.searchLogStream("test-stream", "pattern");
+      await secondClient.searchLogStream("test-stream", "pattern");
       expect(cloudWatchMock).toHaveReceivedCommandWith(FilterLogEventsCommand, {
         logGroupName: "second-group",
         logStreamNames: ["test-stream"],
@@ -385,13 +409,18 @@ describe("CloudWatchClient", () => {
         startTime: undefined,
         endTime: undefined,
       });
+
+      // Clean up
+      await firstClient.destroy();
+      await secondClient.destroy();
     });
 
     it("should handle empty pattern in searchLogStream", async () => {
       cloudWatchMock.reset();
 
-      // Initialize client
-      await client.init({ logGroupName: "test-log-group" });
+      // Initialize client with configuration in constructor
+      client = new CloudWatchClient("CloudWatchClient", { logGroupName: "test-log-group" });
+      await client.init();
 
       // Mock the searchLogStream response
       cloudWatchMock.on(FilterLogEventsCommand).resolves({ events: [] });

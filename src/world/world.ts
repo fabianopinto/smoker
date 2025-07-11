@@ -2,8 +2,7 @@
  * World object for the Smoke scenarios
  * This class maintains state between steps
  */
-import type { IWorldOptions } from "@cucumber/cucumber";
-import { World, setWorldConstructor } from "@cucumber/cucumber";
+import { type IWorldOptions, setWorldConstructor, World } from "@cucumber/cucumber";
 import type {
   CloudWatchServiceClient,
   KafkaServiceClient,
@@ -15,58 +14,120 @@ import type {
   SqsServiceClient,
   SsmServiceClient,
 } from "../clients";
-import {
-  CloudWatchClient,
-  KafkaClient,
-  KinesisClient,
-  MqttClient,
-  RestClient,
-  S3Client,
-  SqsClient,
-  SsmClient,
-} from "../clients";
+import { ClientType } from "../clients/core/types";
+import { type ClientConfig, ClientRegistry } from "../clients/registry/config";
+import { ClientFactory } from "../clients/registry/factory";
 import { dummy } from "../lib/dummy";
 
 /**
- * Interface extending Cucumber's World with custom methods for smoke tests
+ * SmokeWorld interface and implementation
+ *
+ * This module provides the SmokeWorld interface that extends Cucumber's World,
+ * adding client management and helper methods for smoke tests.
+ */
+
+/**
+ * SmokeWorld interface
+ * Extends Cucumber World with client management and test helpers
+ *
+ * This interface defines the contract for the test world, providing methods
+ * to access specific client types, manage client registration, and handle
+ * client lifecycle operations.
  */
 export interface SmokeWorld extends World {
-  // Original methods
-  setTarget(target: string): void;
-  getTarget(): string;
-  generatePhrase(): void;
-  getPhrase(): string;
+  /**
+   * Client Access Methods
+   * Each method retrieves a client of the specified type with optional ID
+   */
+  getRest<T extends RestServiceClient = RestServiceClient>(id?: string): T;
+  getMqtt<T extends MqttServiceClient = MqttServiceClient>(id?: string): T;
+  getS3<T extends S3ServiceClient = S3ServiceClient>(id?: string): T;
+  getCloudWatch<T extends CloudWatchServiceClient = CloudWatchServiceClient>(id?: string): T;
+  getSsm<T extends SsmServiceClient = SsmServiceClient>(id?: string): T;
+  getSqs<T extends SqsServiceClient = SqsServiceClient>(id?: string): T;
+  getKinesis<T extends KinesisServiceClient = KinesisServiceClient>(id?: string): T;
+  getKafka<T extends KafkaServiceClient = KafkaServiceClient>(id?: string): T;
 
-  // Client registration and access methods
+  /**
+   * Client Registration and Access
+   */
+  // Register an existing client with a name
   registerClient(name: string, client: ServiceClient): void;
+
+  // Register a client with configuration and create it
+  registerClientWithConfig(
+    clientType: ClientType | string,
+    config: ClientConfig,
+    id?: string,
+  ): ServiceClient;
+
+  // Register multiple client configurations of the same type
+  registerClientConfigs(clientType: ClientType | string, configs: ClientConfig[]): ServiceClient[];
+
+  // Create a client without registering it
+  createClient(clientType: ClientType | string, id?: string): ServiceClient;
+
+  // Get a registered client by name
   getClient<T extends ServiceClient = ServiceClient>(name: string): T;
+
+  // Check if a client exists
   hasClient(name: string): boolean;
 
-  // Predefined client access methods
-  getRest(): RestServiceClient;
-  getMqtt(): MqttServiceClient;
-  getS3(): S3ServiceClient;
-  getCloudWatch(): CloudWatchServiceClient;
-  getSsm(): SsmServiceClient;
-  getSqs(): SqsServiceClient;
-  getKinesis(): KinesisServiceClient;
-  getKafka(): KafkaServiceClient;
+  /**
+   * Client Lifecycle Management
+   */
+  // Initialize all clients with optional configuration
+  initializeClients(config?: Record<string, unknown>): Promise<void>;
 
-  // Client initialization and cleanup
-  initializeClients(config?: Record<string, Record<string, unknown>>): Promise<void>;
+  // Reset all clients to initial state
+  resetClients(): Promise<void>;
+
+  // Destroy all clients and free resources
   destroyClients(): Promise<void>;
 
-  // Helper methods for step definitions
+  /**
+   * Helper Methods for storing and retrieving test data
+   */
+  // Store response for later assertions
   attachResponse(response: unknown): void;
+
+  // Retrieve the last stored response
   getLastResponse(): unknown;
+
+  // Store content for later assertions
   attachContent(content: string): void;
+
+  // Retrieve the last stored content
   getLastContent(): string;
+
+  // Store error for later assertions
   attachError(error: Error): void;
+
+  // Retrieve the last stored error
   getLastError(): Error;
+
+  /**
+   * Optional methods for target and phrase functionality
+   */
+  // Set the target string
+  setTarget(target: string): void;
+
+  // Get the current target
+  getTarget(): string;
+
+  // Generate a phrase based on the target
+  generatePhrase(): void;
+
+  // Get the generated phrase
+  getPhrase(): string;
 }
 
 /**
- * Custom World implementation for Smoke tests
+ * Default SmokeWorld implementation
+ *
+ * This class extends Cucumber's World and implements the SmokeWorld interface,
+ * providing client management and access functionality for smoke tests.
+ * It manages client configuration, registration, creation, and lifecycle operations.
  */
 export class SmokeWorldImpl extends World implements SmokeWorld {
   // Properties to store state between steps
@@ -76,15 +137,9 @@ export class SmokeWorldImpl extends World implements SmokeWorld {
   // Registry for all clients
   private clients = new Map<string, ServiceClient>();
 
-  // Default client instances
-  private readonly restClient: RestClient;
-  private readonly mqttClient: MqttClient;
-  private readonly s3Client: S3Client;
-  private readonly cloudWatchClient: CloudWatchClient;
-  private readonly ssmClient: SsmClient;
-  private readonly sqsClient: SqsClient;
-  private readonly kinesisClient: KinesisClient;
-  private readonly kafkaClient: KafkaClient;
+  // Client configuration and factory
+  private clientRegistry: ClientRegistry;
+  private clientFactory: ClientFactory;
 
   // Storage for test execution state
   private lastResponse: unknown = null;
@@ -92,31 +147,45 @@ export class SmokeWorldImpl extends World implements SmokeWorld {
   private lastError: Error | null = null;
 
   /**
-   * Create a new Smoke World instance
+   * Create a new SmokeWorld instance
    * @param options Cucumber World constructor options
+   * @param config Optional initial configuration
    */
-  constructor(options: IWorldOptions) {
+  constructor(options: IWorldOptions, config?: Record<string, unknown>) {
     super(options);
 
-    // Create default client instances
-    this.restClient = new RestClient();
-    this.mqttClient = new MqttClient();
-    this.s3Client = new S3Client();
-    this.cloudWatchClient = new CloudWatchClient();
-    this.ssmClient = new SsmClient();
-    this.sqsClient = new SqsClient();
-    this.kinesisClient = new KinesisClient();
-    this.kafkaClient = new KafkaClient();
+    // Initialize client registry and factory
+    this.clientRegistry = new ClientRegistry();
+    this.clientFactory = new ClientFactory(this.clientRegistry);
 
-    // Register default clients
-    this.registerClient("rest", this.restClient);
-    this.registerClient("mqtt", this.mqttClient);
-    this.registerClient("s3", this.s3Client);
-    this.registerClient("cloudwatch", this.cloudWatchClient);
-    this.registerClient("ssm", this.ssmClient);
-    this.registerClient("sqs", this.sqsClient);
-    this.registerClient("kinesis", this.kinesisClient);
-    this.registerClient("kafka", this.kafkaClient);
+    // Register initial configuration if provided
+    if (config) {
+      this.clientRegistry.registerConfigs(config);
+      this.createAndRegisterDefaultClients();
+    }
+  }
+
+  /**
+   * Create and register clients for all client types in the registry
+   */
+  private createAndRegisterDefaultClients(): void {
+    // Get all configurations from registry and create clients
+    const configs = this.clientRegistry.getAllConfigs();
+
+    for (const [key] of configs.entries()) {
+      // Parse client type and ID from key
+      const [clientType, clientId] = key.includes(":") ? key.split(":") : [key, undefined];
+
+      // Skip if client already exists
+      const clientKey = clientId ? `${clientType}:${clientId}` : clientType;
+      if (this.hasClient(clientKey)) {
+        continue;
+      }
+
+      // Create and register client
+      const client = this.clientFactory.createClient(clientType, clientId);
+      this.registerClient(clientKey, client);
+    }
   }
 
   /**
@@ -181,87 +250,212 @@ export class SmokeWorldImpl extends World implements SmokeWorld {
   }
 
   /**
-   * Get the REST client
+   * Get the client registry
    */
-  getRest(): RestServiceClient {
-    return this.restClient;
+  getClientRegistry(): ClientRegistry {
+    return this.clientRegistry;
   }
 
   /**
-   * Get the MQTT client
+   * Get the client factory
    */
-  getMqtt(): MqttServiceClient {
-    return this.mqttClient;
+  getClientFactory(): ClientFactory {
+    return this.clientFactory;
   }
 
   /**
-   * Get the S3 client
+   * Create a new client instance
+   * @param clientType The client type (enum or string)
+   * @param id Optional client identifier
+   * @returns The created client
    */
-  getS3(): S3ServiceClient {
-    return this.s3Client;
+  createClient(clientType: ClientType | string, id?: string): ServiceClient {
+    return this.clientFactory.createClient(clientType, id);
   }
 
   /**
-   * Get the CloudWatch client
+   * Register a client configuration and create the client
+   * @param clientType The client type (enum or string)
+   * @param config The client configuration
+   * @param id Optional client identifier
+   * @returns The created client
    */
-  getCloudWatch(): CloudWatchServiceClient {
-    return this.cloudWatchClient;
+  registerClientWithConfig(
+    clientType: ClientType | string,
+    config: ClientConfig,
+    id?: string,
+  ): ServiceClient {
+    // Register configuration
+    this.clientRegistry.registerConfig(clientType, config, id);
+
+    // Create and register the client
+    const clientId = id || config.id || clientType;
+    const clientKey = clientId !== clientType ? `${clientType}:${clientId}` : clientType;
+    const client = this.clientFactory.createClient(clientType, clientId);
+    this.registerClient(clientKey, client);
+
+    return client;
   }
 
   /**
-   * Get the SSM client
+   * Get a REST client with optional ID
+   *
+   * @param id - Optional client identifier
+   * @returns The REST client instance
+   * @throws Error if the client does not exist
    */
-  getSsm(): SsmServiceClient {
-    return this.ssmClient;
+  getRest<T extends RestServiceClient = RestServiceClient>(id?: string): T {
+    return this.getClient<T>(id ? `rest:${id}` : "rest");
   }
 
   /**
-   * Get the SQS client
+   * Get an MQTT client with optional ID
+   *
+   * @param id - Optional client identifier
+   * @returns The MQTT client instance
+   * @throws Error if the client does not exist
    */
-  getSqs(): SqsServiceClient {
-    return this.sqsClient;
+  getMqtt<T extends MqttServiceClient = MqttServiceClient>(id?: string): T {
+    return this.getClient<T>(id ? `mqtt:${id}` : "mqtt");
   }
 
   /**
-   * Get the Kinesis client
+   * Get an S3 client with optional ID
+   *
+   * @param id - Optional client identifier
+   * @returns The S3 client instance
+   * @throws Error if the client does not exist
    */
-  getKinesis(): KinesisServiceClient {
-    return this.kinesisClient;
+  getS3<T extends S3ServiceClient = S3ServiceClient>(id?: string): T {
+    return this.getClient<T>(id ? `s3:${id}` : "s3");
   }
 
   /**
-   * Get the Kafka client
+   * Get a CloudWatch client with optional ID
+   *
+   * @param id - Optional client identifier
+   * @returns The CloudWatch client instance
+   * @throws Error if the client does not exist
    */
-  getKafka(): KafkaServiceClient {
-    return this.kafkaClient;
+  getCloudWatch<T extends CloudWatchServiceClient = CloudWatchServiceClient>(id?: string): T {
+    return this.getClient<T>(id ? `cloudwatch:${id}` : "cloudwatch");
+  }
+
+  /**
+   * Get an SSM client with optional ID
+   *
+   * @param id - Optional client identifier
+   * @returns The SSM client instance
+   * @throws Error if the client does not exist
+   */
+  getSsm<T extends SsmServiceClient = SsmServiceClient>(id?: string): T {
+    return this.getClient<T>(id ? `ssm:${id}` : "ssm");
+  }
+
+  /**
+   * Get an SQS client with optional ID
+   *
+   * @param id - Optional client identifier
+   * @returns The SQS client instance
+   * @throws Error if the client does not exist
+   */
+  getSqs<T extends SqsServiceClient = SqsServiceClient>(id?: string): T {
+    return this.getClient<T>(id ? `sqs:${id}` : "sqs");
+  }
+
+  /**
+   * Get a Kinesis client with optional ID
+   *
+   * @param id - Optional client identifier
+   * @returns The Kinesis client instance
+   * @throws Error if the client does not exist
+   */
+  getKinesis<T extends KinesisServiceClient = KinesisServiceClient>(id?: string): T {
+    return this.getClient<T>(id ? `kinesis:${id}` : "kinesis");
+  }
+
+  /**
+   * Get a Kafka client with optional ID
+   *
+   * @param id - Optional client identifier
+   * @returns The Kafka client instance
+   * @throws Error if the client does not exist
+   */
+  getKafka<T extends KafkaServiceClient = KafkaServiceClient>(id?: string): T {
+    return this.getClient<T>(id ? `kafka:${id}` : "kafka");
+  }
+
+  /**
+   * Register multiple client configurations for a single client type
+   * Each configuration becomes a separate client with auto-assigned IDs
+   * @param clientType The client type (enum or string)
+   * @param configs Array of client configurations
+   * @returns Array of created clients
+   */
+  registerClientConfigs(clientType: ClientType | string, configs: ClientConfig[]): ServiceClient[] {
+    const createdClients: ServiceClient[] = [];
+
+    // Register the configuration array
+    this.clientRegistry.registerConfigArray(clientType, configs);
+
+    // Create clients for each configuration
+    configs.forEach((config, index) => {
+      // Use index+1 for ID if not specified and not first item
+      const id = config.id || (index > 0 ? `${index + 1}` : undefined);
+      const client = this.createClient(clientType, id as string);
+      createdClients.push(client);
+    });
+
+    return createdClients;
   }
 
   /**
    * Initialize all clients with configuration
    * @param config Client-specific configuration
    */
-  async initializeClients(config?: Record<string, Record<string, unknown>>): Promise<void> {
-    const clientConfig = config || {};
+  async initializeClients(config?: Record<string, unknown>): Promise<void> {
+    if (config) {
+      // Register configurations and create clients
+      this.clientRegistry.registerConfigs(config);
+      this.createAndRegisterDefaultClients();
+    }
 
-    // Initialize each client with its specific configuration
-    for (const [name, client] of this.clients.entries()) {
-      const clientSpecificConfig = clientConfig[name] || {};
-      await client.init(clientSpecificConfig);
+    // Initialize each client
+    for (const client of this.clients.values()) {
+      await client.init();
+    }
+  }
+
+  /**
+   * Reset all clients to their initial state
+   *
+   * @returns Promise that resolves when all clients are reset
+   */
+  async resetClients(): Promise<void> {
+    for (const client of this.clients.values()) {
+      await client.reset();
     }
   }
 
   /**
    * Destroy all clients and free up resources
+   *
+   * @returns Promise that resolves when all clients are destroyed
    */
   async destroyClients(): Promise<void> {
     for (const client of this.clients.values()) {
       await client.destroy();
     }
+
+    // Clear the client map after destroying all clients
+    this.clients.clear();
   }
 
   /**
    * Attach a response object for later assertions
-   * @param response The response object to store
+   * Stores the response for access in subsequent steps
+   *
+   * @param response - The response object to store for later access
    */
   attachResponse(response: unknown): void {
     this.lastResponse = response;
@@ -269,7 +463,9 @@ export class SmokeWorldImpl extends World implements SmokeWorld {
 
   /**
    * Get the last stored response
-   * @returns The last stored response
+   *
+   * @returns The last stored response object
+   * @throws Error if no response has been attached
    */
   getLastResponse(): unknown {
     if (this.lastResponse === null) {
@@ -280,7 +476,9 @@ export class SmokeWorldImpl extends World implements SmokeWorld {
 
   /**
    * Attach content for later assertions
-   * @param content The content string to store
+   * Stores a content string for access in subsequent steps
+   *
+   * @param content - The content string to store for later access
    */
   attachContent(content: string): void {
     this.lastContent = content;
@@ -288,7 +486,9 @@ export class SmokeWorldImpl extends World implements SmokeWorld {
 
   /**
    * Get the last stored content
-   * @returns The last stored content
+   *
+   * @returns The last stored content string
+   * @throws Error if no content has been attached
    */
   getLastContent(): string {
     if (!this.lastContent) {
@@ -299,7 +499,9 @@ export class SmokeWorldImpl extends World implements SmokeWorld {
 
   /**
    * Attach an error for later assertions
-   * @param error The error to store
+   * Stores an error object for access in subsequent steps
+   *
+   * @param error - The error object to store for later access
    */
   attachError(error: Error): void {
     this.lastError = error;
@@ -307,7 +509,9 @@ export class SmokeWorldImpl extends World implements SmokeWorld {
 
   /**
    * Get the last stored error
-   * @returns The last stored error
+   *
+   * @returns The last stored error object
+   * @throws Error if no error has been attached
    */
   getLastError(): Error {
     if (!this.lastError) {

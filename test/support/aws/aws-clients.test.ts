@@ -2,11 +2,11 @@
  * Unit tests for AWS client wrappers
  * Tests the functionality of S3ClientWrapper and related utilities
  */
-import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { mockClient } from "aws-sdk-client-mock";
 import { GetObjectCommand, S3Client } from "@aws-sdk/client-s3";
 import { GetParameterCommand, SSMClient } from "@aws-sdk/client-ssm";
+import { mockClient } from "aws-sdk-client-mock";
 import { Readable } from "node:stream";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import {
   parseS3Url,
   S3ClientWrapper,
@@ -14,78 +14,11 @@ import {
   ssmParameterCache,
   streamToString,
 } from "../../../src/support";
-
-// Custom matcher function since aws-sdk-client-mock-vitest is not available
-function expectCommandToHaveBeenCalledWith<Input extends object>(
-  mockedClient: ReturnType<typeof mockClient>,
-  // We need to use any here because the AWS SDK types are complex
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  commandClass: any,
-  expectedParams: Partial<Input>,
-): void {
-  const calls = mockedClient.commandCalls(commandClass);
-  expect(calls.length).toBeGreaterThan(0);
-
-  const matchingCall = calls.some((call) => {
-    const actualInput = call.args[0].input as Input;
-    return Object.entries(expectedParams).every(
-      ([key, value]) => key in actualInput && actualInput[key as keyof Input] === value,
-    );
-  });
-
-  expect(matchingCall).toBe(true);
-}
+import { createS3Response } from "../aws-test-utils";
 
 // Create mock clients
 const mockSSM = mockClient(SSMClient);
 const mockS3 = mockClient(S3Client);
-
-/**
- * Helper function to create a mock S3 response with proper stream-like behavior
- * @param content Content to return in the mock stream
- * @returns Mock S3 response object compatible with AWS SDK types
- */
-function createS3Response(content: string) {
-  // Create a mock stream that simulates AWS SDK stream behavior
-  const mockStream = {
-    on: vi.fn().mockImplementation(function (
-      this: Record<string, unknown>,
-      event: string,
-      callback: (arg?: Buffer) => void,
-    ) {
-      if (event === "data") {
-        callback(Buffer.from(content));
-      }
-      if (event === "end") {
-        callback();
-      }
-      return this;
-    }),
-    pipe: vi.fn().mockReturnThis(),
-    transformToString: vi.fn().mockResolvedValue(content),
-    // Additional properties required for SDK compatibility
-    aborted: false,
-    httpVersion: "1.1",
-    httpVersionMajor: 1,
-    httpVersionMinor: 1,
-    complete: true,
-    headers: {},
-    rawHeaders: [],
-    trailers: {},
-    rawTrailers: [],
-    setTimeout: vi.fn(),
-    statusCode: 200,
-    statusMessage: "OK",
-    destroy: vi.fn(),
-  };
-
-  // Return response object with properly typed mock Body
-  return {
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    Body: mockStream as unknown as any, // Use any to bypass complex AWS SDK types
-    $metadata: { httpStatusCode: 200 },
-  };
-}
 
 describe("AWS Utilities", () => {
   describe("parseS3Url", () => {
@@ -233,7 +166,7 @@ describe("S3ClientWrapper", () => {
       expect(result).toBe(testContent);
 
       // Verify correct command was sent using aws-sdk-client-mock-vitest matcher
-      expectCommandToHaveBeenCalledWith(mockS3, GetObjectCommand, {
+      expect(mockS3).toHaveReceivedCommandWith(GetObjectCommand, {
         Bucket: testBucket,
         Key: testKey,
       });
@@ -278,7 +211,7 @@ describe("S3ClientWrapper", () => {
       expect(result).toEqual(testObject);
 
       // Verify correct command was sent
-      expectCommandToHaveBeenCalledWith(mockS3, GetObjectCommand, {
+      expect(mockS3).toHaveReceivedCommandWith(GetObjectCommand, {
         Bucket: testBucket,
         Key: testKey,
       });
@@ -314,7 +247,7 @@ describe("S3ClientWrapper", () => {
       expect(result).toEqual(testObject);
 
       // Verify correct command was sent
-      expectCommandToHaveBeenCalledWith(mockS3, GetObjectCommand, {
+      expect(mockS3).toHaveReceivedCommandWith(GetObjectCommand, {
         Bucket: "url-bucket",
         Key: "path/file.json",
       });
@@ -343,7 +276,7 @@ describe("S3ClientWrapper", () => {
       expect(result).toEqual(testObject);
 
       // Verify correct command was sent
-      expectCommandToHaveBeenCalledWith(mockS3, GetObjectCommand, {
+      expect(mockS3).toHaveReceivedCommandWith(GetObjectCommand, {
         Bucket: "content-bucket",
         Key: "config.json",
       });
@@ -476,7 +409,7 @@ describe("SSMClientWrapper", () => {
       expect(result).toBe(paramValue);
 
       // Verify command was sent with correct parameters
-      expectCommandToHaveBeenCalledWith(mockSSM, GetParameterCommand, {
+      expect(mockSSM).toHaveReceivedCommandWith(GetParameterCommand, {
         Name: paramName,
         WithDecryption: true,
       });
