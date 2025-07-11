@@ -4,7 +4,7 @@
  */
 import mqtt from "mqtt";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { MqttClient } from "../../../src/clients/messaging/mqtt";
+import { MqttClient } from "../../../src/clients";
 
 // Create mock functions for MQTT client operations
 const mockOn = vi.fn();
@@ -66,9 +66,7 @@ describe("MqttClient", () => {
     });
 
     // We don't need to use the parameters in this mock, just return the client
-    mockOn.mockImplementation(() => {
-      return mockMqttClient;
-    });
+    mockOn.mockReturnValue(mockMqttClient);
 
     // Make sure any callback in publish gets called immediately
     mockPublish.mockImplementation((_topic, _message, _opts, callback) => {

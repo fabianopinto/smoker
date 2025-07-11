@@ -216,7 +216,7 @@ describe("ParameterResolver", () => {
       mockSSM.on(GetParameterCommand).rejects(new Error("Parameter not found"));
 
       // Mock console.error to prevent test output pollution
-      const errorSpy = vi.spyOn(console, "error").mockImplementation(vi.fn());
+      const errorSpy = vi.spyOn(console, "error");
 
       // We need to catch the error since it appears that the resolver
       // doesn't handle SSM errors internally as expected
@@ -247,7 +247,7 @@ describe("ParameterResolver", () => {
       const testValue = "ssm://test/depth/1";
 
       // Mock console.error to prevent test output pollution
-      const errorSpy = vi.spyOn(console, "error").mockImplementation(vi.fn());
+      const errorSpy = vi.spyOn(console, "error");
 
       // This should throw due to exceeding max depth (default is 10)
       await expect(resolver.resolveValue(testValue)).rejects.toThrow(
@@ -329,9 +329,7 @@ describe("ParameterResolver", () => {
 
       // Mock implementation that always throws for this specific test
       // Need to use a Promise.reject instead of throw for rejects.toThrow to work properly
-      resolveConfigSpy.mockImplementation(() => {
-        return Promise.reject(new Error("Circular reference detected: recursive loop"));
-      });
+      resolveConfigSpy.mockRejectedValue(new Error("Circular reference detected: recursive loop"));
 
       // Test the config resolution with our mocked behavior
       const config: ConfigObject = {
@@ -428,7 +426,7 @@ describe("ParameterResolver", () => {
       mockS3.on(GetObjectCommand).rejects(new Error("S3 access denied"));
 
       // Mock console.error to prevent test output pollution
-      const consoleSpy = vi.spyOn(console, "error").mockImplementation(vi.fn());
+      const consoleSpy = vi.spyOn(console, "error");
 
       // Test with an S3 URL that will cause an error
       const s3Url = "s3://error-bucket/file.json";

@@ -6,8 +6,7 @@
  * base URL and headers.
  */
 import axios, { type AxiosInstance, type AxiosRequestConfig, type AxiosResponse } from "axios";
-import { BaseServiceClient } from "../core/base-client";
-import type { ServiceClient } from "../core/interfaces";
+import { BaseServiceClient, type ServiceClient } from "../core";
 
 /**
  * Interface for REST client operations

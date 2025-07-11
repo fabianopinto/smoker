@@ -10,8 +10,7 @@ import mqtt, {
   type IClientSubscribeOptions,
   type MqttClient as MqttClientLib,
 } from "mqtt";
-import { BaseServiceClient } from "../core/base-client";
-import type { ServiceClient } from "../core/interfaces";
+import { BaseServiceClient, type ServiceClient } from "../core";
 
 /**
  * Interface for MQTT client operations

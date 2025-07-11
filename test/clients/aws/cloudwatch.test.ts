@@ -10,7 +10,7 @@ import {
 } from "@aws-sdk/client-cloudwatch-logs";
 import { mockClient } from "aws-sdk-client-mock";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { CloudWatchClient } from "../../../src/clients/aws/cloudwatch";
+import { CloudWatchClient } from "../../../src/clients";
 
 // Create the mock client
 const cloudWatchMock = mockClient(CloudWatchLogsClient);
@@ -139,11 +139,12 @@ describe("CloudWatchClient", () => {
         const endTime = 1625097900000;
 
         cloudWatchMock.on(FilterLogEventsCommand).resolves({
-          events: [{ message: "Error: Connection failed" }, { message: "Error: Database error" }],
+          events: [{ message: "test message" }],
         });
 
         const result = await client.searchLogStream(logStreamName, pattern, startTime, endTime);
 
+        expect(result).toEqual(["test message"]);
         expect(cloudWatchMock).toHaveReceivedCommandWith(FilterLogEventsCommand, {
           logGroupName: "test-log-group",
           logStreamNames: [logStreamName],
@@ -151,17 +152,16 @@ describe("CloudWatchClient", () => {
           startTime,
           endTime,
         });
-
-        expect(result).toEqual(["Error: Connection failed", "Error: Database error"]);
       });
 
-      it("should handle missing logStreamName parameter", async () => {
+      it("should handle empty logStreamName correctly", async () => {
         cloudWatchMock.on(FilterLogEventsCommand).resolves({
           events: [{ message: "test message" }],
         });
 
         const result = await client.searchLogStream("", "test");
 
+        // Verify that logStreamNames is undefined when empty string is provided
         expect(cloudWatchMock).toHaveReceivedCommandWith(FilterLogEventsCommand, {
           logGroupName: "test-log-group",
           logStreamNames: undefined,
@@ -183,9 +183,9 @@ describe("CloudWatchClient", () => {
         expect(result).toEqual([]);
       });
 
-      it("should return empty array when events is undefined", async () => {
+      it("should handle undefined events array", async () => {
         cloudWatchMock.on(FilterLogEventsCommand).resolves({
-          // events field is missing
+          // events field is missing/undefined
         });
 
         const result = await client.searchLogStream("test-stream", "test");
@@ -201,6 +201,33 @@ describe("CloudWatchClient", () => {
         const result = await client.searchLogStream("test-stream", "test");
 
         expect(result).toEqual(["", "valid message"]);
+      });
+
+      it("should handle case with multiple log streams specified", async () => {
+        const pattern = "error";
+
+        cloudWatchMock.on(FilterLogEventsCommand).resolves({
+          events: [{ message: "found an error" }],
+        });
+
+        const result = await client.searchLogStream("test-stream", pattern);
+
+        expect(result).toEqual(["found an error"]);
+        expect(cloudWatchMock).toHaveReceivedCommandWith(FilterLogEventsCommand, {
+          logGroupName: "test-log-group",
+          logStreamNames: ["test-stream"],
+          filterPattern: pattern,
+          startTime: undefined,
+          endTime: undefined,
+        });
+      });
+
+      it("should handle errors properly", async () => {
+        cloudWatchMock.on(FilterLogEventsCommand).rejects(new Error("AWS service error"));
+
+        await expect(client.searchLogStream("test-stream", "pattern")).rejects.toThrow(
+          "Failed to search log stream: AWS service error",
+        );
       });
     });
 

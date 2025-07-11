@@ -12,7 +12,7 @@ import {
 } from "@aws-sdk/client-sqs";
 import { mockClient } from "aws-sdk-client-mock";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { SqsClient } from "../../../src/clients/aws/sqs";
+import { SqsClient } from "../../../src/clients";
 
 // Create the mock client
 const sqsMock = mockClient(AwsSQSClient);

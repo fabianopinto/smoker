@@ -11,7 +11,7 @@ import {
 } from "@aws-sdk/client-kinesis";
 import { mockClient } from "aws-sdk-client-mock";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { KinesisClient } from "../../../src/clients/aws/kinesis";
+import { KinesisClient } from "../../../src/clients";
 
 // Create the mock client
 const kinesisMock = mockClient(AwsKinesisClient);

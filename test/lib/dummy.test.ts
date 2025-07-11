@@ -1,6 +1,6 @@
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import { dummy } from "../../src/lib/dummy";
-import { getConfig, updateConfig } from "../../src/support/config";
+import { getConfig, updateConfig } from "../../src/support";
 
 describe("Dummy function", () => {
   // Store original config to restore after tests

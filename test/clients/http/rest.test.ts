@@ -9,7 +9,7 @@ import axios, {
   type InternalAxiosRequestConfig,
 } from "axios";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { RestClient } from "../../../src/clients/http/rest";
+import { RestClient } from "../../../src/clients";
 
 // Mock axios
 vi.mock("axios");

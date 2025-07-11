@@ -11,7 +11,7 @@ import {
 } from "@aws-sdk/client-ssm";
 import { mockClient } from "aws-sdk-client-mock";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
-import { SsmClient } from "../../../src/clients/aws/ssm";
+import { SsmClient } from "../../../src/clients";
 
 // Create the mock client
 const ssmMock = mockClient(AwsSSMClient);

@@ -3,8 +3,7 @@
  * Creates and configures service clients based on stored configurations
  */
 
-import type { ServiceClient } from "../core/interfaces";
-import { ClientType } from "../core/types";
+import { ClientType, type ServiceClient } from "../core";
 import { ClientRegistry } from "./config";
 
 // These imports will need to be updated once we move the client implementations

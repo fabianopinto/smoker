@@ -14,9 +14,8 @@ import type {
   SqsServiceClient,
   SsmServiceClient,
 } from "../clients";
-import { ClientType } from "../clients/core/types";
-import { type ClientConfig, ClientRegistry } from "../clients/registry/config";
-import { ClientFactory } from "../clients/registry/factory";
+import { ClientType } from "../clients/core";
+import { type ClientConfig, ClientFactory, ClientRegistry } from "../clients/registry";
 import { dummy } from "../lib/dummy";
 
 /**
@@ -160,7 +159,8 @@ export class SmokeWorldImpl extends World implements SmokeWorld {
 
     // Register initial configuration if provided
     if (config) {
-      this.clientRegistry.registerConfigs(config);
+      // Use getter method instead of direct property access to allow mocking in tests
+      this.getClientRegistry().registerConfigs(config);
       this.createAndRegisterDefaultClients();
     }
   }

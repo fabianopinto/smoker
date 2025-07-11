@@ -11,8 +11,7 @@ import {
   ReceiveMessageCommand,
   SendMessageCommand,
 } from "@aws-sdk/client-sqs";
-import { BaseServiceClient } from "../core/base-client";
-import type { ServiceClient } from "../core/interfaces";
+import { BaseServiceClient, type ServiceClient } from "../core";
 
 /**
  * Message structure returned from SQS

@@ -11,8 +11,7 @@ import {
   ListShardsCommand,
   PutRecordCommand,
 } from "@aws-sdk/client-kinesis";
-import { BaseServiceClient } from "../core/base-client";
-import type { ServiceClient } from "../core/interfaces";
+import { BaseServiceClient, type ServiceClient } from "../core";
 
 /**
  * Interface for Kinesis records

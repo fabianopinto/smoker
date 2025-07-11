@@ -20,8 +20,7 @@ beforeEach(() => {
 });
 
 // Import SmokeWorld after mock setup
-import type { SmokeWorld } from "../../src/world";
-import { SmokeWorldImpl } from "../../src/world";
+import { type SmokeWorld, SmokeWorldImpl } from "../../src/world";
 
 // This is an integration test that uses the real dummy function
 // instead of mocking it

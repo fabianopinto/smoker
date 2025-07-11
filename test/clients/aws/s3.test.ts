@@ -11,7 +11,7 @@ import {
 import { mockClient } from "aws-sdk-client-mock";
 import { Readable } from "node:stream";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { S3Client } from "../../../src/clients/aws/s3";
+import { S3Client } from "../../../src/clients";
 import { createS3Response } from "../../support/aws-test-utils";
 
 // Create the mock client

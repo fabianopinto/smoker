@@ -76,7 +76,7 @@ describe("Configuration Module", () => {
 
     it("should return empty object when file doesn't exist", async () => {
       vi.mocked(existsSync).mockReturnValue(false);
-      const consoleSpy = vi.spyOn(console, "warn").mockImplementation(vi.fn());
+      const consoleSpy = vi.spyOn(console, "warn");
 
       const config = await fileSource.load();
 
@@ -102,7 +102,7 @@ describe("Configuration Module", () => {
     it("should return empty object when file contains invalid JSON", async () => {
       vi.mocked(existsSync).mockReturnValue(true);
       vi.mocked(readFileSync).mockReturnValue("{ invalid json");
-      const consoleSpy = vi.spyOn(console, "error").mockImplementation(vi.fn());
+      const consoleSpy = vi.spyOn(console, "error");
 
       const config = await fileSource.load();
 
@@ -120,7 +120,7 @@ describe("Configuration Module", () => {
       vi.mocked(readFileSync).mockImplementation(() => {
         throw new Error("I/O Error");
       });
-      const consoleSpy = vi.spyOn(console, "error").mockImplementation(vi.fn());
+      const consoleSpy = vi.spyOn(console, "error");
 
       const config = await fileSource.load();
 
@@ -169,7 +169,7 @@ describe("Configuration Module", () => {
     it("should handle invalid S3 URL", async () => {
       // Create source with invalid URL
       const invalidSource = new S3ConfigurationSource("invalid-url");
-      const consoleErrorSpy = vi.spyOn(console, "error").mockImplementation(vi.fn());
+      const consoleErrorSpy = vi.spyOn(console, "error");
 
       const config = await invalidSource.load();
 
@@ -183,7 +183,7 @@ describe("Configuration Module", () => {
       // Mock an S3 error
       mockS3.on(GetObjectCommand).rejects(new Error("Access Denied"));
 
-      const consoleErrorSpy = vi.spyOn(console, "error").mockImplementation(vi.fn());
+      const consoleErrorSpy = vi.spyOn(console, "error");
 
       const config = await s3Source.load();
 
@@ -239,7 +239,7 @@ describe("Configuration Module", () => {
         // eslint-disable-next-line @typescript-eslint/no-explicit-any
       } as any);
 
-      const consoleErrorSpy = vi.spyOn(console, "error").mockImplementation(vi.fn());
+      const consoleErrorSpy = vi.spyOn(console, "error");
 
       const config = await s3Source.load();
 
@@ -266,7 +266,7 @@ describe("Configuration Module", () => {
           .resolves({ Body: { transformToString: async () => "{}" } as any });
 
         // Mock console.error to prevent test output pollution
-        const consoleErrorSpy = vi.spyOn(console, "error").mockImplementation(vi.fn());
+        const consoleErrorSpy = vi.spyOn(console, "error");
 
         // Test with a basic region parameter instead of client injection
         const testRegion = "us-east-1";
@@ -400,7 +400,7 @@ describe("Configuration Module", () => {
         .on(GetParameterCommand, { Name: "error/param" })
         .rejects(new Error("Parameter not found"));
 
-      const consoleSpy = vi.spyOn(console, "error").mockImplementation(vi.fn());
+      const consoleSpy = vi.spyOn(console, "error");
 
       // Create source and load config
       const ssmSource = new SSMParameterSource(testConfig);
@@ -868,13 +868,19 @@ describe("Helper functions", () => {
 
   describe("loadConfigurations", () => {
     it("should call loadConfigurations on the singleton instance", async () => {
-      const spy = vi
-        .spyOn(Configuration.getInstance(), "loadConfigurations")
-        .mockImplementation(vi.fn());
+      // Reset configuration singleton to clean state
+      resetConfigurationSingleton();
+
+      // Mock the loadConfigurations method to resolve immediately
+      // This prevents hanging due to trying to load from non-existent files
+      const spy = vi.spyOn(Configuration.getInstance(), "loadConfigurations").mockResolvedValue();
 
       await loadConfigurations();
 
       expect(spy).toHaveBeenCalledTimes(1);
+
+      // Clean up
+      spy.mockRestore();
     });
   });
 
@@ -911,7 +917,7 @@ describe("Edge cases", () => {
   describe("Configuration validation", () => {
     it("should handle missing required properties", async () => {
       const config = Configuration.getInstance();
-      const spy = vi.spyOn(console, "warn").mockImplementation(vi.fn());
+      const spy = vi.spyOn(console, "warn");
 
       // Add a configuration source that's missing required properties
       const incompleteSource = new ObjectConfigurationSource({
@@ -934,7 +940,7 @@ describe("Edge cases", () => {
 
     it("should handle incorrect types for required properties", async () => {
       const config = Configuration.getInstance();
-      const spy = vi.spyOn(console, "warn").mockImplementation(vi.fn());
+      const spy = vi.spyOn(console, "warn");
 
       // Add a configuration with wrong types
       const badTypesSource = new ObjectConfigurationSource({
@@ -961,7 +967,7 @@ describe("Edge cases", () => {
     });
 
     it("should handle mixed valid and invalid types", async () => {
-      const spy = vi.spyOn(console, "warn").mockImplementation(vi.fn());
+      const spy = vi.spyOn(console, "warn");
 
       // Reset to clean state
       resetConfigurationSingleton();
@@ -992,7 +998,7 @@ describe("Edge cases", () => {
       resetConfigurationSingleton();
 
       const config = Configuration.getInstance();
-      const spy = vi.spyOn(console, "warn").mockImplementation(vi.fn());
+      const spy = vi.spyOn(console, "warn");
 
       // Create a configuration with nested properties
       const nestedConfig = new ObjectConfigurationSource({
@@ -1023,7 +1029,7 @@ describe("Edge cases", () => {
       // Reset the configuration to ensure we start with default values
       resetConfigurationSingleton();
       const config = Configuration.getInstance();
-      const errorSpy = vi.spyOn(console, "error").mockImplementation(vi.fn());
+      const errorSpy = vi.spyOn(console, "error");
 
       // Create a source that throws during load
       const errorSource: ConfigurationSource = {
@@ -1052,7 +1058,7 @@ describe("Edge cases", () => {
 
     it("should handle multiple sources with some failures", async () => {
       const config = Configuration.getInstance();
-      const errorSpy = vi.spyOn(console, "error").mockImplementation(vi.fn());
+      const errorSpy = vi.spyOn(console, "error");
 
       // Create a source that succeeds
       const goodSource = new ObjectConfigurationSource({

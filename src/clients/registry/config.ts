@@ -2,7 +2,7 @@
  * Client configuration module
  * Defines the structure, storage, and management of client configurations
  */
-import { ClientType } from "../core/types";
+import { ClientType } from "../core";
 
 /**
  * Base client configuration interface

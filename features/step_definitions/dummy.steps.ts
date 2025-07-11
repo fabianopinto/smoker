@@ -1,6 +1,6 @@
 import { Given, Then, When } from "@cucumber/cucumber";
 import { strictEqual } from "node:assert";
-import { updateConfig } from "../../src/support/config";
+import { updateConfig } from "../../src/support";
 import type { SmokeWorld } from "../../src/world";
 
 Given("a target named {string}", function (this: SmokeWorld, userTarget: string) {

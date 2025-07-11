@@ -11,8 +11,7 @@ import {
   PutParameterCommand,
   SSMClient,
 } from "@aws-sdk/client-ssm";
-import { BaseServiceClient } from "../core/base-client";
-import type { ServiceClient } from "../core/interfaces";
+import { BaseServiceClient, type ServiceClient } from "../core";
 
 /**
  * Interface for SSM client operations

@@ -5,8 +5,7 @@
  * publish messages, subscribe to topics, and consume messages.
  */
 import { Kafka, logLevel, type Consumer, type KafkaConfig, type Producer } from "kafkajs";
-import { BaseServiceClient } from "../core/base-client";
-import type { ServiceClient } from "../core/interfaces";
+import { BaseServiceClient, type ServiceClient } from "../core";
 
 /**
  * Interface for Kafka record metadata

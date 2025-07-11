@@ -280,9 +280,7 @@ describe("KafkaClient", () => {
 
       it("should handle errors during disconnect", async () => {
         // Mock console.warn to verify the warning is logged
-        const consoleWarnSpy = vi.spyOn(console, "warn").mockImplementation(() => {
-          return undefined;
-        });
+        const consoleWarnSpy = vi.spyOn(console, "warn");
 
         mockProducer.disconnect.mockRejectedValue(new Error("Disconnect error"));
         mockConsumer.disconnect.mockResolvedValue(undefined);
@@ -930,7 +928,7 @@ describe("KafkaClient", () => {
         // Mock console.error to verify the error is logged
         // Silence console.error during test but still track calls
         // eslint-disable-next-line @typescript-eslint/no-empty-function
-        const consoleErrorSpy = vi.spyOn(console, "error").mockImplementation(() => {});
+        const consoleErrorSpy = vi.spyOn(console, "error");
 
         // Mock for the temporary consumer
         mockKafka.consumer.mockReturnValueOnce(mockTempConsumer);
@@ -990,7 +988,7 @@ describe("KafkaClient", () => {
         mockKafka.consumer.mockReturnValueOnce(mockTempConsumer);
 
         // Create a simple matcher that matches any message
-        const matcher = vi.fn().mockImplementation(() => true);
+        const matcher = vi.fn().mockReturnValue(true);
 
         // Get the result from waitForMessage
         const result = await client.waitForMessage(matcher);
@@ -1029,9 +1027,7 @@ describe("KafkaClient", () => {
       let consoleWarnSpy: ReturnType<typeof vi.spyOn>;
 
       beforeEach(() => {
-        consoleWarnSpy = vi.spyOn(console, "warn").mockImplementation(() => {
-          /* empty mock */
-        });
+        consoleWarnSpy = vi.spyOn(console, "warn");
       });
 
       afterEach(() => {
@@ -1232,9 +1228,7 @@ describe("KafkaClient", () => {
       mockProducer.disconnect.mockRejectedValueOnce(new Error("Producer disconnect failed"));
 
       // Spy on console.warn to verify error handling
-      const consoleWarnSpy = vi.spyOn(console, "warn").mockImplementation(() => {
-        /* empty mock implementation */
-      });
+      const consoleWarnSpy = vi.spyOn(console, "warn");
 
       // Execute the cleanupClient method through destroy
       await client.destroy();

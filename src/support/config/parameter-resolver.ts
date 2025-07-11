@@ -9,7 +9,7 @@
  */
 import { S3Client } from "@aws-sdk/client-s3";
 import { SSMClient } from "@aws-sdk/client-ssm";
-import { S3ClientWrapper, SSMClientWrapper } from "../aws/aws-clients";
+import { S3ClientWrapper, SSMClientWrapper } from "../aws";
 import type { ConfigObject, ConfigValue, IParameterResolver } from "../interfaces";
 
 /**
