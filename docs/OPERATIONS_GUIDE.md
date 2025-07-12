@@ -1,6 +1,6 @@
 # Operations Guide
 
-[← Back to README](doc1.md)
+[← Back to README](../README.md)
 
 This guide covers how to operate the Smoker framework, including local execution, configuration management, and AWS deployment.
 
@@ -184,7 +184,7 @@ The framework includes AWS CDK infrastructure code for deploying as a Lambda fun
        LOG_LEVEL: 'info',
      },
    });
-   
+
    // Add required permissions
    smokerFunction.addToRolePolicy(new iam.PolicyStatement({
      actions: ['s3:GetObject'],
@@ -194,8 +194,7 @@ The framework includes AWS CDK infrastructure code for deploying as a Lambda fun
 
 3. Deploy the stack:
    ```bash
-   cd cdk
-   npm run cdk deploy
+   npm run cdk:deploy
    ```
 
 ### Required IAM Permissions
@@ -388,32 +387,32 @@ name: Smoke Tests
 on:
   schedule:
     - cron: '0 */4 * * *'  # Every 4 hours
-  workflow_dispatch:        # Manual trigger
+  workflow_dispatch:       # Manual trigger
 
 jobs:
   smoke-tests:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v3
-      
+
       - name: Setup Node.js
         uses: actions/setup-node@v3
         with:
           node-version: '18'
-          
+
       - name: Install dependencies
         run: npm ci
-        
+
       - name: Build project
         run: npm run build
-        
+
       - name: Run smoke tests
         run: npm start -- --tags "@smoke"
         env:
           AWS_ACCESS_KEY_ID: ${{ secrets.AWS_ACCESS_KEY_ID }}
           AWS_SECRET_ACCESS_KEY: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
           AWS_REGION: us-east-1
-          
+
       - name: Upload test results
         if: always()
         uses: actions/upload-artifact@v3
@@ -429,7 +428,7 @@ Integrate with AWS CodePipeline:
 1. Create a CodeBuild project:
    ```yaml
    version: 0.2
-   
+
    phases:
      install:
        runtime-versions:
@@ -440,7 +439,7 @@ Integrate with AWS CodePipeline:
        commands:
          - npm run build
          - npm start -- --tags "@smoke" --format "json:cucumber-report.json"
-   
+
    artifacts:
      files:
        - cucumber-report.json

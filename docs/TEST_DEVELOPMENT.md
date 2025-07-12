@@ -12,7 +12,7 @@ This guide explains how to create smoke test suites targeting specific systems u
 - [Cucumber Tags](#cucumber-tags)
 - [Library Components](#library-components)
 - [Unit Testing](#unit-testing)
-- [Best Practices](#best-practices)
+- [Best Practices](#best-practices-1)
 
 ## BDD Testing Approach
 
@@ -241,37 +241,6 @@ describe("API Helpers", () => {
     mockClient.get.mockRejectedValue(new Error("Connection refused"));
     const result = await checkEndpointHealth(mockClient, "/health");
     expect(result).toBe(false);
-  });
-});
-```
-
-### Testing Step Definitions
-
-Use the Cucumber.js testing utilities to test step definitions:
-
-```typescript
-// test/step-definitions/api-steps.test.ts
-import { loadFeature, defineFeature } from "jest-cucumber";
-import { mockWorld } from "../test-utils";
-
-const feature = loadFeature("features/api/health.feature");
-
-defineFeature(feature, (test) => {
-  test("Check API health endpoint", ({ given, when, then }) => {
-    const world = mockWorld();
-    let response;
-
-    given("I have a REST client configured for \"https://api.example.com\"", async () => {
-      // Test the step implementation
-    });
-
-    when("I send a GET request to \"/health\"", async () => {
-      // Test the step implementation
-    });
-
-    then("I should receive a 200 status code", () => {
-      // Test the step implementation
-    });
   });
 });
 ```

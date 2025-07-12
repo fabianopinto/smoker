@@ -1,6 +1,6 @@
 # Development Guide
 
-[← Back to README](doc1.md)
+[← Back to README](../README.md)
 
 This guide provides best practices and guidelines for developers working on the Smoker framework or extending it for specific testing needs.
 
@@ -9,7 +9,6 @@ This guide provides best practices and guidelines for developers working on the 
 - [Architecture Overview](#architecture-overview)
 - [Coding Standards](#coding-standards)
 - [Testing Guidelines](#testing-guidelines)
-- [Mocking Strategies](#mocking-strategies)
 - [Documentation Standards](#documentation-standards)
 - [Extending the Framework](#extending-the-framework)
 - [Contributing Guidelines](#contributing-guidelines)
@@ -41,14 +40,14 @@ The framework follows these design principles:
 
 ```
 ┌─────────────┐     ┌─────────────┐     ┌─────────────┐
-│  Feature    │     │    Step     │     │   World     │
-│   Files     │────▶│ Definitions │────▶│  Object     │
+│   Feature   │     │    Step     │     │    World    │
+│    Files    │────▶│ Definitions │────▶│   Object    │
 └─────────────┘     └─────────────┘     └──────┬──────┘
                                                │
                                                ▼
 ┌─────────────┐     ┌─────────────┐     ┌─────────────┐
-│ Library     │     │  Service    │     │ Configuration│
-│   Code      │◀───▶│  Clients    │◀───▶│   System    │
+│   Library   │     │   Service   │     │Configuration│
+│    Code     │◀───▶│   Clients   │◀───▶│   System    │
 └─────────────┘     └─────────────┘     └─────────────┘
                            │
                            ▼
@@ -148,17 +147,17 @@ describe('RestClient', () => {
     it('should initialize with default config', () => {
       // Test code
     });
-    
+
     it('should throw error with invalid config', () => {
       // Test code
     });
   });
-  
+
   describe('operations', () => {
     it('should send GET request successfully', () => {
       // Test code
     });
-    
+
     it('should handle GET request errors', () => {
       // Test code
     });
@@ -251,10 +250,10 @@ it('should process data correctly', () => {
   // Arrange
   const input = { name: 'Test', value: 42 };
   const processor = new DataProcessor();
-  
+
   // Act
   const result = processor.process(input);
-  
+
   // Assert
   expect(result.processed).toBe(true);
   expect(result.output).toBe(84);
@@ -345,11 +344,11 @@ async function getJsonFromS3<T>(bucket: string, key: string): Promise<T> {
      constructor() {
        super('new-service');
      }
-     
+
      protected async initializeClient(): Promise<void> {
        // Initialization logic
      }
-     
+
      async doSomething(param: string): Promise<Result> {
        this.ensureInitialized();
        // Implementation
@@ -368,7 +367,7 @@ async function getJsonFromS3<T>(bucket: string, key: string): Promise<T> {
    // In SmokeWorld constructor
    this.newServiceClient = new NewServiceClientImpl();
    this.registerClient('new-service', this.newServiceClient);
-   
+
    // Add getter
    getNewService(): NewServiceClient {
      return this.getClient<NewServiceClient>('new-service');
@@ -390,7 +389,7 @@ async function getJsonFromS3<T>(bucket: string, key: string): Promise<T> {
    // features/step_definitions/new-service-steps.ts
    import { Given, When, Then } from '@cucumber/cucumber';
    import type { SmokeWorld } from '../../src/world';
-   
+
    Given('I have a new service client', function (this: SmokeWorld) {
      const client = this.getNewService();
      expect(client).toBeDefined();
@@ -401,7 +400,7 @@ async function getJsonFromS3<T>(bucket: string, key: string): Promise<T> {
    ```typescript
    // src/lib/new-service-helpers.ts
    import type { NewServiceClient } from '../clients/new-service-client';
-   
+
    export async function performComplexOperation(
      client: NewServiceClient,
      param: string
@@ -413,7 +412,7 @@ async function getJsonFromS3<T>(bucket: string, key: string): Promise<T> {
 4. **Use in Steps**: Import and use helper functions
    ```typescript
    import { performComplexOperation } from '../../src/lib/new-service-helpers';
-   
+
    When('I perform a complex operation with {string}', async function (this: SmokeWorld, param: string) {
      const client = this.getNewService();
      const result = await performComplexOperation(client, param);
