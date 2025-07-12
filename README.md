@@ -1,3 +1,5 @@
+<img src="docs/images/smoker.png" alt="Smoker Logo" style="float: right; margin: 10px; width: 200px;" />
+
 # Smoker
 
 [![CI](https://github.com/fabianopinto/smoker/actions/workflows/ci.yml/badge.svg)](https://github.com/fabianopinto/smoker/actions/workflows/ci.yml)
@@ -50,11 +52,13 @@ smoker/
 ### Installation
 
 1. Ensure you're using the correct Node.js version:
+
    ```bash
    nvm use
    ```
 
 2. Install dependencies:
+
    ```bash
    npm install
    ```
@@ -67,6 +71,7 @@ smoker/
 ### Running Smoke Tests
 
 1. Build the project:
+
    ```bash
    npm run build
    ```
