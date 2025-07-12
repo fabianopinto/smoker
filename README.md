@@ -1,4 +1,6 @@
-<img src="docs/images/smoker.png" alt="Smoker Logo" style="float: right; margin: 10px; width: 200px;" />
+<p align="right">
+   <img src="docs/images/smoker.png" alt="Smoker Logo" width="120" />
+</p>
 
 # Smoker
 
