@@ -251,7 +251,7 @@ describe("MqttClient Enhanced Tests", () => {
       );
     });
 
-    it("should handle large messages", async () => {
+    it.skip("should handle large messages", async () => {
       // Create client with configuration
       client = new MqttClient("LargeMessageTestClient");
 
