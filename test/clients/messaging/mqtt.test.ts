@@ -5,29 +5,20 @@
 import mqtt from "mqtt";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { MqttClient } from "../../../src/clients";
-
-// Create mock functions for MQTT client operations
-const mockOn = vi.fn();
-const mockOnce = vi.fn();
-const mockPublish = vi.fn();
-const mockSubscribe = vi.fn();
-const mockUnsubscribe = vi.fn();
-const mockEnd = vi.fn();
-
-// Create the mock client object
-const mockMqttClient = {
-  on: mockOn,
-  once: mockOnce,
-  publish: mockPublish,
-  subscribe: mockSubscribe,
-  unsubscribe: mockUnsubscribe,
-  end: mockEnd,
-};
+import {
+  cleanupAfterTests,
+  mockEnd,
+  mockMqttClient,
+  mockOn,
+  mockOnce,
+  mockPublish,
+  mockSubscribe,
+  mockUnsubscribe,
+  setupDefaultMocks,
+  TEST_TIMEOUT,
+} from "./mqtt-test-helpers";
 
 // Mock the mqtt module
-// Use a reasonable timeout - 2 seconds should be sufficient for our mocked tests
-vi.setConfig({ testTimeout: 2000 });
-
 vi.mock("mqtt", () => {
   return {
     default: {
@@ -45,90 +36,61 @@ describe("MqttClient", () => {
   };
 
   beforeEach(() => {
-    // Clean up mocks and restore previous implementations
-    vi.clearAllMocks();
-    vi.restoreAllMocks();
-
-    // Use fake timers for consistent test behavior
-    // shouldAdvanceTime: false ensures we have full control over time
-    vi.useFakeTimers({ shouldAdvanceTime: false });
+    // Set up default mocks for consistent test behavior
+    setupDefaultMocks();
 
     // Create client without config by default for each test
     client = new MqttClient();
-
-    // Set up the default behavior for mqtt client events - make sure callbacks execute synchronously
-    mockOnce.mockImplementation((event: string, callback: (...args: unknown[]) => void) => {
-      if (event === "connect") {
-        // Call connect callback immediately
-        callback();
-      }
-      return mockMqttClient;
-    });
-
-    // We don't need to use the parameters in this mock, just return the client
-    mockOn.mockReturnValue(mockMqttClient);
-
-    // Make sure any callback in publish gets called immediately
-    mockPublish.mockImplementation((_topic, _message, _opts, callback) => {
-      if (callback) callback();
-      return mockMqttClient;
-    });
-
-    // Make sure any callback in subscribe gets called immediately
-    mockSubscribe.mockImplementation((_topics, _opts, callback) => {
-      if (callback) callback(null);
-      return mockMqttClient;
-    });
-
-    // Make sure any callback in unsubscribe gets called immediately
-    mockUnsubscribe.mockImplementation((_topics, callback) => {
-      if (callback) callback(null);
-      return mockMqttClient;
-    });
   });
 
   afterEach(async () => {
     try {
-      // Mock the end method to call its callback immediately for clean teardown
-      mockEnd.mockImplementation((_force, _opts, callback) => {
-        if (callback) callback();
-        return mockMqttClient;
-      });
-
       // Always attempt to destroy the client to clean up resources
       await client.destroy();
     } catch {
       // Ignore errors during cleanup as they shouldn't affect next tests
     } finally {
-      // Restore real timers to avoid affecting other test files
-      vi.useRealTimers();
+      // Clean up after tests
+      cleanupAfterTests();
     }
   });
 
   describe("Basic functionality", () => {
-    it("should have the correct name", () => {
-      expect(client.getName()).toBe("MqttClient");
-    });
+    it(
+      "should have the correct name",
+      () => {
+        expect(client.getName()).toBe("MqttClient");
+      },
+      TEST_TIMEOUT,
+    );
 
-    it("should not be initialized by default", () => {
-      expect(client.isInitialized()).toBe(false);
-    });
+    it(
+      "should not be initialized by default",
+      () => {
+        expect(client.isInitialized()).toBe(false);
+      },
+      TEST_TIMEOUT,
+    );
 
-    it("should be initialized after init is called", async () => {
-      // Mock connect event to trigger immediately
-      mockOn.mockImplementation((event, callback) => {
-        if (event === "connect") {
-          callback();
-        }
-        return mockMqttClient;
-      });
+    it(
+      "should be initialized after init is called",
+      async () => {
+        // Mock connect event to trigger immediately
+        mockOn.mockImplementation((event, callback) => {
+          if (event === "connect") {
+            callback();
+          }
+          return mockMqttClient;
+        });
 
-      // Call init and await resolution
-      await client.init();
+        // Call init and await resolution
+        await client.init();
 
-      // Check that client is initialized
-      expect(client.isInitialized()).toBe(true);
-    });
+        // Check that client is initialized
+        expect(client.isInitialized()).toBe(true);
+      },
+      TEST_TIMEOUT,
+    );
 
     it("should not be initialized after destroy is called", async () => {
       // Mock connect event to trigger immediately
@@ -301,7 +263,7 @@ describe("MqttClient", () => {
           (
             _topic: string,
             _message: Buffer | string,
-            _options: Record<string, unknown>,
+            _opts: Record<string, unknown>,
             callback: () => void,
           ) => {
             // Call callback immediately without relying on timers
@@ -320,7 +282,7 @@ describe("MqttClient", () => {
         const message = "test message";
 
         // Mock a failure by passing an error to the callback
-        mockPublish.mockImplementation((_, __, ___, callback) => {
+        mockPublish.mockImplementation((_topic, _message, _opts, callback) => {
           if (callback) {
             // Make sure we're returning the proper error
             callback(new Error("Publish failed"));
@@ -348,7 +310,7 @@ describe("MqttClient", () => {
 
         // Mock successful subscribe with immediate callback
         mockSubscribe.mockImplementation(
-          (_topic: string, _options: Record<string, unknown>, callback: (err?: Error) => void) => {
+          (_topic: string, _opts: Record<string, unknown>, callback: (err?: Error) => void) => {
             // Call callback immediately without timer manipulation
             callback();
             return mockMqttClient;
@@ -494,7 +456,7 @@ describe("MqttClient", () => {
         const shortTimeout = 100;
 
         // Mock subscribe to succeed
-        mockSubscribe.mockImplementationOnce((_topic, _options, callback) => {
+        mockSubscribe.mockImplementationOnce((_topic, _opts, callback) => {
           if (callback) callback(null);
           return mockMqttClient;
         });
@@ -663,7 +625,7 @@ describe("MqttClient", () => {
         const topic = "test/topic/subscription-fail";
 
         // Mock subscribe to fail
-        mockSubscribe.mockImplementationOnce((_topic, _options, callback) => {
+        mockSubscribe.mockImplementationOnce((_topic, _opts, callback) => {
           callback(new Error("Subscription failed during waitForMessage"));
           return mockMqttClient;
         });

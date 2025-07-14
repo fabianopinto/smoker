@@ -4,7 +4,7 @@
  */
 import { Kafka } from "kafkajs";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { KafkaClient } from "../../../src/clients/messaging/kafka";
+import { KafkaClient } from "../../../src/clients";
 
 // Define common interfaces for testing
 interface MessagePayload {
@@ -716,13 +716,13 @@ describe("KafkaClient", () => {
           // Restore the original setTimeout
           global.setTimeout = realSetTimeout;
         }
-      }, 20000); // Increase test timeout
+      });
 
       it("should handle consumer run errors", async () => {
         mockConsumer.run.mockRejectedValueOnce(new Error("Run failed"));
 
         await expect(client.consumeMessages(vi.fn())).rejects.toThrow("Run failed");
-      }, 10000);
+      });
     });
 
     describe("waitForMessage", () => {
@@ -889,7 +889,7 @@ describe("KafkaClient", () => {
             offset: "100",
           }),
         );
-      }, 20000); // Increase test timeout
+      });
 
       // Increase timeout for this test to avoid Vitest default timeout issues
       it("should return null if timeout occurs", async () => {
@@ -914,7 +914,7 @@ describe("KafkaClient", () => {
 
         // Verify that the result is null due to timeout
         expect(result).toBeNull();
-      }, 10000);
+      });
 
       it("should handle errors during message waiting", async () => {
         // Create a mock consumer that will fail on connect
@@ -949,7 +949,7 @@ describe("KafkaClient", () => {
 
         // Reset the console.error mock
         consoleErrorSpy.mockRestore();
-      }, 10000);
+      });
 
       it("should handle different header value types", async () => {
         // Set up a mock temporary consumer

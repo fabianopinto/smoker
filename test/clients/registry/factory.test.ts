@@ -5,7 +5,6 @@
  */
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { ClientType } from "../../../src/clients/core";
-import type { ClientConfig } from "../../../src/clients/registry";
 
 // Create simple mocks for all client modules
 vi.mock("../../../src/clients/http/rest", () => ({
@@ -41,8 +40,20 @@ vi.mock("../../../src/clients/messaging/kafka", () => ({
 }));
 
 // Import after mocking
-import { RestClient } from "../../../src/clients";
-import { ClientFactory, ClientRegistry, createClientFactory } from "../../../src/clients/registry";
+import { CloudWatchClient } from "../../../src/clients/aws/cloudwatch";
+import { KinesisClient } from "../../../src/clients/aws/kinesis";
+import { S3Client } from "../../../src/clients/aws/s3";
+import { SqsClient } from "../../../src/clients/aws/sqs";
+import { SsmClient } from "../../../src/clients/aws/ssm";
+import { RestClient } from "../../../src/clients/http/rest";
+import { KafkaClient } from "../../../src/clients/messaging/kafka";
+import { MqttClient } from "../../../src/clients/messaging/mqtt";
+import {
+  type ClientConfig,
+  ClientFactory,
+  ClientRegistry,
+  createClientFactory,
+} from "../../../src/clients/registry";
 
 // Temporarily skipping these tests due to termination issues (exit code 130)
 // TODO: Fix the underlying issues causing test termination
@@ -64,14 +75,33 @@ describe("ClientFactory", () => {
   });
 
   describe("createClient", () => {
-    it("should create a REST client", () => {
-      const client = factory.createClient(ClientType.REST);
+    // Define test cases for each client type using the imported client classes
+    const clientTestCases = [
+      { type: ClientType.REST, clientClass: RestClient },
+      { type: ClientType.MQTT, clientClass: MqttClient },
+      { type: ClientType.S3, clientClass: S3Client },
+      { type: ClientType.CLOUDWATCH, clientClass: CloudWatchClient },
+      { type: ClientType.SSM, clientClass: SsmClient },
+      { type: ClientType.SQS, clientClass: SqsClient },
+      { type: ClientType.KINESIS, clientClass: KinesisClient },
+      { type: ClientType.KAFKA, clientClass: KafkaClient },
+    ];
+
+    // Test each client type using it.each
+    it.each(clientTestCases)("should create a $type client", ({ type, clientClass }) => {
+      // Create client using factory
+      const client = factory.createClient(type);
+
+      // Verify client was created
       expect(client).toBeDefined();
-      expect(RestClient).toHaveBeenCalled();
+      expect(clientClass).toHaveBeenCalled();
+
+      // Verify client was created with correct parameters
+      expect(clientClass).toHaveBeenCalledWith(type, testConfig);
     });
 
     it("should throw error for unknown client type", () => {
-      expect(() => factory.createClient("unknown" as ClientType)).toThrow("Unknown client type");
+      expect(() => factory.createClient("unknown")).toThrow("Unknown client type");
     });
   });
 

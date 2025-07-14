@@ -111,11 +111,15 @@ export class MqttClient extends BaseServiceClient implements MqttServiceClient {
         clientId: this.clientId || `smoker-${Date.now()}`,
         username: username || undefined,
         password: password || undefined,
-        reconnectPeriod: 5000, // Auto reconnect every 5 seconds
+        reconnectPeriod: this.getConfig<number>("reconnectPeriod", 5000), // Auto reconnect period from config
+        keepalive: this.getConfig<number>("keepAlive", 60), // Keep alive interval from config
       };
 
       // Connect to the MQTT broker with timeout handling
       try {
+        // Get connection timeout from config or use default
+        const connectionTimeout = this.getConfig<number>("connectionTimeout", 120000);
+
         this.client = await Promise.race([
           // Connect to the broker
           new Promise<MqttClientLib>((resolve, reject) => {
@@ -131,13 +135,31 @@ export class MqttClient extends BaseServiceClient implements MqttServiceClient {
             });
           }),
 
-          // Timeout after 10 seconds
+          // Timeout after specified time
           new Promise<MqttClientLib>((_, reject) => {
             setTimeout(() => {
-              reject(new Error("MQTT connection timeout after 10 seconds"));
-            }, 10000);
+              reject(new Error(`Connection timeout after ${connectionTimeout}ms`));
+            }, connectionTimeout);
           }),
         ]);
+
+        // Set up event handlers
+        // Connect event is already handled in the Promise above
+
+        // Handle error event
+        this.client.on("error", (err) => {
+          console.error(`MQTT client error for ${this.clientId}: ${err.message}`);
+        });
+
+        // Handle close event
+        this.client.on("close", () => {
+          console.warn(`MQTT connection closed for client ${this.clientId}`);
+        });
+
+        // Handle offline event
+        this.client.on("offline", () => {
+          console.warn(`MQTT client ${this.clientId} is offline`);
+        });
 
         // Set up message handling
         this.client.on("message", (topic, message) => {
@@ -202,11 +224,13 @@ export class MqttClient extends BaseServiceClient implements MqttServiceClient {
         });
       }),
 
-      // Timeout after 10 seconds
+      // Timeout after specified time
       new Promise<void>((_, reject) => {
+        // Get publish timeout from config or use default
+        const publishTimeout = this.getConfig<number>("publishTimeout", 10000);
         setTimeout(() => {
-          reject(new Error(`Publish to ${topic} timeout after 10 seconds`));
-        }, 10000);
+          reject(new Error(`Publish to ${topic} timeout after ${publishTimeout}ms`));
+        }, publishTimeout);
       }),
     ]);
   }
@@ -249,17 +273,19 @@ export class MqttClient extends BaseServiceClient implements MqttServiceClient {
         });
       }),
 
-      // Timeout after 10 seconds
+      // Timeout after specified time
       new Promise<void>((_, reject) => {
+        // Get subscribe timeout from config or use default
+        const subscribeTimeout = this.getConfig<number>("subscribeTimeout", 10000);
         setTimeout(() => {
           reject(
             new Error(
               `Subscribe to ${
                 Array.isArray(topic) ? topic.join(", ") : topic
-              } timeout after 10 seconds`,
+              } timeout after ${subscribeTimeout}ms`,
             ),
           );
-        }, 10000);
+        }, subscribeTimeout);
       }),
     ]);
   }
@@ -380,8 +406,12 @@ export class MqttClient extends BaseServiceClient implements MqttServiceClient {
               resolve();
             }
           }),
-          // Timeout after 5 seconds to prevent hanging
-          new Promise<void>((resolve) => setTimeout(resolve, 5000)),
+          // Timeout after specified time to prevent hanging
+          new Promise<void>((resolve) => {
+            // Get cleanup timeout from config or use default
+            const cleanupTimeout = this.getConfig<number>("cleanupTimeout", 5000);
+            setTimeout(resolve, cleanupTimeout);
+          }),
         ]);
       } catch (error) {
         // Log warning but don't fail - this is cleanup code

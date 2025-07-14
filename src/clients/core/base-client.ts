@@ -46,6 +46,11 @@ export abstract class BaseServiceClient implements ServiceClient {
    * @throws Error if initialization fails
    */
   init(): Promise<void> {
+    // Skip initialization if the client is already initialized
+    if (this.isInitialized()) {
+      return Promise.resolve();
+    }
+
     // Set the client as not initialized at the beginning
     this.initialized = false;
 
