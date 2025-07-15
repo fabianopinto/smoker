@@ -49,4 +49,4 @@ jobs:
       - name: Deploy with CDK
         run: |
           cd cdk
-          npm run cdk -- deploy --require-approval never
+          npm run deploy:prod
