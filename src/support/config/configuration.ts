@@ -30,10 +30,7 @@ export class Configuration {
    * Create a new configuration instance with default values
    */
   private constructor() {
-    this.config = {
-      defaultPhrase: "Smoking",
-      phraseTemplate: "{phrase} {target}!",
-    };
+    this.config = {};
   }
 
   /**
@@ -209,65 +206,23 @@ export class Configuration {
       }
 
       if (Object.keys(mergedConfig).length > 0) {
-        // Validate if the required properties exist in the merged config
-        const hasRequiredProperties =
-          typeof mergedConfig.defaultPhrase === "string" &&
-          typeof mergedConfig.phraseTemplate === "string";
+        // Create a validated config with only valid properties
+        const validConfig: Record<string, ConfigValue> = {};
+        // Filter out entries with undefined values
+        const filteredEntries = Object.entries(mergedConfig).filter(
+          // eslint-disable-next-line @typescript-eslint/no-unused-vars
+          ([_, value]) => value !== undefined,
+        );
 
-        if (!hasRequiredProperties) {
-          console.warn(
-            "Loaded configuration is missing required properties (defaultPhrase, phraseTemplate). " +
-              "These will not be updated from default values.",
-          );
-
-          // Create a validated config with only valid properties
-          const validConfig: Record<string, ConfigValue> = {};
-          // Filter out entries with undefined values
-          const filteredEntries = Object.entries(mergedConfig).filter(
-            // eslint-disable-next-line @typescript-eslint/no-unused-vars
-            ([_, value]) => value !== undefined,
-          );
-
-          for (const [key, value] of filteredEntries) {
-            // Only add values that match ConfigValue type (excluding undefined)
-            if (value !== undefined) {
-              validConfig[key] = value as ConfigValue;
-            }
-          }
-
-          // Cast to SmokeConfig since we've already filtered out undefined values
-          // Don't override required properties if they have incorrect types
-          const preservedConfig = {
-            ...this.config,
-            ...validConfig,
-          };
-
-          // Ensure required properties maintain their default values if invalid types are provided
-          if (typeof validConfig.defaultPhrase !== "string") {
-            preservedConfig.defaultPhrase = this.config.defaultPhrase;
-          }
-
-          if (typeof validConfig.phraseTemplate !== "string") {
-            preservedConfig.phraseTemplate = this.config.phraseTemplate;
-          }
-
-          this.config = preservedConfig as SmokeConfig;
-        } else {
-          // Ensure it has the required SmokeConfig properties
-          if (
-            typeof mergedConfig.defaultPhrase === "string" &&
-            typeof mergedConfig.phraseTemplate === "string"
-          ) {
-            this.config = mergedConfig as SmokeConfig;
-          } else {
-            // Should never happen due to earlier check, but satisfy TypeScript
-            console.error("Invalid configuration detected, using defaults");
-            this.config = {
-              defaultPhrase: this.config.defaultPhrase,
-              phraseTemplate: this.config.phraseTemplate,
-            };
+        for (const [key, value] of filteredEntries) {
+          // Only add values that match ConfigValue type (excluding undefined)
+          if (value !== undefined) {
+            validConfig[key] = value as ConfigValue;
           }
         }
+
+        // Update the configuration with the validated config
+        this.config = validConfig as SmokeConfig;
       }
 
       console.log("Configuration loaded and merged successfully");

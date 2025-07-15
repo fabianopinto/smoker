@@ -16,7 +16,6 @@ import type {
 } from "../clients";
 import { ClientType } from "../clients/core";
 import { type ClientConfig, ClientFactory, ClientRegistry } from "../clients/registry";
-import { dummy } from "../lib/dummy";
 
 /**
  * SmokeWorld interface and implementation
@@ -24,6 +23,26 @@ import { dummy } from "../lib/dummy";
  * This module provides the SmokeWorld interface that extends Cucumber's World,
  * adding client management and helper methods for smoke tests.
  */
+
+/**
+ * PropertyValue type for the property map
+ * Can be a simple value (string, number, boolean, null) or a nested PropertyMap
+ */
+export type PropertyValue = string | number | boolean | null | PropertyMap;
+
+/**
+ * PropertyMap interface for storing key-value pairs
+ * Keys are strings and values can be simple values or nested PropertyMaps
+ */
+export interface PropertyMap {
+  [key: string]: PropertyValue;
+}
+
+/**
+ * Path segments for accessing nested properties
+ * Can be a string (for a single level) or an array of strings (for multiple levels)
+ */
+export type PropertyPath = string | string[];
 
 /**
  * SmokeWorld interface
@@ -106,19 +125,23 @@ export interface SmokeWorld extends World {
   getLastError(): Error;
 
   /**
-   * Optional methods for target and phrase functionality
+   * Property Management Methods
+   * Methods for storing and retrieving properties in a nested structure
    */
-  // Set the target string
-  setTarget(target: string): void;
+  // Set a property value at the specified path
+  setProperty(path: PropertyPath, value: PropertyValue): void;
 
-  // Get the current target
-  getTarget(): string;
+  // Get a property value from the specified path
+  getProperty(path: PropertyPath): PropertyValue;
 
-  // Generate a phrase based on the target
-  generatePhrase(): void;
+  // Check if a property exists at the specified path
+  hasProperty(path: PropertyPath): boolean;
 
-  // Get the generated phrase
-  getPhrase(): string;
+  // Remove a property at the specified path
+  removeProperty(path: PropertyPath): void;
+
+  // Get the entire property map
+  getPropertyMap(): PropertyMap;
 }
 
 /**
@@ -130,8 +153,6 @@ export interface SmokeWorld extends World {
  */
 export class SmokeWorldImpl extends World implements SmokeWorld {
   // Properties to store state between steps
-  private target = "";
-  private phrase = "";
 
   // Registry for all clients
   private clients = new Map<string, ServiceClient>();
@@ -144,6 +165,9 @@ export class SmokeWorldImpl extends World implements SmokeWorld {
   private lastResponse: unknown = null;
   private lastContent = "";
   private lastError: Error | null = null;
+
+  // Property map for storing key-value pairs
+  private properties: PropertyMap = {};
 
   /**
    * Create a new SmokeWorld instance
@@ -186,36 +210,6 @@ export class SmokeWorldImpl extends World implements SmokeWorld {
       const client = this.clientFactory.createClient(clientType, clientId);
       this.registerClient(clientKey, client);
     }
-  }
-
-  /**
-   * Sets the target
-   * Converts any input to string for consistent behavior
-   */
-  setTarget(target: string): void {
-    // Explicitly convert target to string to handle non-string inputs
-    this.target = String(target);
-  }
-
-  /**
-   * Gets the target
-   */
-  getTarget(): string {
-    return this.target;
-  }
-
-  /**
-   * Generates a phrase based on the stored target
-   */
-  generatePhrase(): void {
-    this.phrase = dummy(this.target);
-  }
-
-  /**
-   * Gets the generated phrase
-   */
-  getPhrase(): string {
-    return this.phrase;
   }
 
   /**
@@ -518,6 +512,146 @@ export class SmokeWorldImpl extends World implements SmokeWorld {
       throw new Error("No error has been attached");
     }
     return this.lastError;
+  }
+
+  /**
+   * Normalize a property path to an array of path segments
+   * @param path Property path as a string or array of strings
+   * @returns Array of path segments
+   */
+  private normalizePath(path: PropertyPath): string[] {
+    if (typeof path === "string") {
+      // Split the string path by dots, but only if not empty
+      return path ? path.split(".") : [];
+    }
+    return path;
+  }
+
+  /**
+   * Set a property value at the specified path
+   * Creates nested objects as needed
+   *
+   * @param path Path to the property (string with dot notation or array of segments)
+   * @param value Value to set at the path
+   */
+  setProperty(path: PropertyPath, value: PropertyValue): void {
+    const segments = this.normalizePath(path);
+
+    if (segments.length === 0) {
+      throw new Error("Property path cannot be empty");
+    }
+
+    let current: PropertyMap = this.properties;
+
+    // Navigate to the parent of the property to set
+    for (let i = 0; i < segments.length - 1; i++) {
+      const segment = segments[i];
+
+      // Create nested object if it doesn't exist or isn't an object
+      if (!current[segment] || typeof current[segment] !== "object" || current[segment] === null) {
+        current[segment] = {};
+      }
+
+      // Move to the next level
+      current = current[segment] as PropertyMap;
+    }
+
+    // Set the value at the final path segment
+    current[segments[segments.length - 1]] = value;
+  }
+
+  /**
+   * Get a property value from the specified path
+   *
+   * @param path Path to the property (string with dot notation or array of segments)
+   * @returns The value at the path or undefined if not found
+   * @throws Error if any segment along the path doesn't exist
+   */
+  getProperty(path: PropertyPath): PropertyValue {
+    const segments = this.normalizePath(path);
+
+    if (segments.length === 0) {
+      return this.properties;
+    }
+
+    let current: PropertyValue = this.properties;
+
+    // Navigate through the path segments
+    for (const segment of segments) {
+      // Check if current is an object and has the property
+      if (current === null || typeof current !== "object" || !(segment in current)) {
+        throw new Error(`Property not found at path: ${segments.join(".")}`);
+      }
+
+      // Move to the next level
+      current = (current as PropertyMap)[segment];
+    }
+
+    return current;
+  }
+
+  /**
+   * Check if a property exists at the specified path
+   *
+   * @param path Path to the property (string with dot notation or array of segments)
+   * @returns True if the property exists, false otherwise
+   */
+  hasProperty(path: PropertyPath): boolean {
+    try {
+      this.getProperty(path);
+      return true;
+    } catch (error) {
+      return false;
+    }
+  }
+
+  /**
+   * Remove a property at the specified path
+   *
+   * @param path Path to the property (string with dot notation or array of segments)
+   * @throws Error if the property doesn't exist
+   */
+  removeProperty(path: PropertyPath): void {
+    const segments = this.normalizePath(path);
+
+    if (segments.length === 0) {
+      throw new Error("Property path cannot be empty");
+    }
+
+    let current: PropertyMap = this.properties;
+
+    // Navigate to the parent of the property to remove
+    for (let i = 0; i < segments.length - 1; i++) {
+      const segment = segments[i];
+
+      // Check if the path exists
+      if (!current[segment] || typeof current[segment] !== "object" || current[segment] === null) {
+        throw new Error(`Property not found at path: ${segments.slice(0, i + 1).join(".")}`);
+      }
+
+      // Move to the next level
+      current = current[segment] as PropertyMap;
+    }
+
+    const lastSegment = segments[segments.length - 1];
+
+    // Check if the property exists before removing
+    if (!(lastSegment in current)) {
+      throw new Error(`Property not found at path: ${segments.join(".")}`);
+    }
+
+    // Remove the property
+    delete current[lastSegment];
+  }
+
+  /**
+   * Get the entire property map
+   *
+   * @returns The current property map
+   */
+  getPropertyMap(): PropertyMap {
+    // Return a deep copy to prevent direct modification
+    return JSON.parse(JSON.stringify(this.properties));
   }
 }
 

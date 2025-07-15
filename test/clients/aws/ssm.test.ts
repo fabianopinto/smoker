@@ -164,6 +164,23 @@ describe("SsmClient with aws-sdk-client-mock", () => {
 
         await expect(client.read("/test/nonexistent")).rejects.toThrow("Parameter does not exist");
       });
+
+      it("should throw error when parameter name is empty", async () => {
+        await expect(client.read("")).rejects.toThrow("requires a parameter name");
+      });
+
+      it("should handle non-Error objects in AWS errors", async () => {
+        // Mock a non-Error object rejection
+        ssmMock.on(GetParameterCommand).rejects("String error message");
+
+        await expect(client.read("/test/parameter")).rejects.toThrow("Failed to read parameter");
+
+        // Mock a different non-Error object
+        ssmMock.reset();
+        ssmMock.on(GetParameterCommand).rejects({ message: "Object error" });
+
+        await expect(client.read("/test/parameter")).rejects.toThrow("Failed to read parameter");
+      });
     });
 
     describe("write", () => {
@@ -284,6 +301,33 @@ describe("SsmClient with aws-sdk-client-mock", () => {
           "Parameter limit exceeded",
         );
       });
+
+      it("should throw error when parameter name is empty", async () => {
+        await expect(client.write("", "value")).rejects.toThrow("requires a parameter name");
+      });
+
+      it("should throw error when parameter value is undefined", async () => {
+        await expect(
+          client.write("/test/parameter", undefined as unknown as string),
+        ).rejects.toThrow("requires a parameter value");
+      });
+
+      it("should handle unknown parameter types gracefully", async () => {
+        const paramName = "/test/parameter";
+        const paramValue = "test-value";
+
+        ssmMock.on(PutParameterCommand).resolves({});
+
+        // Pass an invalid type, should default to String
+        await client.write(paramName, paramValue, "InvalidType");
+
+        expect(ssmMock).toHaveReceivedCommandWith(PutParameterCommand, {
+          Name: paramName,
+          Value: paramValue,
+          Type: ParameterType.STRING,
+          Overwrite: true,
+        });
+      });
     });
 
     describe("delete", () => {
@@ -304,6 +348,27 @@ describe("SsmClient with aws-sdk-client-mock", () => {
 
         await expect(client.delete("/test/nonexistent")).rejects.toThrow("Parameter not found");
       });
+
+      it("should throw error when parameter name is empty", async () => {
+        await expect(client.delete("")).rejects.toThrow("requires a parameter name");
+      });
+
+      it("should handle non-Error objects in AWS errors", async () => {
+        // Mock a non-Error object rejection
+        ssmMock.on(DeleteParameterCommand).rejects("String error message");
+
+        await expect(client.delete("/test/parameter")).rejects.toThrow(
+          "Failed to delete parameter",
+        );
+
+        // Mock a different non-Error object
+        ssmMock.reset();
+        ssmMock.on(DeleteParameterCommand).rejects({ message: "Object error" });
+
+        await expect(client.delete("/test/parameter")).rejects.toThrow(
+          "Failed to delete parameter",
+        );
+      });
     });
   });
 
@@ -314,6 +379,52 @@ describe("SsmClient with aws-sdk-client-mock", () => {
       await expect(newClient.read("/test/parameter")).rejects.toThrow("not initialized");
       await expect(newClient.write("/test/parameter", "value")).rejects.toThrow("not initialized");
       await expect(newClient.delete("/test/parameter")).rejects.toThrow("not initialized");
+    });
+
+    it("should handle errors when client is not properly initialized", async () => {
+      // Create a client but don't initialize it
+      const uninitializedClient = new SsmClient("UninitializedClient");
+
+      // Verify operations fail with the expected error message
+      await expect(uninitializedClient.read("/test/parameter")).rejects.toThrow("not initialized");
+      await expect(uninitializedClient.write("/test/parameter", "value")).rejects.toThrow(
+        "not initialized",
+      );
+      await expect(uninitializedClient.delete("/test/parameter")).rejects.toThrow(
+        "not initialized",
+      );
+
+      // Verify the client is not initialized
+      expect(uninitializedClient.isInitialized()).toBe(false);
+    });
+  });
+
+  describe("Custom endpoint configuration", () => {
+    it("should handle custom endpoint properly", async () => {
+      // Create a client with a custom endpoint
+      const customEndpoint = "http://localhost:4566";
+      const customClient = new SsmClient("CustomClient", {
+        endpoint: customEndpoint,
+      });
+
+      await customClient.init();
+      expect(customClient.isInitialized()).toBe(true);
+
+      // Clean up
+      await customClient.destroy();
+    });
+
+    it("should handle empty endpoint string correctly", async () => {
+      // Create a client with an empty endpoint string
+      const customClient = new SsmClient("CustomClient", {
+        endpoint: "",
+      });
+
+      await customClient.init();
+      expect(customClient.isInitialized()).toBe(true);
+
+      // Clean up
+      await customClient.destroy();
     });
   });
 });

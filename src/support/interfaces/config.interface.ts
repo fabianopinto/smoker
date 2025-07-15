@@ -18,17 +18,10 @@ export interface ConfigObject {
 }
 
 /**
- * SmokeConfig defines the required structure for configuration
- * while still allowing for flexible extension with additional properties
+ * SmokeConfig defines the structure for configuration
+ * allowing for flexible extension with additional properties
  */
-export interface SmokeConfig {
-  // Core BDD settings that are required
-  defaultPhrase: string;
-  phraseTemplate: string;
-
-  // Additional configuration properties can be added dynamically
-  [key: string]: ConfigValue;
-}
+export type SmokeConfig = Record<string, ConfigValue>;
 
 /**
  * ConfigurationSource represents a source of configuration data

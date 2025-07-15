@@ -166,7 +166,7 @@ export abstract class BaseServiceClient implements ServiceClient {
    * @param client The client to check
    */
   protected assertNotNull<T>(client: T | null): asserts client is NonNullable<T> {
-    if (!client) {
+    if (client === null || client === undefined) {
       throw new Error("Client not initialized");
     }
   }

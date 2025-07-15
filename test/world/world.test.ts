@@ -5,7 +5,7 @@ import { SQSClient } from "@aws-sdk/client-sqs";
 import { SSMClient } from "@aws-sdk/client-ssm";
 import type { IWorldOptions } from "@cucumber/cucumber";
 import { mockClient } from "aws-sdk-client-mock";
-import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { beforeEach, describe, expect, it, vi } from "vitest";
 
 // Mock the setWorldConstructor to prevent errors when importing world module
 vi.mock("@cucumber/cucumber", async (importOriginal) => {
@@ -15,14 +15,6 @@ vi.mock("@cucumber/cucumber", async (importOriginal) => {
     setWorldConstructor: vi.fn(),
   };
 });
-
-// Mock the dummy function
-const mockDummy = vi.fn();
-
-// Mock the dummy module that contains the function
-vi.mock("../../src/lib/dummy", () => ({
-  dummy: (target: string) => mockDummy(target),
-}));
 
 // Import the SmokeWorld type and implementation
 // Import types first to prevent issues with mocks
@@ -89,29 +81,6 @@ describe("SmokeWorld", () => {
     // Create a new instance for each test without config
     smokeWorldImpl = new SmokeWorldImpl(worldOptions);
     smokeWorld = smokeWorldImpl;
-  });
-
-  // Setup fake timers
-  beforeEach(() => {
-    vi.useFakeTimers();
-  });
-
-  afterEach(() => {
-    vi.useRealTimers();
-  });
-
-  describe("Target Management", () => {
-    it("should set and get target correctly", () => {
-      const testTarget = "test-target";
-      smokeWorld.setTarget(testTarget);
-      expect(smokeWorld.getTarget()).toBe(testTarget);
-    });
-
-    it("should handle invalid target input", () => {
-      // String(null) becomes 'null' string
-      smokeWorld.setTarget(String(null));
-      expect(smokeWorld.getTarget()).toBe("null");
-    });
   });
 
   describe("Constructor", () => {
@@ -843,65 +812,99 @@ describe("SmokeWorld", () => {
     });
   });
 
-  describe("Phrase Management", () => {
-    it("should generate and get phrase correctly", () => {
-      const mockPhrase = "mock-random-phrase";
-      mockDummy.mockReturnValue(mockPhrase);
-
-      // Set a target first
-      const testTarget = "test-target";
-      smokeWorld.setTarget(testTarget);
-
-      smokeWorld.generatePhrase();
-      expect(smokeWorld.getPhrase()).toBe(mockPhrase);
-      expect(mockDummy).toHaveBeenCalledWith(testTarget);
+  describe("Content and Error Management", () => {
+    it("should attach and get response", () => {
+      const testResponse = { status: 200, body: "Test response" };
+      smokeWorld.attachResponse(testResponse);
+      expect(smokeWorld.getLastResponse()).toBe(testResponse);
     });
 
-    it("should handle invalid phrase input", () => {
-      // Use a null-like value that can be converted to string
-      mockDummy.mockReturnValue("");
-
-      // Set a target first
-      smokeWorld.setTarget("test");
-      smokeWorld.generatePhrase();
-      expect(smokeWorld.getPhrase()).toBe("");
+    it("should throw error when getting non-existent response", () => {
+      expect(() => smokeWorld.getLastResponse()).toThrow("No response has been attached");
     });
 
-    it("should regenerate phrase correctly", () => {
-      const mockPhrase1 = "mock-phrase-1";
-      const mockPhrase2 = "mock-phrase-2";
-
-      // Set a target first
-      smokeWorld.setTarget("test1");
-
-      // First generation
-      mockDummy.mockReturnValue(mockPhrase1);
-      smokeWorld.generatePhrase();
-      expect(smokeWorld.getPhrase()).toBe(mockPhrase1);
-      // Verify the phrase remains constant
-      expect(smokeWorld.getPhrase()).toBe(mockPhrase1);
-
-      // Second generation
-      mockDummy.mockReturnValue(mockPhrase2);
-      smokeWorld.generatePhrase();
-      expect(smokeWorld.getPhrase()).toBe(mockPhrase2);
+    it("should attach and get content", () => {
+      const testContent = "Test content";
+      smokeWorld.attachContent(testContent);
+      expect(smokeWorld.getLastContent()).toBe(testContent);
     });
 
-    it("should handle multiple phrase generations", () => {
-      // Set a target first
-      smokeWorld.setTarget("test-target");
+    it("should throw error when getting non-existent content", () => {
+      expect(() => smokeWorld.getLastContent()).toThrow("No content has been attached");
+    });
 
-      // First set a valid phrase
-      mockDummy.mockReturnValue("valid-phrase");
-      smokeWorld.generatePhrase();
-      expect(smokeWorld.getPhrase()).toBe("valid-phrase");
+    it("should attach and get error", () => {
+      const testError = new Error("Test error");
+      smokeWorld.attachError(testError);
+      expect(smokeWorld.getLastError()).toBe(testError);
+    });
 
-      // Then generate a new phrase
-      mockDummy.mockReturnValue("new-phrase");
-      smokeWorld.generatePhrase();
+    it("should throw error when getting non-existent error", () => {
+      expect(() => smokeWorld.getLastError()).toThrow("No error has been attached");
+    });
+  });
 
-      expect(smokeWorld.getPhrase()).toBe("new-phrase");
-      expect(mockDummy).toHaveBeenCalledTimes(2);
+  describe("Property Map", () => {
+    it("should store and retrieve properties correctly", () => {
+      // Set simple properties
+      smokeWorld.setProperty("user.name", "John");
+      smokeWorld.setProperty("user.age", 30);
+
+      // Check properties exist
+      expect(smokeWorld.hasProperty("user.name")).toBe(true);
+      expect(smokeWorld.hasProperty("user.age")).toBe(true);
+
+      // Get properties
+      expect(smokeWorld.getProperty("user.name")).toBe("John");
+      expect(smokeWorld.getProperty("user.age")).toBe(30);
+    });
+
+    it("should handle nested properties", () => {
+      // Set nested properties
+      smokeWorld.setProperty("user.address", {
+        street: "123 Main St",
+        city: "Anytown",
+      });
+
+      // Get nested properties using dot notation
+      expect(smokeWorld.getProperty("user.address.street")).toBe("123 Main St");
+      expect(smokeWorld.getProperty("user.address.city")).toBe("Anytown");
+
+      // Get nested properties using array notation
+      expect(smokeWorld.getProperty(["user", "address", "street"])).toBe("123 Main St");
+    });
+
+    it("should remove properties correctly", () => {
+      // Set properties
+      smokeWorld.setProperty("test.prop1", "value1");
+      smokeWorld.setProperty("test.prop2", "value2");
+
+      // Remove one property
+      smokeWorld.removeProperty("test.prop1");
+
+      // Check property was removed
+      expect(smokeWorld.hasProperty("test.prop1")).toBe(false);
+      expect(smokeWorld.hasProperty("test.prop2")).toBe(true);
+
+      // Should throw when accessing removed property
+      expect(() => smokeWorld.getProperty("test.prop1")).toThrow();
+    });
+
+    it("should get the entire property map", () => {
+      // Set properties
+      smokeWorld.setProperty("a", 1);
+      smokeWorld.setProperty("b.c", 2);
+
+      // Get the entire map
+      const map = smokeWorld.getPropertyMap();
+
+      // Check map structure
+      expect(map).toEqual({
+        a: 1,
+        b: {
+          c: 2,
+        },
+      });
     });
   });
 });

@@ -21,11 +21,6 @@ vi.mock("../../src/clients/registry/factory", () => ({
   createClientFactory: vi.fn(),
 }));
 
-// Mock the dummy function
-vi.mock("../../src/lib/dummy", () => ({
-  dummy: vi.fn(),
-}));
-
 // Import after mocks are set up
 import { type SmokeWorld, SmokeWorldImpl } from "../../src/world";
 

@@ -88,7 +88,7 @@ describe("Configuration Module", () => {
     });
 
     it("should load and parse JSON from file when it exists", async () => {
-      const mockConfig = { defaultPhrase: "Test", phraseTemplate: "{phrase} {target}" };
+      const mockConfig = { testSetting: "Test Value", apiKey: "abc123" };
       vi.mocked(existsSync).mockReturnValue(true);
       vi.mocked(readFileSync).mockReturnValue(JSON.stringify(mockConfig));
 
@@ -146,8 +146,8 @@ describe("Configuration Module", () => {
     it("should load and parse configuration from S3", async () => {
       // Define test configuration
       const testConfig = {
-        defaultPhrase: "S3 Phrase",
-        phraseTemplate: "{phrase} from {source}",
+        testSetting: "S3 Value",
+        apiEndpoint: "https://api.example.com",
       };
 
       // Setup mock response
@@ -301,7 +301,7 @@ describe("Configuration Module", () => {
 
     it("should resolve parameters in the loaded configuration", async () => {
       const testConfigWithParam = {
-        defaultPhrase: "Test Phrase",
+        testSetting: "Test Value",
         secretKey: "ssm://test/param1",
       };
 
@@ -321,7 +321,7 @@ describe("Configuration Module", () => {
 
       // Verify parameter was resolved
       expect(config).toEqual({
-        defaultPhrase: "Test Phrase",
+        testSetting: "Test Value",
         secretKey: "resolved-value",
       });
 
@@ -334,7 +334,7 @@ describe("Configuration Module", () => {
   describe("ObjectConfigurationSource", () => {
     it("should return the provided configuration object", async () => {
       const testConfig = {
-        defaultPhrase: "Object Phrase",
+        testSetting: "Test Value",
         setting: "value",
       };
 
@@ -478,7 +478,7 @@ describe("Configuration Module", () => {
 
       const source1 = {
         load: vi.fn().mockResolvedValue({
-          defaultPhrase: "Source 1",
+          testSetting: "Source 1",
           property1: "value1",
           shared: "from source 1",
         }),
@@ -486,7 +486,7 @@ describe("Configuration Module", () => {
 
       const source2 = {
         load: vi.fn().mockResolvedValue({
-          defaultPhrase: "Source 2",
+          testSetting: "Source 2",
           property2: "value2",
           shared: "from source 2",
         }),
@@ -498,22 +498,28 @@ describe("Configuration Module", () => {
       await config.loadConfigurations();
 
       // Verify that source2 values override source1 for shared properties
-      expect(config.getConfig().defaultPhrase).toBe("Source 2");
+      expect(config.getValue("testSetting")).toBe("Source 2");
       expect(config.getValue("shared")).toBe("from source 2");
 
       // But unique properties from each source are preserved
       expect(config.getValue("property1")).toBe("value1");
       expect(config.getValue("property2")).toBe("value2");
+
+      // Verify the entire config object
+      expect(config.getConfig()).toEqual({
+        testSetting: "Source 2",
+        property1: "value1",
+        property2: "value2",
+        shared: "from source 2",
+      });
     });
   });
 
   it("should initialize with default values", () => {
     const config = Configuration.getInstance().getConfig();
 
-    expect(config).toEqual({
-      defaultPhrase: "Smoking",
-      phraseTemplate: "{phrase} {target}!",
-    });
+    // Default configuration should be an empty object
+    expect(config).toEqual({});
   });
 
   it("should return the same instance when getInstance is called multiple times", () => {
@@ -553,9 +559,9 @@ describe("Configuration Module", () => {
   describe("updateConfig method", () => {
     it("should update existing properties", () => {
       const config = Configuration.getInstance();
-      config.updateConfig({ defaultPhrase: "Updated" });
+      config.updateConfig({ testSetting: "Updated" });
 
-      expect(config.getConfig().defaultPhrase).toBe("Updated");
+      expect(config.getValue("testSetting")).toBe("Updated");
     });
 
     it("should add new properties", () => {
@@ -567,18 +573,20 @@ describe("Configuration Module", () => {
 
     it("should not affect unrelated properties", () => {
       const config = Configuration.getInstance();
-      const originalTemplate = config.getConfig().phraseTemplate;
+      // Add another property first
+      config.updateConfig({ otherSetting: "Original" });
+      const originalOtherSetting = config.getValue("otherSetting");
 
-      config.updateConfig({ defaultPhrase: "Updated" });
+      config.updateConfig({ testSetting: "Updated" });
 
-      expect(config.getConfig().defaultPhrase).toBe("Updated");
-      expect(config.getConfig().phraseTemplate).toBe(originalTemplate);
+      expect(config.getValue("testSetting")).toBe("Updated");
+      expect(config.getValue("otherSetting")).toBe(originalOtherSetting);
     });
 
     it("should handle undefined values properly", () => {
       const config = Configuration.getInstance();
       const partialConfig = {
-        defaultPhrase: "New Phrase",
+        testSetting: "New Value",
         undefinedValue: undefined,
       };
 
@@ -586,7 +594,7 @@ describe("Configuration Module", () => {
       config.updateConfig(partialConfig as Partial<SmokeConfig>);
 
       // The undefined value should not be added to config
-      expect(config.getValue("defaultPhrase")).toBe("New Phrase");
+      expect(config.getValue("testSetting")).toBe("New Value");
       expect("undefinedValue" in config.getConfig()).toBe(false);
     });
   });
@@ -594,7 +602,7 @@ describe("Configuration Module", () => {
   describe("deepMerge method", () => {
     it("should merge objects recursively", () => {
       const config = Configuration.getInstance();
-      const target = {
+      const baseObj = {
         a: 1,
         nested: {
           b: 2,
@@ -612,7 +620,7 @@ describe("Configuration Module", () => {
 
       // Use reflection to access private method
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      const result = (config as any).deepMerge(target, source);
+      const result = (config as any).deepMerge(baseObj, source);
 
       expect(result).toEqual({
         a: 10,
@@ -626,7 +634,7 @@ describe("Configuration Module", () => {
 
     it("should remove properties when source value is null", () => {
       const config = Configuration.getInstance();
-      const target = {
+      const baseObj = {
         a: 1,
         b: 2,
         nested: {
@@ -644,7 +652,7 @@ describe("Configuration Module", () => {
 
       // Use reflection to access private method
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      const result = (config as any).deepMerge(target, source);
+      const result = (config as any).deepMerge(baseObj, source);
 
       expect(result).toEqual({
         a: 1,
@@ -656,7 +664,7 @@ describe("Configuration Module", () => {
 
     it("should remove nested empty objects after merging", () => {
       const config = Configuration.getInstance();
-      const target = {
+      const baseObj = {
         nested: { a: 1 },
       };
 
@@ -666,7 +674,7 @@ describe("Configuration Module", () => {
 
       // Use reflection to access private method
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      const result = (config as any).deepMerge(target, source);
+      const result = (config as any).deepMerge(baseObj, source);
 
       // The nested object should be removed since it became empty
       expect(result).toEqual({});
@@ -674,7 +682,7 @@ describe("Configuration Module", () => {
 
     it("should handle arrays", () => {
       const config = Configuration.getInstance();
-      const target = {
+      const baseObj = {
         array: [1, 2, 3],
       };
 
@@ -684,7 +692,7 @@ describe("Configuration Module", () => {
 
       // Use reflection to access private method
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      const result = (config as any).deepMerge(target, source);
+      const result = (config as any).deepMerge(baseObj, source);
 
       expect(result.array).toEqual([4, 5, 6]);
     });
@@ -701,7 +709,7 @@ describe("Configuration Module", () => {
 
     it("should handle undefined and null values correctly", () => {
       const config = Configuration.getInstance();
-      const target = {
+      const baseObj = {
         a: undefined,
         b: 2,
         c: null,
@@ -715,15 +723,15 @@ describe("Configuration Module", () => {
 
       // Use reflection to access private method
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      const result = (config as any).deepMerge(target, source);
+      const result = (config as any).deepMerge(baseObj, source);
 
       // In the actual implementation, the deep merge behavior with undefined and null is:
-      // - undefined in target gets overridden by source
-      // - undefined in source gets copied as undefined (doesn't preserve target value)
-      // - null values in target are preserved
-      // - null values in source that don't have corresponding keys in target are not included
+      // - undefined in baseObj gets overridden by source
+      // - undefined in source gets copied as undefined (doesn't preserve baseObj value)
+      // - null values in baseObj are preserved
+      // - null values in source that don't have corresponding keys in baseObj are not included
       const expected = {
-        a: 1, // undefined in target overridden by source value 1
+        a: 1, // undefined in baseObj overridden by source value 1
         b: undefined, // undefined in source overwrites target value 2
         c: null, // null in target is preserved
         // d is null in source but not in target, so it's not included in the result
@@ -733,7 +741,7 @@ describe("Configuration Module", () => {
 
     it("should handle complex nested structures", () => {
       const config = Configuration.getInstance();
-      const target = {
+      const baseObj = {
         a: 1,
         nested: {
           b: {
@@ -756,7 +764,7 @@ describe("Configuration Module", () => {
 
       // Use reflection to access private method
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      const result = (config as any).deepMerge(target, source);
+      const result = (config as any).deepMerge(baseObj, source);
 
       // Deep merge should recursively merge objects but replace arrays
       expect(result).toEqual({
@@ -800,10 +808,10 @@ describe("Helper functions", () => {
 
   describe("updateConfig", () => {
     it("should update configuration in the singleton instance", () => {
-      const newPhrase = "Updated by helper";
-      updateConfig({ defaultPhrase: newPhrase });
+      const newValue = "Updated by helper";
+      updateConfig({ testSetting: newValue });
 
-      expect(getConfig().defaultPhrase).toBe(newPhrase);
+      expect(getConfig().testSetting).toBe(newValue);
     });
   });
 
@@ -915,95 +923,111 @@ describe("Helper functions", () => {
 
 describe("Edge cases", () => {
   describe("Configuration validation", () => {
-    it("should handle missing required properties", async () => {
-      const config = Configuration.getInstance();
-      const spy = vi.spyOn(console, "warn");
-
-      // Add a configuration source that's missing required properties
-      const incompleteSource = new ObjectConfigurationSource({
-        otherProperty: "value",
-        // Missing defaultPhrase and phraseTemplate
-      });
-
-      config.addConfigurationSource(incompleteSource);
-      await config.loadConfigurations();
-
-      // Should warn but retain default values
-      expect(spy).toHaveBeenCalled();
-      expect(config.getConfig().defaultPhrase).toBe("Smoking");
-      expect(config.getConfig().phraseTemplate).toBe("{phrase} {target}!");
-      // Should still include the other property
-      expect(config.getValue("otherProperty")).toBe("value");
-
-      spy.mockRestore();
-    });
-
-    it("should handle incorrect types for required properties", async () => {
-      const config = Configuration.getInstance();
-      const spy = vi.spyOn(console, "warn");
-
-      // Add a configuration with wrong types
-      const badTypesSource = new ObjectConfigurationSource({
-        defaultPhrase: 123, // Number instead of string
-        phraseTemplate: false, // Boolean instead of string
-      } as ConfigObject);
-
-      config.addConfigurationSource(badTypesSource);
-      await config.loadConfigurations();
-
-      // Should warn but accept the different types as is
-      expect(spy).toHaveBeenCalled();
-      // Test with null (would be converted to empty object)
-      const nullSource = new ObjectConfigurationSource({} as ConfigObject); // Use empty object instead of null
-
-      config.addConfigurationSource(nullSource);
-      await config.loadConfigurations();
-
-      // Should retain default values
-      expect(config.getConfig().defaultPhrase).toBe("Smoking");
-      expect(config.getConfig().phraseTemplate).toBe("{phrase} {target}!");
-
-      spy.mockRestore();
-    });
-
-    it("should handle mixed valid and invalid types", async () => {
-      const spy = vi.spyOn(console, "warn");
-
+    it("should handle configuration with custom properties", async () => {
       // Reset to clean state
       resetConfigurationSingleton();
+      const config = Configuration.getInstance();
 
-      // Create a source with mixed valid and invalid types
+      // Add a configuration source with custom properties
+      const customSource = new ObjectConfigurationSource({
+        otherProperty: "value",
+      });
+
+      config.addConfigurationSource(customSource);
+      await config.loadConfigurations();
+
+      // Should include the custom property
+      expect(config.getValue("otherProperty")).toBe("value");
+
+      // Verify the entire config object
+      expect(config.getConfig()).toEqual({
+        otherProperty: "value",
+      });
+    });
+
+    it("should handle empty configuration object", async () => {
+      // Reset to clean state
+      resetConfigurationSingleton();
+      const config = Configuration.getInstance();
+
+      const emptySource = new ObjectConfigurationSource({} as ConfigObject);
+      config.addConfigurationSource(emptySource);
+      await config.loadConfigurations();
+
+      // Should have empty config
+      expect(Object.keys(config.getConfig()).length).toBe(0);
+
+      // Verify the entire config object
+      expect(config.getConfig()).toEqual({});
+    });
+
+    it("should handle different value types", async () => {
+      // Reset to clean state
+      resetConfigurationSingleton();
+      const config = Configuration.getInstance();
+
+      // Add a configuration with various types
       const mixedTypesSource = new ObjectConfigurationSource({
-        defaultPhrase: "Valid String", // Valid type
-        phraseTemplate: 42, // Invalid type
+        testSetting: 123, // Number
+        apiKey: false, // Boolean
+        stringValue: "text", // String
+      } as ConfigObject);
+
+      config.addConfigurationSource(mixedTypesSource);
+      await config.loadConfigurations();
+
+      // Should accept the different types as is
+      expect(config.getValue("testSetting")).toBe(123);
+      expect(config.getValue("apiKey")).toBe(false);
+      expect(config.getValue("stringValue")).toBe("text");
+
+      // Verify the entire config object
+      expect(config.getConfig()).toEqual({
+        testSetting: 123,
+        apiKey: false,
+        stringValue: "text",
+      });
+    });
+
+    it("should handle mixed types and preserve all properties", async () => {
+      // Reset to clean state
+      resetConfigurationSingleton();
+      const configInstance = Configuration.getInstance();
+
+      // Create a source with mixed types
+      const mixedTypesSource = new ObjectConfigurationSource({
+        testSetting: "Valid String", // String value
+        apiKey: 42, // Numeric value
         additionalProperty: "Should be preserved",
       } as ConfigObject);
 
       // Add the source and load configurations
-      const configInstance = Configuration.getInstance();
       configInstance.addConfigurationSource(mixedTypesSource);
       await configInstance.loadConfigurations();
 
-      // Should use valid string for defaultPhrase but preserve default for phraseTemplate
-      expect(configInstance.getConfig().defaultPhrase).toBe("Valid String");
-      expect(configInstance.getConfig().phraseTemplate).toBe("{phrase} {target}!");
-      // Additional property should be preserved
+      // Should include all values
+      expect(configInstance.getValue("testSetting")).toBe("Valid String");
+      expect(configInstance.getValue("apiKey")).toBe(42);
       expect(configInstance.getValue("additionalProperty")).toBe("Should be preserved");
 
-      spy.mockRestore();
+      // Verify the entire config object
+      expect(configInstance.getConfig()).toEqual({
+        testSetting: "Valid String",
+        apiKey: 42,
+        additionalProperty: "Should be preserved",
+      });
     });
 
     it("should handle nested properties with invalid types", async () => {
       // Reset to clean state
       resetConfigurationSingleton();
-
       const config = Configuration.getInstance();
       const spy = vi.spyOn(console, "warn");
 
       // Create a configuration with nested properties
       const nestedConfig = new ObjectConfigurationSource({
-        defaultPhrase: "Valid String",
-        phraseTemplate: "{phrase} {target}!",
+        testSetting: "Valid String",
+        apiKey: "valid-api-key",
         nested: {
           validString: "string value",
           invalidNumber: "not a number", // String instead of number
@@ -1050,8 +1074,8 @@ describe("Edge cases", () => {
         expect.any(Error),
       );
 
-      // Should retain default configuration
-      expect(config.getConfig().defaultPhrase).toBe("Smoking");
+      // Should retain empty default configuration
+      expect(Object.keys(config.getConfig()).length).toBe(0);
 
       errorSpy.mockRestore();
     });
