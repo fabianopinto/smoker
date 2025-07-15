@@ -927,7 +927,6 @@ describe("KafkaClient", () => {
 
         // Mock console.error to verify the error is logged
         // Silence console.error during test but still track calls
-        // eslint-disable-next-line @typescript-eslint/no-empty-function
         const consoleErrorSpy = vi.spyOn(console, "error");
 
         // Mock for the temporary consumer

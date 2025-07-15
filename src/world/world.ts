@@ -600,7 +600,8 @@ export class SmokeWorldImpl extends World implements SmokeWorld {
     try {
       this.getProperty(path);
       return true;
-    } catch (error) {
+    } catch {
+      // If property doesn't exist, getProperty will throw an error
       return false;
     }
   }
@@ -640,8 +641,8 @@ export class SmokeWorldImpl extends World implements SmokeWorld {
       throw new Error(`Property not found at path: ${segments.join(".")}`);
     }
 
-    // Remove the property
-    delete current[lastSegment];
+    // Remove the property using Reflect.deleteProperty instead of delete operator
+    Reflect.deleteProperty(current, lastSegment);
   }
 
   /**
