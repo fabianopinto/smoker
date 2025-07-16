@@ -19,16 +19,19 @@ This guide covers how to operate the Smoker framework, including local execution
 ### Running Smoke Tests Locally
 
 1. Build the project:
+
    ```bash
    npm run build
    ```
 
 2. Run all tests:
+
    ```bash
    npm start
    ```
 
 3. Run specific features:
+
    ```bash
    npm start -- --paths "dist/features/api/**/*.feature"
    ```
@@ -40,12 +43,12 @@ This guide covers how to operate the Smoker framework, including local execution
 
 ### Command Line Options
 
-| Option | Description | Example |
-|--------|-------------|---------|
-| `--paths` | Glob patterns for feature files | `--paths "dist/features/api/**/*.feature"` |
-| `--tags` | Cucumber tag expression | `--tags "@api and not @wip"` |
-| `--config` | Path to config file | `--config "./config/test.json"` |
-| `--format` | Output format | `--format "json:results.json"` |
+| Option     | Description                     | Example                                    |
+| ---------- | ------------------------------- | ------------------------------------------ |
+| `--paths`  | Glob patterns for feature files | `--paths "dist/features/api/**/*.feature"` |
+| `--tags`   | Cucumber tag expression         | `--tags "@api and not @wip"`               |
+| `--config` | Path to config file             | `--config "./config/test.json"`            |
+| `--format` | Output format                   | `--format "json:results.json"`             |
 
 ## Configuration Management
 
@@ -77,7 +80,7 @@ Create JSON configuration files:
 Load configuration files:
 
 ```typescript
-import { addConfigurationFile, loadConfigurations } from "./support/config";
+import { addConfigurationFile, loadConfigurations } from "./support";
 
 // Add configuration file
 addConfigurationFile("./config/default.json");
@@ -91,8 +94,11 @@ await loadConfigurations();
 Store configuration in S3 buckets:
 
 ```typescript
+// Import from the support barrel file
+import { addS3ConfigurationFile } from "./support";
+
 // Load configuration from S3
-addConfigurationFile("s3://my-bucket/config.json");
+addS3ConfigurationFile("s3://my-bucket/config.json");
 
 // With specific region
 addS3ConfigurationFile("s3://my-bucket/config.json", "us-west-2");
@@ -106,9 +112,7 @@ Required IAM permissions:
   "Statement": [
     {
       "Effect": "Allow",
-      "Action": [
-        "s3:GetObject"
-      ],
+      "Action": ["s3:GetObject"],
       "Resource": "arn:aws:s3:::my-bucket/config.json"
     }
   ]
@@ -142,17 +146,12 @@ Required IAM permissions:
   "Statement": [
     {
       "Effect": "Allow",
-      "Action": [
-        "ssm:GetParameter",
-        "ssm:GetParameters"
-      ],
+      "Action": ["ssm:GetParameter", "ssm:GetParameters"],
       "Resource": "arn:aws:ssm:*:*:parameter/my-app/*"
     },
     {
       "Effect": "Allow",
-      "Action": [
-        "kms:Decrypt"
-      ],
+      "Action": ["kms:Decrypt"],
       "Resource": "arn:aws:kms:*:*:key/your-kms-key-id"
     }
   ]
@@ -166,30 +165,34 @@ Required IAM permissions:
 The framework includes AWS CDK infrastructure code for deploying as a Lambda function:
 
 1. Install CDK dependencies:
+
    ```bash
    npm install --prefix cdk
    ```
 
 2. Configure the CDK stack in `cdk/lib/smoker-stack.ts`:
+
    ```typescript
    // Customize Lambda function properties
-   const smokerFunction = new lambda.Function(this, 'SmokerFunction', {
+   const smokerFunction = new lambda.Function(this, "SmokerFunction", {
      runtime: lambda.Runtime.NODEJS_18_X,
-     handler: 'dist/index.handler',
-     code: lambda.Code.fromAsset('../'),
+     handler: "dist/index.handler",
+     code: lambda.Code.fromAsset("../"),
      timeout: Duration.minutes(5),
      memorySize: 512,
      environment: {
-       NODE_ENV: 'production',
-       LOG_LEVEL: 'info',
+       NODE_ENV: "production",
+       LOG_LEVEL: "info",
      },
    });
 
    // Add required permissions
-   smokerFunction.addToRolePolicy(new iam.PolicyStatement({
-     actions: ['s3:GetObject'],
-     resources: ['arn:aws:s3:::my-bucket/*'],
-   }));
+   smokerFunction.addToRolePolicy(
+     new iam.PolicyStatement({
+       actions: ["s3:GetObject"],
+       resources: ["arn:aws:s3:::my-bucket/*"],
+     }),
+   );
    ```
 
 3. Deploy the stack:
@@ -202,6 +205,7 @@ The framework includes AWS CDK infrastructure code for deploying as a Lambda fun
 The Lambda function requires permissions for:
 
 1. **S3 Access**: Reading configuration files and test data
+
    ```json
    {
      "Effect": "Allow",
@@ -211,6 +215,7 @@ The Lambda function requires permissions for:
    ```
 
 2. **SSM Parameter Store**: Accessing secure configuration
+
    ```json
    {
      "Effect": "Allow",
@@ -220,14 +225,11 @@ The Lambda function requires permissions for:
    ```
 
 3. **CloudWatch Logs**: Writing logs
+
    ```json
    {
      "Effect": "Allow",
-     "Action": [
-       "logs:CreateLogGroup",
-       "logs:CreateLogStream",
-       "logs:PutLogEvents"
-     ],
+     "Action": ["logs:CreateLogGroup", "logs:CreateLogStream", "logs:PutLogEvents"],
      "Resource": "*"
    }
    ```
@@ -248,10 +250,7 @@ When invoking the Lambda function, provide configuration in the event:
     "apiUrl": "https://api.example.com",
     "timeout": 5000
   },
-  "configFiles": [
-    "./config/prod-env.json",
-    "s3://my-bucket/configs/prod-settings.json"
-  ]
+  "configFiles": ["./config/prod-env.json", "s3://my-bucket/configs/prod-settings.json"]
 }
 ```
 
@@ -259,12 +258,12 @@ When invoking the Lambda function, provide configuration in the event:
 
 Configure environment variables in the Lambda function:
 
-| Variable | Description | Example |
-|----------|-------------|---------|
-| `AWS_REGION` | AWS region | `us-east-1` |
-| `LOG_LEVEL` | Logging level | `info` |
-| `CONFIG_PATH` | Default config path | `./config/default.json` |
-| `CUCUMBER_PUBLISH_TOKEN` | Cucumber reports token | `abcd-1234` |
+| Variable                 | Description            | Example                 |
+| ------------------------ | ---------------------- | ----------------------- |
+| `AWS_REGION`             | AWS region             | `us-east-1`             |
+| `LOG_LEVEL`              | Logging level          | `info`                  |
+| `CONFIG_PATH`            | Default config path    | `./config/default.json` |
+| `CUCUMBER_PUBLISH_TOKEN` | Cucumber reports token | `abcd-1234`             |
 
 ### Invoking the Lambda Function
 
@@ -300,24 +299,24 @@ const response = await client.send(command);
 
 Configure Cucumber.js behavior:
 
-| Option | Description | Example |
-|--------|-------------|---------|
-| `paths` | Feature file paths | `["dist/features/api/**/*.feature"]` |
-| `tags` | Tag expression | `"@smoke and not @wip"` |
-| `format` | Output format | `"json:results.json"` |
-| `parallel` | Run in parallel | `2` |
-| `retry` | Retry count | `1` |
+| Option     | Description        | Example                              |
+| ---------- | ------------------ | ------------------------------------ |
+| `paths`    | Feature file paths | `["dist/features/api/**/*.feature"]` |
+| `tags`     | Tag expression     | `"@smoke and not @wip"`              |
+| `format`   | Output format      | `"json:results.json"`                |
+| `parallel` | Run in parallel    | `2`                                  |
+| `retry`    | Retry count        | `1`                                  |
 
 ### Framework Options
 
 Configure the Smoker framework:
 
-| Option | Description | Example |
-|--------|-------------|---------|
-| `configFiles` | Configuration files | `["./config/default.json"]` |
-| `config` | Inline configuration | `{"apiUrl":"https://api.example.com"}` |
-| `logLevel` | Logging level | `"info"` |
-| `timeout` | Global timeout (ms) | `10000` |
+| Option        | Description          | Example                                |
+| ------------- | -------------------- | -------------------------------------- |
+| `configFiles` | Configuration files  | `["./config/default.json"]`            |
+| `config`      | Inline configuration | `{"apiUrl":"https://api.example.com"}` |
+| `logLevel`    | Logging level        | `"info"`                               |
+| `timeout`     | Global timeout (ms)  | `10000`                                |
 
 ## Monitoring and Logging
 
@@ -339,20 +338,22 @@ Publish custom metrics to CloudWatch:
 import { CloudWatchClient, PutMetricDataCommand } from "@aws-sdk/client-cloudwatch";
 
 const client = new CloudWatchClient({ region: "us-east-1" });
-await client.send(new PutMetricDataCommand({
-  Namespace: "Smoker",
-  MetricData: [
-    {
-      MetricName: "TestsPassed",
-      Value: passedCount,
-      Unit: "Count",
-      Dimensions: [
-        { Name: "Environment", Value: "Production" },
-        { Name: "TestSuite", Value: "API" },
-      ],
-    },
-  ],
-}));
+await client.send(
+  new PutMetricDataCommand({
+    Namespace: "Smoker",
+    MetricData: [
+      {
+        MetricName: "TestsPassed",
+        Value: passedCount,
+        Unit: "Count",
+        Dimensions: [
+          { Name: "Environment", Value: "Production" },
+          { Name: "TestSuite", Value: "API" },
+        ],
+      },
+    ],
+  }),
+);
 ```
 
 ### Cucumber Reports
@@ -360,11 +361,13 @@ await client.send(new PutMetricDataCommand({
 Generate Cucumber reports for test results:
 
 1. Configure report format:
+
    ```bash
    npm start -- --format "json:cucumber-report.json"
    ```
 
 2. Generate HTML report:
+
    ```bash
    npx cucumber-html-reporter --json cucumber-report.json --output cucumber-report.html
    ```
@@ -386,8 +389,8 @@ name: Smoke Tests
 
 on:
   schedule:
-    - cron: '0 */4 * * *'  # Every 4 hours
-  workflow_dispatch:       # Manual trigger
+    - cron: "0 */4 * * *" # Every 4 hours
+  workflow_dispatch: # Manual trigger
 
 jobs:
   smoke-tests:
@@ -398,12 +401,13 @@ jobs:
       - name: Setup Node.js
         uses: actions/setup-node@v3
         with:
-          node-version: '18'
+          node-version: "22"
+          cache: "npm"
 
       - name: Install dependencies
         run: npm ci
 
-      - name: Build project
+      - name: Build
         run: npm run build
 
       - name: Run smoke tests
@@ -426,13 +430,14 @@ jobs:
 Integrate with AWS CodePipeline:
 
 1. Create a CodeBuild project:
+
    ```yaml
    version: 0.2
 
    phases:
      install:
        runtime-versions:
-         nodejs: 18
+         nodejs: 22
        commands:
          - npm ci
      build:

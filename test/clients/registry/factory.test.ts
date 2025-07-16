@@ -4,7 +4,6 @@
  * Using a simplified approach to avoid complex mocking issues
  */
 import { beforeEach, describe, expect, it, vi } from "vitest";
-import { ClientType } from "../../../src/clients/core";
 
 // Create simple mocks for all client modules
 vi.mock("../../../src/clients/http/rest", () => ({
@@ -40,6 +39,14 @@ vi.mock("../../../src/clients/messaging/kafka", () => ({
 }));
 
 // Import after mocking
+import {
+  ClientFactory,
+  ClientRegistry,
+  ClientType,
+  createClientFactory,
+  MqttClient,
+  type ClientConfig,
+} from "../../../src/clients";
 import { CloudWatchClient } from "../../../src/clients/aws/cloudwatch";
 import { KinesisClient } from "../../../src/clients/aws/kinesis";
 import { S3Client } from "../../../src/clients/aws/s3";
@@ -47,13 +54,6 @@ import { SqsClient } from "../../../src/clients/aws/sqs";
 import { SsmClient } from "../../../src/clients/aws/ssm";
 import { RestClient } from "../../../src/clients/http/rest";
 import { KafkaClient } from "../../../src/clients/messaging/kafka";
-import { MqttClient } from "../../../src/clients/messaging/mqtt";
-import {
-  type ClientConfig,
-  ClientFactory,
-  ClientRegistry,
-  createClientFactory,
-} from "../../../src/clients/registry";
 
 // Temporarily skipping these tests due to termination issues (exit code 130)
 // TODO: Fix the underlying issues causing test termination

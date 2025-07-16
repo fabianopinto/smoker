@@ -1,11 +1,12 @@
 /**
- * Main entry point for the application
- * Runs cucumber tests based on provided configuration
- * Can be executed directly or as an AWS Lambda function
+ * Main Entry Point
+ *
+ * This is the main entry point for the application.
+ * It runs cucumber tests based on provided configuration
+ * and can be executed directly or as an AWS Lambda function.
  *
  * @author Fabiano Pinto <fabianopinto@gmail.com>
  */
-
 import { loadConfiguration, runCucumber } from "@cucumber/cucumber/api";
 import {
   addConfigurationFile,

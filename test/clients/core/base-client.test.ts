@@ -3,7 +3,7 @@
  * Tests the core functionality of the base client implementation
  */
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { BaseServiceClient } from "../../../src/clients/core";
+import { BaseServiceClient } from "../../../src/clients";
 
 // Concrete implementation of BaseServiceClient for testing
 class TestServiceClient extends BaseServiceClient {

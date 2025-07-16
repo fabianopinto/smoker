@@ -2,6 +2,8 @@
  * AWS service interfaces
  * Defines contracts for AWS service interactions
  */
+import { S3Client } from "@aws-sdk/client-s3";
+import { SSMClient } from "@aws-sdk/client-ssm";
 
 /**
  * Interface for parsed S3 URL components
@@ -10,9 +12,6 @@ export interface ParsedS3Url {
   bucket: string;
   key: string;
 }
-
-import { S3Client } from "@aws-sdk/client-s3";
-import { SSMClient } from "@aws-sdk/client-ssm";
 
 /**
  * Interface for S3 client operations

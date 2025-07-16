@@ -10,7 +10,7 @@ import {
   FilterLogEventsCommand,
   GetLogEventsCommand,
 } from "@aws-sdk/client-cloudwatch-logs";
-import { type ServiceClient, BaseServiceClient } from "../core";
+import { BaseServiceClient, type ServiceClient } from "../core";
 
 /**
  * Interface for CloudWatch log event

@@ -106,9 +106,38 @@ interface Config {
 
 ```typescript
 // Barrel file (index.ts)
-export { RestClient } from './rest-client';
-export { MqttClient } from './mqtt-client';
-export type { ServiceClient } from './service-client';
+export { CloudWatchClient } from "./cloudwatch";
+export { KinesisClient } from "./kinesis";
+export { S3Client } from "./s3";
+export { SQSClient } from "./sqs";
+export { SsmClient } from "./ssm";
+```
+
+### Using Barrel Files
+
+Barrel files simplify imports by providing a single entry point for a module:
+
+```typescript
+// Without barrel files
+import { CloudWatchClient } from "../clients/aws/cloudwatch";
+import { S3Client } from "../clients/aws/s3";
+import { SQSClient } from "../clients/aws/sqs";
+
+// With barrel files
+import { CloudWatchClient, S3Client, SQSClient } from "../clients/aws";
+```
+
+### Multi-level Barrel Files
+
+For larger modules, use multi-level barrel files to organize exports:
+
+```typescript
+// src/clients/index.ts
+export * from "./aws";
+export * from "./core";
+export * from "./http";
+export * from "./messaging";
+export * from "./registry";
 ```
 
 ### Error Handling
@@ -142,23 +171,23 @@ try {
 
 ```typescript
 // Good test organization
-describe('RestClient', () => {
-  describe('initialization', () => {
-    it('should initialize with default config', () => {
+describe("RestClient", () => {
+  describe("initialization", () => {
+    it("should initialize with default config", () => {
       // Test code
     });
 
-    it('should throw error with invalid config', () => {
+    it("should throw error with invalid config", () => {
       // Test code
     });
   });
 
-  describe('operations', () => {
-    it('should send GET request successfully', () => {
+  describe("operations", () => {
+    it("should send GET request successfully", () => {
       // Test code
     });
 
-    it('should handle GET request errors', () => {
+    it("should handle GET request errors", () => {
       // Test code
     });
   });
@@ -199,22 +228,22 @@ it("should read from S3", async () => {
 Use `nock` or `vitest` mocking for HTTP clients:
 
 ```typescript
-import nock from 'nock';
+import nock from "nock";
 
 beforeEach(() => {
-  nock('https://api.example.com')
-    .get('/users')
-    .reply(200, [{ id: 1, name: 'Test User' }]);
+  nock("https://api.example.com")
+    .get("/users")
+    .reply(200, [{ id: 1, name: "Test User" }]);
 });
 
 afterEach(() => {
   nock.cleanAll();
 });
 
-it('should fetch users', async () => {
+it("should fetch users", async () => {
   const users = await apiClient.getUsers();
   expect(users).toHaveLength(1);
-  expect(users[0].name).toBe('Test User');
+  expect(users[0].name).toBe("Test User");
 });
 ```
 
@@ -225,7 +254,7 @@ Create mock implementations of interfaces:
 ```typescript
 // Create mock implementation
 const mockServiceClient: ServiceClient = {
-  getName: vi.fn().mockReturnValue('MockClient'),
+  getName: vi.fn().mockReturnValue("MockClient"),
   init: vi.fn().mockResolvedValue(undefined),
   isInitialized: vi.fn().mockReturnValue(true),
   reset: vi.fn().mockResolvedValue(undefined),
@@ -233,9 +262,9 @@ const mockServiceClient: ServiceClient = {
 };
 
 // Use in tests
-it('should register client', () => {
-  world.registerClient('test', mockServiceClient);
-  expect(world.hasClient('test')).toBe(true);
+it("should register client", () => {
+  world.registerClient("test", mockServiceClient);
+  expect(world.hasClient("test")).toBe(true);
 });
 ```
 
@@ -246,9 +275,9 @@ it('should register client', () => {
 Structure tests using the AAA pattern:
 
 ```typescript
-it('should process data correctly', () => {
+it("should process data correctly", () => {
   // Arrange
-  const input = { name: 'Test', value: 42 };
+  const input = { name: "Test", value: 42 };
   const processor = new DataProcessor();
 
   // Act
@@ -267,18 +296,18 @@ Use fixtures for complex test data:
 ```typescript
 // fixtures/test-data.ts
 export const testConfig = {
-  apiUrl: 'https://api.example.com',
+  apiUrl: "https://api.example.com",
   timeout: 5000,
   credentials: {
-    username: 'testuser',
-    password: 'password123',
+    username: "testuser",
+    password: "password123",
   },
 };
 
 // In tests
-import { testConfig } from '../fixtures/test-data';
+import { testConfig } from "../fixtures/test-data";
 
-it('should initialize with config', () => {
+it("should initialize with config", () => {
   const client = new ApiClient();
   client.init(testConfig);
   expect(client.isInitialized()).toBe(true);
@@ -294,7 +323,7 @@ it('should initialize with config', () => {
 - **Examples**: Include usage examples for complex functions
 - **Implementation Notes**: Document non-obvious implementation details
 
-```typescript
+````typescript
 /**
  * Retrieves an object from S3 and parses it as JSON.
  *
@@ -312,7 +341,7 @@ it('should initialize with config', () => {
 async function getJsonFromS3<T>(bucket: string, key: string): Promise<T> {
   // Implementation
 }
-```
+````
 
 ### README Files
 
@@ -332,6 +361,7 @@ async function getJsonFromS3<T>(bucket: string, key: string): Promise<T> {
 ### Adding a New Service Client
 
 1. **Create Interface**: Define the client interface
+
    ```typescript
    export interface NewServiceClient extends ServiceClient {
      doSomething(param: string): Promise<Result>;
@@ -339,10 +369,11 @@ async function getJsonFromS3<T>(bucket: string, key: string): Promise<T> {
    ```
 
 2. **Implement Client**: Create the client implementation
+
    ```typescript
    export class NewServiceClientImpl extends BaseServiceClient implements NewServiceClient {
      constructor() {
-       super('new-service');
+       super("new-service");
      }
 
      protected async initializeClient(): Promise<void> {
@@ -357,12 +388,14 @@ async function getJsonFromS3<T>(bucket: string, key: string): Promise<T> {
    ```
 
 3. **Update Exports**: Add to barrel file
+
    ```typescript
-   export { NewServiceClientImpl } from './new-service-client';
-   export type { NewServiceClient } from './new-service-client';
+   export { NewServiceClientImpl } from "./new-service-client";
+   export type { NewServiceClient } from "./new-service-client";
    ```
 
 4. **Add to World**: Register in the World class
+
    ```typescript
    // In SmokeWorld constructor
    this.newServiceClient = new NewServiceClientImpl();
@@ -376,7 +409,7 @@ async function getJsonFromS3<T>(bucket: string, key: string): Promise<T> {
 
 5. **Add Tests**: Create comprehensive tests
    ```typescript
-   describe('NewServiceClient', () => {
+   describe("NewServiceClient", () => {
      // Test initialization, operations, error handling
    });
    ```
@@ -385,39 +418,45 @@ async function getJsonFromS3<T>(bucket: string, key: string): Promise<T> {
 
 1. **Identify Patterns**: Look for common testing patterns
 2. **Create Step File**: Create a new step definition file
+
    ```typescript
    // features/step_definitions/new-service-steps.ts
-   import { Given, When, Then } from '@cucumber/cucumber';
-   import type { SmokeWorld } from '../../src/world';
+   import { Given, When, Then } from "@cucumber/cucumber";
+   import type { SmokeWorld } from "../../src/world";
 
-   Given('I have a new service client', function (this: SmokeWorld) {
+   Given("I have a new service client", function (this: SmokeWorld) {
      const client = this.getNewService();
      expect(client).toBeDefined();
    });
    ```
 
 3. **Add Helper Functions**: Create library functions for complex operations
+
    ```typescript
    // src/lib/new-service-helpers.ts
-   import type { NewServiceClient } from '../clients/new-service-client';
+   import type { NewServiceClient } from "../clients/new-service-client";
 
    export async function performComplexOperation(
      client: NewServiceClient,
-     param: string
+     param: string,
    ): Promise<Result> {
      // Complex operation logic
    }
    ```
 
 4. **Use in Steps**: Import and use helper functions
-   ```typescript
-   import { performComplexOperation } from '../../src/lib/new-service-helpers';
 
-   When('I perform a complex operation with {string}', async function (this: SmokeWorld, param: string) {
-     const client = this.getNewService();
-     const result = await performComplexOperation(client, param);
-     this.setState('result', result);
-   });
+   ```typescript
+   import { performComplexOperation } from "../../src/lib/new-service-helpers";
+
+   When(
+     "I perform a complex operation with {string}",
+     async function (this: SmokeWorld, param: string) {
+       const client = this.getNewService();
+       const result = await performComplexOperation(client, param);
+       this.setState("result", result);
+     },
+   );
    ```
 
 ## Contributing Guidelines

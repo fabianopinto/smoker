@@ -1,6 +1,5 @@
 import { describe, expect, it, vi } from "vitest";
-import { ClientType, type ServiceClient } from "../../src/clients/core";
-import type { ClientConfig } from "../../src/clients/registry";
+import { ClientType, type ClientConfig, type ServiceClient } from "../../src/clients";
 
 // Mock the necessary components to avoid Cucumber registration issues
 vi.mock("@cucumber/cucumber", () => ({

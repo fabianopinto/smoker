@@ -4,13 +4,11 @@
  * This file centralizes all AWS client interactions for better organization and testability.
  * It provides wrapper classes for S3 and SSM clients with utility methods for common operations.
  *
- * @module support/aws/aws-clients
+ * AWS client wrapper implementations
  */
 import { GetObjectCommand, S3Client } from "@aws-sdk/client-s3";
 import { GetParameterCommand, SSMClient } from "@aws-sdk/client-ssm";
 import { Readable } from "node:stream";
-
-// Import interfaces
 import type { IS3Client, ISSMClient, ParsedS3Url } from "../interfaces";
 
 /**

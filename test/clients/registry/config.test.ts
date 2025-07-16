@@ -1,7 +1,10 @@
 import { beforeEach, describe, expect, it } from "vitest";
-import { ClientType } from "../../../src/clients/core";
-import type { ClientConfig } from "../../../src/clients/registry";
-import { ClientRegistry, createClientRegistry } from "../../../src/clients/registry/config";
+import {
+  type ClientConfig,
+  ClientRegistry,
+  ClientType,
+  createClientRegistry,
+} from "../../../src/clients";
 
 describe("ClientRegistry", () => {
   let registry: ClientRegistry;

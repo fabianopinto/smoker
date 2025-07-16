@@ -2,20 +2,14 @@
  * Client factory for creating service clients
  * Creates and configures service clients based on stored configurations
  */
-
 import { ClientType, type ServiceClient } from "../core";
 import { ClientRegistry } from "./config";
 
-// These imports will need to be updated once we move the client implementations
-// For now, we'll use relative paths that will need to be updated later
-import { CloudWatchClient } from "../aws/cloudwatch";
-import { KinesisClient } from "../aws/kinesis";
-import { S3Client } from "../aws/s3";
-import { SqsClient } from "../aws/sqs";
-import { SsmClient } from "../aws/ssm";
-import { RestClient } from "../http/rest";
-import { KafkaClient } from "../messaging/kafka";
-import { MqttClient } from "../messaging/mqtt";
+// Import all client implementations
+// These are needed for the factory to create instances
+import { CloudWatchClient, KinesisClient, S3Client, SqsClient, SsmClient } from "../aws";
+import { RestClient } from "../http";
+import { KafkaClient, MqttClient } from "../messaging";
 
 /**
  * Factory responsible for creating service client instances

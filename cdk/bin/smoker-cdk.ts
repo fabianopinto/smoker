@@ -1,7 +1,7 @@
 #!/usr/bin/env node
-import "source-map-support/register";
 import * as cdk from "aws-cdk-lib";
 import * as logs from "aws-cdk-lib/aws-logs";
+import "source-map-support/register";
 import { SmokerStack } from "../lib/smoker-stack";
 
 /**

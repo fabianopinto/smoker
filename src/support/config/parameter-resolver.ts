@@ -5,7 +5,7 @@
  * in configuration objects. It supports recursive resolution with circular reference detection
  * and depth limiting to prevent infinite recursion.
  *
- * @module support/config/parameter-resolver
+ * Parameter resolver implementation
  */
 import { S3Client } from "@aws-sdk/client-s3";
 import { SSMClient } from "@aws-sdk/client-ssm";

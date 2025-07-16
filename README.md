@@ -1,4 +1,4 @@
-<p align="right">
+<p align="center">
    <img src="docs/images/smoker.png" alt="Smoker Logo" width="120" />
 </p>
 
@@ -33,15 +33,29 @@ Smoker is a specialized framework for conducting smoke tests against external ta
 smoker/
 ├── src/                   # Source code
 │   ├── clients/           # Service client implementations
+│   │   ├── aws/           # AWS service clients
+│   │   ├── core/          # Core client interfaces and base classes
+│   │   ├── http/          # HTTP clients (REST)
+│   │   ├── messaging/     # Messaging clients (MQTT, Kafka)
+│   │   ├── registry/      # Client registry and factory
+│   │   └── index.ts       # Barrel file for clients module
 │   ├── lib/               # Library code (utility functions)
-│   ├── support/           # Support modules (configuration, AWS integration)
+│   ├── support/           # Support modules
+│   │   ├── aws/           # AWS integration utilities
+│   │   ├── config/        # Configuration system
+│   │   ├── interfaces/    # Shared interfaces
+│   │   └── index.ts       # Barrel file for support module
 │   ├── world/             # Cucumber.js World implementation
+│   │   ├── index.ts       # Barrel file for world module
+│   │   └── world.ts       # SmokeWorld implementation
 │   └── index.ts           # Main entry point with Lambda handler
 ├── test/                  # Unit tests for framework components
 ├── features/              # Cucumber BDD features for target systems
 │   └── step_definitions/  # Step definitions for target systems
 └── cdk/                   # AWS CDK infrastructure as code
 ```
+
+The project uses barrel files (`index.ts`) throughout the codebase to provide clean and consistent import paths. This approach simplifies imports and improves code organization.
 
 ## Quick Start
 

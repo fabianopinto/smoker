@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { ClientType, ClientTypeUtils } from "../../../src/clients/core";
+import { ClientType, ClientTypeUtils } from "../../../src/clients";
 
 describe("ClientType", () => {
   it("should have the correct values", () => {

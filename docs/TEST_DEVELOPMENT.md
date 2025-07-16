@@ -65,10 +65,13 @@ Step definitions implement the steps described in feature files using TypeScript
 import { Given, When, Then } from "@cucumber/cucumber";
 import type { SmokeWorld } from "../../src/world";
 
-Given("I have a REST client configured for {string}", async function (this: SmokeWorld, baseUrl: string) {
-  const restClient = this.getRest();
-  await restClient.init({ baseURL: baseUrl });
-});
+Given(
+  "I have a REST client configured for {string}",
+  async function (this: SmokeWorld, baseUrl: string) {
+    const restClient = this.getRest();
+    await restClient.init({ baseURL: baseUrl });
+  },
+);
 
 When("I send a GET request to {string}", async function (this: SmokeWorld, path: string) {
   try {
@@ -170,7 +173,7 @@ import { getValue } from "../support/config";
 
 export async function checkEndpointHealth(
   client: RestServiceClient,
-  endpoint: string = "/health"
+  endpoint: string = "/health",
 ): Promise<boolean> {
   try {
     const response = await client.get(endpoint);

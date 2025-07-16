@@ -18,15 +18,15 @@ vi.mock("@cucumber/cucumber", async (importOriginal) => {
 
 // Import the SmokeWorld type and implementation
 // Import types first to prevent issues with mocks
-import type {
-  MqttServiceClient,
-  RestServiceClient,
-  S3ServiceClient,
-  ServiceClient,
+import {
+  ClientType,
+  type ClientRegistry,
+  type MqttServiceClient,
+  type RestServiceClient,
+  type S3ServiceClient,
+  type ServiceClient,
 } from "../../src/clients";
-import { ClientType } from "../../src/clients/core";
-import { ClientRegistry } from "../../src/clients/registry";
-import { type SmokeWorld, SmokeWorldImpl } from "../../src/world";
+import { SmokeWorldImpl, type SmokeWorld } from "../../src/world";
 
 describe("SmokeWorld", () => {
   let smokeWorld: SmokeWorld;
@@ -49,7 +49,7 @@ describe("SmokeWorld", () => {
 
   // Mock client registry and factory
   vi.mock("../../src/clients/registry", async (importOriginal) => {
-    const original = await importOriginal<typeof import("../../src/clients/registry")>();
+    const original = await importOriginal<typeof import("../../src/clients")>();
     return {
       ...original,
       ClientRegistry: vi.fn().mockReturnValue({

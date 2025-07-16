@@ -11,7 +11,6 @@ import axios, {
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { RestClient } from "../../../src/clients";
 
-// Mock axios
 vi.mock("axios");
 const mockAxiosCreate = vi.mocked(axios.create);
 

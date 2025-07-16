@@ -33,20 +33,17 @@ import {
   addConfigurationObject,
   addS3ConfigurationFile,
   addSSMParameterSource,
-  // Configuration class and helper functions
   Configuration,
-  // Configuration sources
+  FileConfigurationSource,
   getConfig,
   getValue,
   loadConfigurationFiles,
   loadConfigurations,
-  FileConfigurationSource,
   ObjectConfigurationSource,
-  // Parameter resolver
-  updateConfig,
+  ParameterResolver,
   S3ConfigurationSource,
   SSMParameterSource,
-  ParameterResolver,
+  updateConfig,
 } from "./config";
 
 // Re-export all the implementation classes and functions
@@ -55,20 +52,17 @@ export {
   addConfigurationObject,
   addS3ConfigurationFile,
   addSSMParameterSource,
-  // Configuration class and helper functions
   Configuration,
-  // Configuration sources
+  FileConfigurationSource,
   getConfig,
   getValue,
   loadConfigurationFiles,
   loadConfigurations,
-  FileConfigurationSource,
   ObjectConfigurationSource,
-  // Parameter resolver
-  updateConfig,
+  ParameterResolver,
   S3ConfigurationSource,
   SSMParameterSource,
-  ParameterResolver,
+  updateConfig,
 };
 
 // For backward compatibility, also export the ConfigObject type as is

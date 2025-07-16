@@ -7,6 +7,7 @@ import { GetParameterCommand, SSMClient } from "@aws-sdk/client-ssm";
 import { mockClient } from "aws-sdk-client-mock";
 import { existsSync, readFileSync } from "node:fs";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import type { ConfigObject, ConfigurationSource, SmokeConfig } from "../../../src/support";
 import { createS3Response } from "../aws-test-utils";
 
 // Mock filesystem operations
@@ -35,13 +36,7 @@ import {
   S3ConfigurationSource,
   SSMParameterSource,
   updateConfig,
-} from "../../../src/support/config";
-
-import type {
-  ConfigObject,
-  ConfigurationSource,
-  SmokeConfig,
-} from "../../../src/support/interfaces/config.interface";
+} from "../../../src/support";
 
 /**
  * Reset the singleton Configuration instance between tests

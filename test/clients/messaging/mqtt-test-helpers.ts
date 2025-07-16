@@ -5,7 +5,7 @@
  * to reduce duplication and standardize testing approaches.
  */
 import { vi } from "vitest";
-import type { MqttClient } from "../../../src/clients";
+import { MqttClient } from "../../../src/clients";
 
 // Standard timeout for tests (in ms)
 export const TEST_TIMEOUT = 10000;

@@ -3,6 +3,7 @@
  * Defines all available service client types in the system
  * This enum is used for type-safe client identification and instantiation
  */
+
 export enum ClientType {
   /** REST client for HTTP API interactions */
   REST = "rest",

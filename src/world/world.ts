@@ -3,25 +3,27 @@
  * This class maintains state between steps
  */
 import { type IWorldOptions, setWorldConstructor, World } from "@cucumber/cucumber";
-import type {
-  CloudWatchServiceClient,
-  KafkaServiceClient,
-  KinesisServiceClient,
-  MqttServiceClient,
-  RestServiceClient,
-  S3ServiceClient,
-  ServiceClient,
-  SqsServiceClient,
-  SsmServiceClient,
+import {
+  type ClientConfig,
+  ClientFactory,
+  ClientRegistry,
+  ClientType,
+  type CloudWatchServiceClient,
+  type KafkaServiceClient,
+  type KinesisServiceClient,
+  type MqttServiceClient,
+  type RestServiceClient,
+  type S3ServiceClient,
+  type ServiceClient,
+  type SqsServiceClient,
+  type SsmServiceClient,
 } from "../clients";
-import { ClientType } from "../clients/core";
-import { type ClientConfig, ClientFactory, ClientRegistry } from "../clients/registry";
 
 /**
  * SmokeWorld interface and implementation
  *
  * This module provides the SmokeWorld interface that extends Cucumber's World,
- * adding client management and helper methods for smoke tests.
+ * adding client management and he§lper methods for smoke tests.
  */
 
 /**
@@ -142,6 +144,25 @@ export interface SmokeWorld extends World {
 
   // Get the entire property map
   getPropertyMap(): PropertyMap;
+
+  /**
+   * Step Parameter Resolution Methods
+   * Methods for resolving references in step parameters
+   */
+  // Resolve configuration and property references in a step parameter
+  resolveStepParameter(param: string): string;
+
+  // Check if a string contains configuration references
+  containsConfigReferences(input: string): boolean;
+
+  // Check if a string contains property references
+  containsPropertyReferences(input: string): boolean;
+
+  // Resolve configuration references in a string
+  resolveConfigValues(input: string): string;
+
+  // Resolve property references in a string
+  resolvePropertyValues(input: string): string;
 }
 
 /**
@@ -151,6 +172,21 @@ export interface SmokeWorld extends World {
  * providing client management and access functionality for smoke tests.
  * It manages client configuration, registration, creation, and lifecycle operations.
  */
+import { Configuration, type ConfigValue } from "../support";
+
+// Define an interface for Configuration provider to make testing easier
+export interface ConfigurationProvider {
+  getValue<T extends ConfigValue>(keyPath: string, defaultValue?: T): T | undefined;
+}
+
+// Default implementation that uses the singleton Configuration
+export class DefaultConfigurationProvider implements ConfigurationProvider {
+  getValue<T extends ConfigValue>(keyPath: string, defaultValue?: T): T | undefined {
+    const config = Configuration.getInstance();
+    return config.getValue<T>(keyPath, defaultValue);
+  }
+}
+
 export class SmokeWorldImpl extends World implements SmokeWorld {
   // Properties to store state between steps
 
@@ -169,17 +205,28 @@ export class SmokeWorldImpl extends World implements SmokeWorld {
   // Property map for storing key-value pairs
   private properties: PropertyMap = {};
 
+  // Configuration provider for resolving config values
+  private configProvider: ConfigurationProvider;
+
   /**
    * Create a new SmokeWorld instance
    * @param options Cucumber World constructor options
    * @param config Optional initial configuration
+   * @param configProvider Optional configuration provider (for testing)
    */
-  constructor(options: IWorldOptions, config?: Record<string, unknown>) {
+  constructor(
+    options: IWorldOptions,
+    config?: Record<string, unknown>,
+    configProvider?: ConfigurationProvider,
+  ) {
     super(options);
 
     // Initialize client registry and factory
     this.clientRegistry = new ClientRegistry();
     this.clientFactory = new ClientFactory(this.clientRegistry);
+
+    // Initialize configuration provider (use default if not provided)
+    this.configProvider = configProvider || new DefaultConfigurationProvider();
 
     // Register initial configuration if provided
     if (config) {
@@ -571,7 +618,7 @@ export class SmokeWorldImpl extends World implements SmokeWorld {
     const segments = this.normalizePath(path);
 
     if (segments.length === 0) {
-      return this.properties;
+      throw new Error("Property path cannot be empty");
     }
 
     let current: PropertyValue = this.properties;
@@ -597,6 +644,12 @@ export class SmokeWorldImpl extends World implements SmokeWorld {
    * @returns True if the property exists, false otherwise
    */
   hasProperty(path: PropertyPath): boolean {
+    const segments = this.normalizePath(path);
+
+    if (segments.length === 0) {
+      throw new Error("Property path cannot be empty");
+    }
+
     try {
       this.getProperty(path);
       return true;
@@ -653,6 +706,101 @@ export class SmokeWorldImpl extends World implements SmokeWorld {
   getPropertyMap(): PropertyMap {
     // Return a deep copy to prevent direct modification
     return JSON.parse(JSON.stringify(this.properties));
+  }
+
+  /**
+   * Check if a string contains configuration references
+   *
+   * @param input The input string to check for configuration references
+   * @returns True if the string contains at least one configuration reference, false otherwise
+   */
+  containsConfigReferences(input: string): boolean {
+    return /config:([a-zA-Z0-9._-]+)/g.test(input);
+  }
+
+  /**
+   * Check if a string contains property references
+   *
+   * @param input The input string to check for property references
+   * @returns True if the string contains at least one property reference, false otherwise
+   */
+  containsPropertyReferences(input: string): boolean {
+    return /prop:([a-zA-Z0-9._-]+)/g.test(input);
+  }
+
+  /**
+   * Resolve configuration references in a string
+   *
+   * @param input The input string that may contain configuration references
+   * @returns The string with all configuration references replaced with their values
+   * @throws Error if a referenced configuration value is not found
+   */
+  resolveConfigValues(input: string): string {
+    return input.replace(/config:([a-zA-Z0-9._-]+)/g, (match, path) => {
+      // If a configuration root key is set, use it as prefix
+      let fullPath = path;
+      if (this.hasProperty("config.rootKey")) {
+        const rootKey = this.getProperty("config.rootKey") as string;
+        fullPath = `${rootKey}.${path}`;
+      }
+
+      // Use the injected configuration provider instead of direct static access
+      const value = this.configProvider.getValue(fullPath);
+
+      if (value === undefined) {
+        // Try without the root key as fallback
+        if (fullPath !== path) {
+          const fallbackValue = this.configProvider.getValue(path);
+          if (fallbackValue !== undefined) {
+            return String(fallbackValue);
+          }
+        }
+        throw new Error(`Configuration value not found: ${fullPath}`);
+      }
+
+      return String(value);
+    });
+  }
+
+  /**
+   * Resolve property references in a string
+   *
+   * @param input The input string that may contain property references
+   * @returns The string with all property references replaced with their values
+   * @throws Error if a referenced property value is not found
+   */
+  resolvePropertyValues(input: string): string {
+    return input.replace(/prop:([a-zA-Z0-9._-]+)/g, (match, path) => {
+      if (!this.hasProperty(path)) {
+        throw new Error(`Property not found: ${path}`);
+      }
+
+      const value = this.getProperty(path);
+      return String(value);
+    });
+  }
+
+  /**
+   * Resolve configuration and property references in a step parameter
+   *
+   * @param param The parameter string that may contain configuration or property references
+   * @returns The parameter with all references resolved, or the original parameter if it contains no references
+   * @throws Error if a referenced configuration or property value is not found
+   */
+  resolveStepParameter(param: string): string {
+    let result = param;
+
+    // First resolve configuration references
+    if (this.containsConfigReferences(result)) {
+      result = this.resolveConfigValues(result);
+    }
+
+    // Then resolve property references
+    if (this.containsPropertyReferences(result)) {
+      result = this.resolvePropertyValues(result);
+    }
+
+    return result;
   }
 }
 

@@ -5,7 +5,7 @@
  * It allows loading configuration from various sources and accessing values using a dot-notation path.
  * Supports merging configurations from multiple sources with proper type validation.
  *
- * @module support/config/configuration
+ * Main configuration implementation
  */
 import { resolve } from "node:path";
 import type { ConfigObject, ConfigValue, ConfigurationSource, SmokeConfig } from "../interfaces";

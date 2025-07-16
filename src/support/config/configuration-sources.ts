@@ -5,13 +5,13 @@
  * It implements the ConfigurationSource interface with various concrete implementations
  * for loading from files, S3, objects, and SSM parameters.
  *
- * @module support/config/configuration-sources
+ * Configuration sources implementation
  */
 import { S3Client } from "@aws-sdk/client-s3";
 import { existsSync, readFileSync } from "node:fs";
-import { ParameterResolver } from ".";
 import { S3ClientWrapper, parseS3Url } from "../aws";
 import type { ConfigObject, ConfigurationSource } from "../interfaces";
+import { ParameterResolver } from "./parameter-resolver";
 
 /**
  * FileConfigurationSource loads configuration from a local JSON file
