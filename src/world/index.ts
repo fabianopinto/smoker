@@ -1,9 +1,15 @@
 /**
  * World exports
- * This file exports the world components for easy consumption
+ *
+ * This module exports all world components for easy consumption by clients.
+ * Includes interfaces, types, and implementations for the Smoke test world.
  */
 
-export * from "./world";
-
-// Note: We need to export the implementation type as well since
-// it's referenced in the setWorldConstructor call in world.ts
+export {
+  DefaultConfigurationProvider,
+  type PropertyMap,
+  type PropertyPath,
+  type PropertyValue,
+  type SmokeWorld,
+  SmokeWorldImpl,
+} from "./world";

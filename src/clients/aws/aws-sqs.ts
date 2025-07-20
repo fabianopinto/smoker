@@ -1,9 +1,15 @@
 /**
- * SQS client for AWS SQS queue operations
+ * SQS Client Module
  *
- * Provides functionality to interact with Amazon SQS message queues.
- * Supports sending, receiving, and deleting messages from queues.
+ * This module provides interfaces and implementations for AWS SQS service clients.
+ * It defines the contract for SQS operations such as sending, receiving, and deleting
+ * messages from queues. The implementation uses the AWS SDK to interact with SQS.
+ *
+ * The module includes functionality to interact with Amazon SQS message queues,
+ * supporting operations like sending messages to queues, receiving messages from queues,
+ * deleting messages after processing, and purging queues when needed.
  */
+
 import {
   SQSClient as AwsSqsClient,
   DeleteMessageCommand,
@@ -15,6 +21,19 @@ import { BaseServiceClient, type ServiceClient } from "../core";
 
 /**
  * Message structure returned from SQS
+ *
+ * Represents a message received from an AWS SQS queue. Contains the message content,
+ * unique identifiers, receipt handle for deletion, and any additional attributes
+ * provided by the SQS service.
+ *
+ * This interface provides a consistent structure for working with SQS messages
+ * across the application, making it easier to process message data and manage
+ * message lifecycle operations like deletion.
+ *
+ * @property messageId - Unique identifier assigned by SQS to the message
+ * @property body - The message content/payload as a string
+ * @property receiptHandle - The receipt handle required to delete the message
+ * @property attributes - Additional message attributes as key-value pairs
  */
 export interface SqsMessage {
   messageId: string;
@@ -24,7 +43,20 @@ export interface SqsMessage {
 }
 
 /**
- * Interface for SQS client operations
+ * Interface for SQS service client
+ *
+ * Defines the contract for interacting with AWS Simple Queue Service (SQS),
+ * providing methods to send, receive, and delete messages from SQS queues.
+ * Extends the base ServiceClient interface to ensure consistent lifecycle management.
+ *
+ * This interface provides a comprehensive API for working with SQS queues,
+ * including support for delayed message delivery, long polling for message
+ * reception, and queue management operations like purging. Implementations
+ * handle the details of AWS SDK interactions while providing a simplified API
+ * for queue operations.
+ *
+ * @extends {ServiceClient}
+ * @see {ServiceClient} The base service client interface
  */
 export interface SqsServiceClient extends ServiceClient {
   /**
@@ -32,7 +64,7 @@ export interface SqsServiceClient extends ServiceClient {
    *
    * @param messageBody - Message content
    * @param delaySeconds - Delay delivery in seconds (default: 0)
-   * @returns Message ID
+   * @return Message ID
    * @throws Error if sending fails
    */
   sendMessage(messageBody: string, delaySeconds?: number): Promise<string>;
@@ -42,7 +74,7 @@ export interface SqsServiceClient extends ServiceClient {
    *
    * @param maxMessages - Maximum number of messages to retrieve (default: 1)
    * @param waitTimeSeconds - Time to wait for messages (default: 0)
-   * @returns Array of received messages
+   * @return Array of received messages
    * @throws Error if receiving fails
    */
   receiveMessages(maxMessages?: number, waitTimeSeconds?: number): Promise<SqsMessage[]>;
@@ -65,6 +97,19 @@ export interface SqsServiceClient extends ServiceClient {
 
 /**
  * SQS client implementation for AWS SQS queue operations
+ *
+ * This class provides methods to interact with AWS SQS message queues,
+ * including sending, receiving, and deleting messages, as well as purging
+ * queues. It implements the SqsServiceClient interface and extends
+ * BaseServiceClient for consistent lifecycle management.
+ *
+ * The client handles AWS SDK initialization, authentication, and provides a
+ * simplified API for common SQS operations. It supports features like delayed
+ * message delivery, long polling for message reception, and proper error
+ * handling with detailed error messages.
+ *
+ * @implements {SqsServiceClient}
+ * @extends {BaseServiceClient}
  */
 export class SqsClient extends BaseServiceClient implements SqsServiceClient {
   private client: AwsSqsClient | null = null;
@@ -119,7 +164,7 @@ export class SqsClient extends BaseServiceClient implements SqsServiceClient {
    *
    * @param messageBody - Message content
    * @param delaySeconds - Delay delivery in seconds (default: 0)
-   * @returns Message ID
+   * @return Message ID
    * @throws Error if sending fails or client is not initialized
    */
   async sendMessage(messageBody: string, delaySeconds = 0): Promise<string> {
@@ -139,6 +184,7 @@ export class SqsClient extends BaseServiceClient implements SqsServiceClient {
       });
 
       const response = await this.client.send(command);
+
       return response.MessageId || `message-id-${Date.now()}`;
     } catch (error) {
       throw new Error(
@@ -152,7 +198,7 @@ export class SqsClient extends BaseServiceClient implements SqsServiceClient {
    *
    * @param maxMessages - Maximum number of messages to retrieve (default: 1)
    * @param waitTimeSeconds - Time to wait for messages (default: 0)
-   * @returns Array of received messages
+   * @return Array of received messages
    * @throws Error if receiving fails or client is not initialized
    */
   async receiveMessages(maxMessages = 1, waitTimeSeconds = 0): Promise<SqsMessage[]> {

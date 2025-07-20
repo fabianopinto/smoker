@@ -1,9 +1,15 @@
 /**
- * CloudWatch client for AWS CloudWatch Logs operations
+ * CloudWatch Client Module
  *
- * Provides functionality to search and retrieve logs from CloudWatch Logs
- * and wait for specific patterns to appear in log streams.
+ * This module provides interfaces and implementations for AWS CloudWatch Logs service clients.
+ * It defines the contract for CloudWatch operations such as searching logs, retrieving log events,
+ * and listing log streams. The implementation uses the AWS SDK to interact with CloudWatch Logs.
+ *
+ * The module includes functionality to search and retrieve logs from CloudWatch Logs
+ * and wait for specific patterns to appear in log streams, which is particularly useful
+ * for monitoring and verifying log output during tests.
  */
+
 import {
   CloudWatchLogsClient,
   DescribeLogGroupsCommand,
@@ -14,6 +20,13 @@ import { BaseServiceClient, type ServiceClient } from "../core";
 
 /**
  * Interface for CloudWatch log event
+ *
+ * Represents a log event retrieved from CloudWatch Logs. Contains the timestamp,
+ * message content, and the name of the log stream that contains the event.
+ *
+ * This interface is used to provide a consistent structure for log events
+ * returned by CloudWatch Logs API calls, making it easier to process and
+ * display log data in applications.
  *
  * @property timestamp - Timestamp of the log event in milliseconds since epoch
  * @property message - The log message content
@@ -28,18 +41,43 @@ export interface CloudWatchLogEvent {
 /**
  * Interface for CloudWatch service client
  *
- * Defines the contract for CloudWatch Logs clients with methods
- * to search logs, retrieve log events, and list log streams.
+ * Defines the contract for CloudWatch Logs clients with methods to search logs,
+ * retrieve log events, list log streams, and wait for specific patterns to appear.
+ * Extends the base ServiceClient interface to ensure consistent lifecycle management.
+ *
+ * This interface provides a comprehensive API for interacting with AWS CloudWatch
+ * Logs, including pattern-based log searching with time range filtering, event
+ * retrieval with pagination, and utilities for monitoring logs for specific patterns.
+ * Implementations handle the details of AWS SDK interactions while providing a
+ * simplified and consistent API.
+ *
+ * @extends {ServiceClient}
+ * @see {ServiceClient} The base service client interface
  */
 export interface CloudWatchServiceClient extends ServiceClient {
   /**
    * Search logs for a specific pattern
    *
-   * @param logStreamName - Optional specific log stream to search within
+   * Searches a specific log stream for log messages matching the given pattern.
+   * Optionally filters results by time range if start and end times are provided.
+   *
+   * @param logStreamName - The specific log stream to search within
    * @param pattern - The search pattern/term to find
    * @param startTime - Optional start time in milliseconds since epoch
    * @param endTime - Optional end time in milliseconds since epoch
-   * @returns Array of matching log messages
+   * @return Promise resolving to an array of matching log messages
+   * @throws Error if the log stream doesn't exist or search fails
+   *
+   * @example
+   * // Search for error messages in the last hour
+   * const now = Date.now();
+   * const oneHourAgo = now - (60 * 60 * 1000);
+   * const errorLogs = await cloudWatchClient.searchLogStream(
+   *   "application-logs",
+   *   "ERROR",
+   *   oneHourAgo,
+   *   now
+   * );
    */
   searchLogStream(
     logStreamName: string,
@@ -51,11 +89,30 @@ export interface CloudWatchServiceClient extends ServiceClient {
   /**
    * Retrieve log events from a specific log stream
    *
+   * Gets log events from the specified log stream, optionally filtered by time range
+   * and limited to a maximum number of events. Each event includes a timestamp,
+   * message content, and the name of the log stream.
+   *
    * @param logStreamName - The name of the log stream to query
    * @param startTime - Optional start time in milliseconds since epoch
    * @param endTime - Optional end time in milliseconds since epoch
    * @param limit - Optional maximum number of events to return
-   * @returns Array of log events with timestamp, message, and stream name
+   * @return Promise resolving to an array of log events
+   * @throws Error if the log stream doesn't exist or retrieval fails
+   *
+   * @example
+   * // Get the most recent 10 log events
+   * const events = await cloudWatchClient.getLogEvents(
+   *   "application-logs",
+   *   undefined,
+   *   undefined,
+   *   10
+   * );
+   *
+   * // Process each log event
+   * events.forEach(event => {
+   *   console.log(`[${new Date(event.timestamp)}] ${event.message}`);
+   * });
    */
   getLogEvents(
     logStreamName: string,
@@ -67,7 +124,7 @@ export interface CloudWatchServiceClient extends ServiceClient {
   /**
    * List all log streams in the configured log group
    *
-   * @returns Array of log stream names
+   * @return Array of log stream names
    */
   listLogStreams(): Promise<string[]>;
 
@@ -77,13 +134,26 @@ export interface CloudWatchServiceClient extends ServiceClient {
    * @param logStreamName - Optional specific log stream to monitor
    * @param pattern - The pattern to search for
    * @param timeoutMs - Optional timeout in milliseconds (default: 30000)
-   * @returns True if pattern was found within timeout, false otherwise
+   * @return True if pattern was found within timeout, false otherwise
    */
   waitForPattern(logStreamName: string, pattern: string, timeoutMs?: number): Promise<boolean>;
 }
 
 /**
- * CloudWatch client implementation for AWS CloudWatch operations
+ * CloudWatch client implementation for AWS CloudWatch Logs operations
+ *
+ * This class provides methods to interact with AWS CloudWatch Logs services,
+ * including searching logs, retrieving log events, and monitoring log streams.
+ * It implements the CloudWatchServiceClient interface and extends BaseServiceClient
+ * for consistent lifecycle management.
+ *
+ * The client handles AWS SDK initialization, authentication, and provides a simplified
+ * API for common CloudWatch Logs operations. It supports features like pattern-based
+ * log searching, log stream listing, and waiting for specific log patterns with
+ * configurable timeouts.
+ *
+ * @implements {CloudWatchServiceClient}
+ * @extends {BaseServiceClient}
  */
 export class CloudWatchClient extends BaseServiceClient implements CloudWatchServiceClient {
   private client: CloudWatchLogsClient | null = null;
@@ -148,7 +218,7 @@ export class CloudWatchClient extends BaseServiceClient implements CloudWatchSer
    * @param pattern - The search pattern/term to find
    * @param startTime - Optional start time in milliseconds since epoch
    * @param endTime - Optional end time in milliseconds since epoch
-   * @returns Array of matching log messages
+   * @return Array of matching log messages
    * @throws Error if client is not initialized or if AWS API call fails
    */
   async searchLogStream(
@@ -190,7 +260,7 @@ export class CloudWatchClient extends BaseServiceClient implements CloudWatchSer
    * @param startTime - Optional start time in milliseconds since epoch
    * @param endTime - Optional end time in milliseconds since epoch
    * @param limit - Optional maximum number of events to return
-   * @returns Array of log events with timestamp, message, and stream name
+   * @return Array of log events with timestamp, message, and stream name
    * @throws Error if client is not initialized or if AWS API call fails
    */
   async getLogEvents(
@@ -232,7 +302,7 @@ export class CloudWatchClient extends BaseServiceClient implements CloudWatchSer
   /**
    * List log streams in the configured log group
    *
-   * @returns Array of log stream names
+   * @return Array of log stream names
    * @throws Error if client is not initialized or if AWS API call fails
    */
   async listLogStreams(): Promise<string[]> {
@@ -268,7 +338,7 @@ export class CloudWatchClient extends BaseServiceClient implements CloudWatchSer
    * @param logStreamName - Optional specific log stream to monitor
    * @param pattern - The pattern to search for
    * @param timeoutMs - Optional timeout in milliseconds (default: 30000)
-   * @returns True if pattern was found within timeout, false otherwise
+   * @return True if pattern was found within timeout, false otherwise
    * @throws Error if client is not initialized or if search fails
    */
   async waitForPattern(

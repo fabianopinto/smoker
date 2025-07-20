@@ -1,9 +1,15 @@
 /**
- * SSM client for AWS Parameter Store operations
+ * SSM Client Module
  *
- * Provides functionality to interact with the AWS Systems Manager Parameter Store.
- * Supports reading, writing, and deleting parameters with various types and encryption options.
+ * This module provides interfaces and implementations for AWS Systems Manager (SSM) service clients.
+ * It defines the contract for SSM Parameter Store operations such as reading, writing, and deleting
+ * parameters. The implementation uses the AWS SDK to interact with SSM Parameter Store.
+ *
+ * The module includes functionality to interact with AWS Systems Manager Parameter Store,
+ * supporting operations like retrieving parameter values, storing parameters with various types
+ * and encryption options, and deleting parameters when they are no longer needed.
  */
+
 import {
   DeleteParameterCommand,
   GetParameterCommand,
@@ -14,9 +20,20 @@ import {
 import { BaseServiceClient, type ServiceClient } from "../core";
 
 /**
- * Interface for SSM client operations
+ * Interface for SSM service client
  *
- * Defines the contract for SSM clients with methods for Parameter Store operations
+ * Defines the contract for interacting with AWS Systems Manager Parameter Store,
+ * providing methods to read, write, and delete parameters. Extends the base
+ * ServiceClient interface to ensure consistent lifecycle management.
+ *
+ * This interface provides a comprehensive API for working with SSM parameters,
+ * including support for different parameter types (String, StringList, SecureString),
+ * parameter encryption/decryption, and overwrite controls. Implementations handle
+ * the details of AWS SDK interactions while providing a simplified API for
+ * parameter store operations.
+ *
+ * @extends {ServiceClient}
+ * @see {ServiceClient} The base service client interface
  */
 export interface SsmServiceClient extends ServiceClient {
   /**
@@ -24,7 +41,7 @@ export interface SsmServiceClient extends ServiceClient {
    *
    * @param name - The parameter name to read
    * @param withDecryption - Whether to decrypt SecureString parameters
-   * @returns Promise resolving to the parameter value as string
+   * @return Promise resolving to the parameter value as string
    * @throws Error if parameter does not exist or cannot be read
    */
   read(name: string, withDecryption?: boolean): Promise<string>;
@@ -52,8 +69,17 @@ export interface SsmServiceClient extends ServiceClient {
 /**
  * SSM client implementation for AWS Parameter Store operations
  *
- * Implements the SsmServiceClient interface for interacting with AWS Systems Manager
- * Parameter Store. Provides methods for reading, writing, and deleting parameters.
+ * This class provides methods to interact with AWS Systems Manager Parameter Store,
+ * including reading, writing, and deleting parameters. It implements the SsmServiceClient
+ * interface and extends BaseServiceClient for consistent lifecycle management.
+ *
+ * The client handles AWS SDK initialization, authentication, and provides a simplified
+ * API for common Parameter Store operations. It supports different parameter types
+ * (String, StringList, SecureString) and includes features like parameter overwriting
+ * and secure parameter handling with optional KMS encryption.
+ *
+ * @implements {SsmServiceClient}
+ * @extends {BaseServiceClient}
  */
 export class SsmClient extends BaseServiceClient implements SsmServiceClient {
   private client: SSMClient | null = null;
@@ -106,7 +132,7 @@ export class SsmClient extends BaseServiceClient implements SsmServiceClient {
    *
    * @param name - The parameter name to read
    * @param withDecryption - Whether to decrypt SecureString parameters
-   * @returns Promise resolving to the parameter value as string
+   * @return Promise resolving to the parameter value as string
    * @throws Error if parameter does not exist or cannot be read
    */
   async read(name: string, withDecryption = false): Promise<string> {
@@ -125,7 +151,11 @@ export class SsmClient extends BaseServiceClient implements SsmServiceClient {
 
       const response = await this.client.send(command);
 
-      if (!response.Parameter || !response.Parameter.Value) {
+      if (!response.Parameter) {
+        throw new Error(`Parameter not found: ${name}`);
+      }
+
+      if (response.Parameter.Value === undefined || response.Parameter.Value === null) {
         throw new Error(`Parameter not found: ${name}`);
       }
 

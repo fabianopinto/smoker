@@ -1,14 +1,33 @@
 /**
- * Kafka client for Apache Kafka operations
+ * Kafka Client Module
  *
- * Provides functionality to connect to Apache Kafka brokers,
- * publish messages, subscribe to topics, and consume messages.
+ * This module provides interfaces and implementations for Apache Kafka service clients.
+ * It defines the contract for Kafka operations such as connecting to brokers,
+ * publishing messages, subscribing to topics, and consuming messages.
+ *
+ * The module includes functionality to interact with Apache Kafka message brokers,
+ * supporting operations like producing messages to topics, consuming messages from topics,
+ * and managing consumer groups for distributed message processing.
  */
-import { Kafka, logLevel, type Consumer, type KafkaConfig, type Producer } from "kafkajs";
+
+import { type Consumer, Kafka, type KafkaConfig, logLevel, type Producer } from "kafkajs";
 import { BaseServiceClient, type ServiceClient } from "../core";
 
 /**
  * Interface for Kafka record metadata
+ *
+ * Represents metadata about a record that was successfully written to a Kafka topic.
+ * Contains information about the destination topic, partition assignment, offset
+ * position, and timestamp of the record.
+ *
+ * This interface provides a consistent structure for tracking published messages
+ * and their placement within the Kafka broker, which is useful for monitoring,
+ * debugging, and implementing exactly-once delivery semantics.
+ *
+ * @property topic - The Kafka topic the record was written to
+ * @property partition - The partition number within the topic
+ * @property offset - The offset position within the partition (may be undefined until confirmed)
+ * @property timestamp - The timestamp (in milliseconds) associated with the record
  */
 export interface KafkaRecordMetadata {
   topic: string;
@@ -19,6 +38,22 @@ export interface KafkaRecordMetadata {
 
 /**
  * Interface for Kafka message
+ *
+ * Represents a message received from a Kafka topic. Contains the message content,
+ * optional key for partitioning, headers for metadata, and information about the
+ * topic, partition, and offset where the message was stored.
+ *
+ * This interface provides a consistent structure for working with Kafka messages
+ * across the application, making it easier to process message data and track
+ * message position within the Kafka log for consumer offset management.
+ *
+ * @property key - Optional message key used for partitioning or identification
+ * @property value - The message content/payload as a string
+ * @property headers - Optional metadata headers associated with the message
+ * @property partition - The partition number from which the message was consumed
+ * @property timestamp - Optional timestamp (in milliseconds) when the message was created
+ * @property topic - The Kafka topic from which the message was consumed
+ * @property offset - The offset position within the partition
  */
 export interface KafkaMessage {
   key?: string | Buffer;
@@ -32,16 +67,31 @@ export interface KafkaMessage {
 
 /**
  * Interface for Kafka service client
+ *
+ * Defines the contract for interacting with Apache Kafka message brokers,
+ * providing methods to connect to brokers, publish messages to topics,
+ * subscribe to topics, and consume messages. Extends the base ServiceClient
+ * interface to ensure consistent lifecycle management.
+ *
+ * This interface provides a comprehensive API for working with Kafka messaging,
+ * including support for message key-based routing, consumer group management,
+ * asynchronous message consumption with callbacks, and utilities for waiting
+ * for specific messages to appear in topics. Implementations handle the details
+ * of broker interactions while providing a simplified API.
+ *
+ * @extends {ServiceClient}
+ * @see {ServiceClient} The base service client interface
  */
 export interface KafkaServiceClient extends ServiceClient {
   /**
    * Clean up resources used by the client
    */
   cleanupClient(): Promise<void>;
+
   /**
    * Connect to the Kafka broker
    *
-   * @returns Promise that resolves when connection is established
+   * @return Promise that resolves when connection is established
    * @throws Error if connection fails
    */
   connect(): Promise<void>;
@@ -49,17 +99,17 @@ export interface KafkaServiceClient extends ServiceClient {
   /**
    * Disconnect from the Kafka broker
    *
-   * @returns Promise that resolves when disconnected
+   * @return Promise that resolves when disconnected
    */
   disconnect(): Promise<void>;
 
   /**
    * Send a message to a Kafka topic
    *
-   * @param topic The topic name to publish to
-   * @param message The message content
-   * @param key Optional message key for partitioning
-   * @returns Promise that resolves with record metadata if successful
+   * @param topic - The topic name to publish to
+   * @param message - The message content
+   * @param key - Optional message key for partitioning
+   * @return Promise that resolves with record metadata if successful
    * @throws Error if message sending fails
    */
   sendMessage(topic: string, message: string, key?: string): Promise<KafkaRecordMetadata>;
@@ -67,9 +117,9 @@ export interface KafkaServiceClient extends ServiceClient {
   /**
    * Subscribe to one or more Kafka topics
    *
-   * @param topics Topic or array of topics to subscribe to
-   * @param groupId Consumer group ID
-   * @returns Promise that resolves when subscription is complete
+   * @param topics - Topic or array of topics to subscribe to
+   * @param groupId - Consumer group ID
+   * @return Promise that resolves when subscription is complete
    * @throws Error if subscription fails
    */
   subscribe(topics: string | string[], groupId: string): Promise<void>;
@@ -77,9 +127,9 @@ export interface KafkaServiceClient extends ServiceClient {
   /**
    * Consume messages from subscribed Kafka topics
    *
-   * @param callback Function to process received messages
-   * @param timeoutMs Optional timeout in milliseconds
-   * @returns Promise that resolves when consumption ends or times out
+   * @param callback - Function to process received messages
+   * @param timeoutMs - Optional timeout in milliseconds
+   * @return Promise that resolves when consumption ends or times out
    * @throws Error if message consumption fails
    */
   consumeMessages(
@@ -90,9 +140,9 @@ export interface KafkaServiceClient extends ServiceClient {
   /**
    * Wait for a specific message that matches criteria
    *
-   * @param matcher Function to match the desired message
-   * @param timeoutMs Optional timeout in milliseconds (default: 30000)
-   * @returns Promise that resolves with matched message, or null if timeout
+   * @param matcher - Function to match the desired message
+   * @param timeoutMs - Optional timeout in milliseconds (default: 30000)
+   * @return Promise that resolves with matched message, or null if timeout
    * @throws Error if waiting fails
    */
   waitForMessage(
@@ -103,6 +153,19 @@ export interface KafkaServiceClient extends ServiceClient {
 
 /**
  * Kafka client implementation for Apache Kafka operations
+ *
+ * This class provides methods to interact with Apache Kafka message brokers,
+ * including connecting to brokers, publishing messages to topics, subscribing
+ * to topics, and consuming messages. It implements the KafkaServiceClient
+ * interface and extends BaseServiceClient for consistent lifecycle management.
+ *
+ * The client handles Kafka connection initialization, producer and consumer
+ * setup, and provides a simplified API for common Kafka operations. It supports
+ * features like message key-based routing, consumer group management, and
+ * proper error handling with detailed error messages.
+ *
+ * @implements {KafkaServiceClient}
+ * @extends {BaseServiceClient}
  */
 export class KafkaClient extends BaseServiceClient implements KafkaServiceClient {
   private client: Kafka | null = null;
@@ -186,7 +249,7 @@ export class KafkaClient extends BaseServiceClient implements KafkaServiceClient
   /**
    * Connect to Kafka
    *
-   * @returns Promise that resolves when connection is established
+   * @return Promise that resolves when connection is established
    */
   async connect(): Promise<void> {
     this.ensureInitialized();
@@ -196,7 +259,7 @@ export class KafkaClient extends BaseServiceClient implements KafkaServiceClient
   /**
    * Disconnect from Kafka
    *
-   * @returns Promise that resolves when disconnected
+   * @return Promise that resolves when disconnected
    */
   async disconnect(): Promise<void> {
     this.ensureInitialized();
@@ -222,10 +285,10 @@ export class KafkaClient extends BaseServiceClient implements KafkaServiceClient
   /**
    * Send a message to a Kafka topic
    *
-   * @param topic The topic name
-   * @param message The message content
-   * @param key Optional message key
-   * @returns Record metadata if successful
+   * @param topic - The topic name
+   * @param message - The message content
+   * @param key - Optional message key
+   * @return Record metadata if successful
    * @throws Error if sending fails or client is not initialized
    */
   async sendMessage(topic: string, message: string, key?: string): Promise<KafkaRecordMetadata> {
@@ -270,9 +333,9 @@ export class KafkaClient extends BaseServiceClient implements KafkaServiceClient
   /**
    * Subscribe to topics
    *
-   * @param topics Topic or topics to subscribe to
-   * @param groupId Consumer group ID
-   * @returns Promise that resolves when subscription is complete
+   * @param topics - Topic or topics to subscribe to
+   * @param groupId - Consumer group ID
+   * @return Promise that resolves when subscription is complete
    * @throws Error if subscription fails or client is not initialized
    */
   async subscribe(topics: string | string[], groupId: string): Promise<void> {
@@ -316,9 +379,9 @@ export class KafkaClient extends BaseServiceClient implements KafkaServiceClient
   /**
    * Consume messages from Kafka topic(s)
    *
-   * @param callback Function to process received messages
-   * @param timeoutMs How long to consume messages in milliseconds
-   * @returns Promise that resolves when consumption ends
+   * @param callback - Function to process received messages
+   * @param timeoutMs - How long to consume messages in milliseconds
+   * @return Promise that resolves when consumption ends
    * @throws Error if consumption fails or client is not initialized
    */
   async consumeMessages(
@@ -378,9 +441,9 @@ export class KafkaClient extends BaseServiceClient implements KafkaServiceClient
   /**
    * Wait for a specific message in Kafka
    *
-   * @param matcher Function to match desired message
-   * @param timeoutMs Timeout in milliseconds (default: 30000)
-   * @returns The matched message or null if timeout
+   * @param matcher - Function to match desired message
+   * @param timeoutMs - Timeout in milliseconds (default: 30000)
+   * @return The matched message or null if timeout
    * @throws Error if waiting fails or client is not initialized
    */
   async waitForMessage(
@@ -424,10 +487,7 @@ export class KafkaClient extends BaseServiceClient implements KafkaServiceClient
               if (message.headers) {
                 for (const [key, value] of Object.entries(message.headers)) {
                   if (value !== undefined) {
-                    headers[key] =
-                      typeof value === "string"
-                        ? value
-                        : Buffer.from(value instanceof Buffer ? value : String(value));
+                    headers[key] = this.parseHeaderValue(value);
                   }
                 }
               }
@@ -450,8 +510,8 @@ export class KafkaClient extends BaseServiceClient implements KafkaServiceClient
             },
           });
         })
-        .catch((err) => {
-          console.error(`Error in waitForMessage: ${err}`);
+        .catch((error) => {
+          console.error(`Error in waitForMessage: ${error}`);
           resolve(null);
         });
     });
@@ -468,8 +528,8 @@ export class KafkaClient extends BaseServiceClient implements KafkaServiceClient
   /**
    * Parse message timestamp to a numeric value
    *
-   * @param timestamp The timestamp from the Kafka message
-   * @returns Numeric timestamp value
+   * @param timestamp - The timestamp from the Kafka message
+   * @return Numeric timestamp value
    */
   parseMessageTimestamp(timestamp?: string | number): number {
     if (!timestamp) {
@@ -486,8 +546,8 @@ export class KafkaClient extends BaseServiceClient implements KafkaServiceClient
   /**
    * Parse header value to either string or Buffer
    *
-   * @param value The header value to parse
-   * @returns String or Buffer representation of the value
+   * @param value - The header value to parse
+   * @return String or Buffer representation of the value
    */
   parseHeaderValue(value: unknown): string | Buffer {
     if (typeof value === "string") {
@@ -504,8 +564,8 @@ export class KafkaClient extends BaseServiceClient implements KafkaServiceClient
   /**
    * Format error message from various error types
    *
-   * @param error The error object
-   * @returns Formatted error message string
+   * @param error - The error object
+   * @return Formatted error message string
    */
   formatErrorMessage(error: unknown): string {
     return error instanceof Error ? error.message : String(error);
@@ -514,8 +574,8 @@ export class KafkaClient extends BaseServiceClient implements KafkaServiceClient
   /**
    * Determine if a message should be processed
    *
-   * @param value The message value
-   * @returns True if the message should be processed, false otherwise
+   * @param value - The message value
+   * @return True if the message should be processed, false otherwise
    */
   shouldProcessMessage(value: Buffer | null | undefined): boolean {
     return value !== null && value !== undefined && value.length > 0;
@@ -524,7 +584,7 @@ export class KafkaClient extends BaseServiceClient implements KafkaServiceClient
   /**
    * Check if the Kafka client is available
    *
-   * @returns True if the client is available, false otherwise
+   * @return True if the client is available, false otherwise
    */
   isKafkaClientAvailable(): boolean {
     return this.client !== null && this.client !== undefined;
@@ -533,8 +593,8 @@ export class KafkaClient extends BaseServiceClient implements KafkaServiceClient
   /**
    * Parse message key to string or undefined
    *
-   * @param key The message key
-   * @returns String representation of key or undefined
+   * @param key - The message key
+   * @return String representation of key or undefined
    */
   parseMessageKey(key?: Buffer | null): string | undefined {
     if (!key) {
@@ -551,7 +611,7 @@ export class KafkaClient extends BaseServiceClient implements KafkaServiceClient
   /**
    * Client-specific cleanup logic
    *
-   * @returns Promise that resolves when cleanup is complete
+   * @return Promise that resolves when cleanup is complete
    */
   async cleanupClient(): Promise<void> {
     try {

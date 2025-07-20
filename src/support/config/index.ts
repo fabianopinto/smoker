@@ -1,12 +1,26 @@
 /**
- * Configuration module index
+ * Configuration Module Index
  *
- * This file exports all configuration-related implementations from the config directory,
- * providing a unified entry point for the configuration system. This includes the Configuration
- * class, configuration sources, and parameter resolver.
+ * This barrel file exports all configuration-related implementations and interfaces from the
+ * configuration subsystem, providing a unified entry point for consumers. It centralizes
+ * access to the configuration system components for easier imports throughout the application.
  */
 
-export * from "./configuration";
-export * from "./configuration-sources";
-export * from "./parameter-resolver";
-export * from "./parameter-utils";
+export { ConfigurationFactory } from "./config-factory";
+export { deepMerge } from "./config-merger";
+export {
+  type ConfigurationSource,
+  FileConfigurationSource,
+  ObjectConfigurationSource,
+  S3ConfigurationSource,
+} from "./config-source";
+export {
+  type ConfigObject,
+  Configuration,
+  type ConfigurationProvider,
+  type ConfigValue,
+  createConfiguration,
+  createConfigurationFromObject,
+  type SmokeConfig,
+} from "./configuration";
+export { ParameterResolver } from "./parameter-resolver";

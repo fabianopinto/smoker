@@ -1,21 +1,35 @@
 /**
- * Parameter resolution system
+ * Parameter Resolution Module
  *
- * This module handles resolving different types of parameter references (SSM, S3 JSON, etc.)
- * in configuration objects. It supports recursive resolution with circular reference detection
- * and depth limiting to prevent infinite recursion.
+ * This module provides functionality for resolving external parameter references in
+ * configuration objects. It supports resolving references to AWS SSM parameters and
+ * S3 JSON objects, with recursive resolution capabilities.
  *
- * Parameter resolver implementation
+ * Key features:
+ * - SSM parameter resolution (ssm:// references)
+ * - S3 JSON object resolution (s3://*.json references)
+ * - Recursive resolution of nested references
+ * - Circular reference detection
+ * - Maximum depth limiting to prevent infinite recursion
  */
+
 import { S3Client } from "@aws-sdk/client-s3";
 import { SSMClient } from "@aws-sdk/client-ssm";
 import { S3ClientWrapper, SSMClientWrapper } from "../aws";
-import type { ConfigObject, ConfigValue, IParameterResolver } from "../interfaces";
+import type { ConfigObject, ConfigValue } from "./configuration";
 
 /**
- * Class to handle resolution of configuration parameters from various sources
+ * Parameter Resolver class
+ *
+ * Handles the resolution of external parameter references in configuration objects.
+ * This class provides functionality to resolve SSM parameter references and S3 JSON
+ * references, with support for recursive resolution and circular reference detection.
+ *
+ * The resolver maintains a processing stack and depth counter to detect circular
+ * references and prevent infinite recursion. It works with both primitive values
+ * and complex nested objects, resolving references at any level of nesting.
  */
-export class ParameterResolver implements IParameterResolver {
+export class ParameterResolver {
   private s3Client: S3ClientWrapper;
   private ssmClient: SSMClientWrapper;
   private processingStack: string[] = [];
@@ -24,9 +38,14 @@ export class ParameterResolver implements IParameterResolver {
 
   /**
    * Create a new parameter resolver
-   * @param region AWS region to use (defaults to environment variable or us-east-1)
-   * @param s3ClientInstance Optional S3Client instance for testing
-   * @param ssmClientInstance Optional SSMClient instance for testing
+   *
+   * Initializes a new parameter resolver with AWS clients for S3 and SSM access.
+   * The resolver can use custom client instances for testing purposes or create
+   * new instances with the specified region.
+   *
+   * @param region - AWS region to use (defaults to environment variable or us-east-1)
+   * @param s3ClientInstance - Optional S3Client instance for testing
+   * @param ssmClientInstance - Optional SSMClient instance for testing
    */
   constructor(region?: string, s3ClientInstance?: S3Client, ssmClientInstance?: SSMClient) {
     this.s3Client = new S3ClientWrapper(region, s3ClientInstance);
@@ -35,9 +54,20 @@ export class ParameterResolver implements IParameterResolver {
 
   /**
    * Resolve all parameter references in a configuration value
-   * Supports SSM parameters (ssm://) and S3 JSON files (s3://*.json)
-   * @param value Configuration value to resolve
-   * @returns Resolved configuration value
+   *
+   * Recursively resolves any parameter references in the provided configuration value.
+   * This method handles different types of values:
+   * - String values: Checks for and resolves SSM and S3 JSON references
+   * - Array values: Recursively resolves each item in the array
+   * - Object values: Recursively resolves each property in the object
+   * - Primitive values: Returns as-is
+   *
+   * The method includes circular reference detection and depth limiting to
+   * prevent infinite recursion when resolving nested references.
+   *
+   * @param value - Configuration value to resolve
+   * @return Promise resolving to the resolved configuration value
+   * @throws Error if circular references are detected or maximum depth is exceeded
    */
   async resolveValue(value: ConfigValue): Promise<ConfigValue> {
     if (this.resolutionDepth >= this.MAX_DEPTH) {
@@ -94,7 +124,7 @@ export class ParameterResolver implements IParameterResolver {
           this.processingStack.push(value);
           try {
             // Get and parse the JSON file from S3
-            const jsonContent = await this.s3Client.getJsonFromUrl<ConfigValue>(value);
+            const jsonContent = await this.s3Client.getContentFromUrl<ConfigValue>(value);
 
             // Recursively resolve references in the JSON content
             return await this.resolveValue(jsonContent);
@@ -139,8 +169,14 @@ export class ParameterResolver implements IParameterResolver {
 
   /**
    * Resolve all parameter references in a configuration object
-   * @param config Configuration object to resolve
-   * @returns Resolved configuration object
+   *
+   * Convenience method that resolves all parameter references in a configuration object.
+   * This method calls resolveValue internally but ensures that the result is cast back
+   * to a ConfigObject type for easier use with configuration objects.
+   *
+   * @param config - Configuration object to resolve
+   * @return Promise resolving to the resolved configuration object
+   * @throws Error if circular references are detected or maximum depth is exceeded
    */
   async resolveConfig(config: ConfigObject): Promise<ConfigObject> {
     return (await this.resolveValue(config)) as ConfigObject;

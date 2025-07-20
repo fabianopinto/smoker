@@ -5,8 +5,9 @@
  * including base interfaces, types, and implementations that all service
  * clients build upon. It provides the core abstractions that enable the
  * client architecture.
+ *
+ * These core components form the foundation of the client system and are used
+ * throughout the application to ensure consistent client behavior and type safety.
  */
 
-export { BaseServiceClient } from "./base-client";
-export type { ServiceClient } from "./interfaces";
-export { ClientType, ClientTypeUtils } from "./types";
+export { BaseServiceClient, ClientType, type ServiceClient } from "./service-client";

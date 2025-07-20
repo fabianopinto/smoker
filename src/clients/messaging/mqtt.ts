@@ -1,9 +1,15 @@
 /**
- * MQTT client for message broker operations
+ * MQTT Client Module
  *
- * Provides functionality to connect to an MQTT broker, publish messages,
- * subscribe to topics, and receive messages asynchronously.
+ * This module provides interfaces and implementations for MQTT service clients.
+ * It defines the contract for MQTT operations such as connecting to brokers,
+ * publishing messages, subscribing to topics, and receiving messages.
+ *
+ * The module includes functionality to interact with MQTT message brokers,
+ * supporting operations like publishing messages to topics, subscribing to topics,
+ * and handling messages asynchronously through event-based callbacks.
  */
+
 import mqtt, {
   type IClientOptions,
   type IClientPublishOptions,
@@ -13,10 +19,20 @@ import mqtt, {
 import { BaseServiceClient, type ServiceClient } from "../core";
 
 /**
- * Interface for MQTT client operations
+ * Interface for MQTT service client
  *
- * Defines the contract for MQTT clients with methods to publish messages,
- * subscribe to topics, and receive messages.
+ * Defines the contract for interacting with MQTT message brokers, providing
+ * methods to publish messages to topics, subscribe to topics, unsubscribe from
+ * topics, and wait for specific messages. Extends the base ServiceClient
+ * interface to ensure consistent lifecycle management.
+ *
+ * This interface provides a comprehensive API for working with MQTT messaging,
+ * including support for topic wildcards, QoS levels, retained messages, and
+ * utilities for waiting for specific messages to appear on topics. Implementations
+ * handle the details of broker interactions while providing a simplified API.
+ *
+ * @extends {ServiceClient}
+ * @see {ServiceClient} The base service client interface
  */
 export interface MqttServiceClient extends ServiceClient {
   /**
@@ -51,7 +67,7 @@ export interface MqttServiceClient extends ServiceClient {
    *
    * @param topic - The topic to listen for messages on
    * @param timeoutMs - Optional timeout in milliseconds (default: 30000)
-   * @returns The message received as string, or null if timed out
+   * @return The message received as string, or null if timed out
    * @throws Error if client is not initialized
    */
   waitForMessage(topic: string, timeoutMs?: number): Promise<string | null>;
@@ -60,9 +76,18 @@ export interface MqttServiceClient extends ServiceClient {
 /**
  * MQTT client implementation for message broker operations
  *
- * Implements the MqttServiceClient interface for connecting to and interacting
- * with MQTT message brokers. Supports publishing, subscribing, and asynchronous
- * message processing.
+ * This class provides methods to interact with MQTT message brokers,
+ * including connecting to brokers, publishing messages to topics, subscribing
+ * to topics, and receiving messages. It implements the MqttServiceClient
+ * interface and extends BaseServiceClient for consistent lifecycle management.
+ *
+ * The client handles MQTT connection initialization, authentication, and provides
+ * a simplified API for common MQTT operations. It supports features like QoS levels,
+ * retained messages, topic wildcards, and proper error handling with automatic
+ * reconnection capabilities.
+ *
+ * @implements {MqttServiceClient}
+ * @extends {BaseServiceClient}
  */
 export class MqttClient extends BaseServiceClient implements MqttServiceClient {
   private client: MqttClientLib | null = null;
@@ -118,7 +143,7 @@ export class MqttClient extends BaseServiceClient implements MqttServiceClient {
       // Connect to the MQTT broker with timeout handling
       try {
         // Get connection timeout from config or use default
-        const connectionTimeout = this.getConfig<number>("connectionTimeout", 120000);
+        const connectTimeout = this.getConfig<number>("connectTimeout", 120000);
 
         this.client = await Promise.race([
           // Connect to the broker
@@ -130,16 +155,16 @@ export class MqttClient extends BaseServiceClient implements MqttServiceClient {
               resolve(client);
             });
 
-            client.on("error", (err) => {
-              reject(new Error(`MQTT connection error: ${err.message}`));
+            client.on("error", (error) => {
+              reject(new Error(`MQTT connection error: ${error.message}`));
             });
           }),
 
           // Timeout after specified time
           new Promise<MqttClientLib>((_, reject) => {
             setTimeout(() => {
-              reject(new Error(`Connection timeout after ${connectionTimeout}ms`));
-            }, connectionTimeout);
+              reject(new Error(`Connection timeout after ${connectTimeout}ms`));
+            }, connectTimeout);
           }),
         ]);
 
@@ -147,8 +172,8 @@ export class MqttClient extends BaseServiceClient implements MqttServiceClient {
         // Connect event is already handled in the Promise above
 
         // Handle error event
-        this.client.on("error", (err) => {
-          console.error(`MQTT client error for ${this.clientId}: ${err.message}`);
+        this.client.on("error", (error) => {
+          console.error(`MQTT client error for ${this.clientId}: ${error.message}`);
         });
 
         // Handle close event
@@ -193,7 +218,7 @@ export class MqttClient extends BaseServiceClient implements MqttServiceClient {
    * @param topic - The topic to publish to
    * @param message - The message content as string or Buffer
    * @param options - Optional publishing options
-   * @returns Promise that resolves when the message is published
+   * @return Promise that resolves when the message is published
    * @throws Error if publishing fails or client is not initialized
    */
   async publish(
@@ -217,7 +242,8 @@ export class MqttClient extends BaseServiceClient implements MqttServiceClient {
       new Promise<void>((resolve, reject) => {
         client.publish(topic, message, options || {}, (error) => {
           if (error) {
-            reject(new Error(`Failed to publish message to ${topic}: ${error.message}`));
+            const errorMessage = error instanceof Error ? error.message : String(error);
+            reject(new Error(`Failed to publish message to ${topic}: ${errorMessage}`));
           } else {
             resolve();
           }
@@ -240,7 +266,7 @@ export class MqttClient extends BaseServiceClient implements MqttServiceClient {
    *
    * @param topic - The topic or array of topics to subscribe to
    * @param options - Optional subscription options
-   * @returns Promise that resolves when subscription is complete
+   * @return Promise that resolves when subscription is complete
    * @throws Error if subscription fails or client is not initialized
    */
   async subscribe(topic: string | string[], options?: IClientSubscribeOptions): Promise<void> {
@@ -260,11 +286,12 @@ export class MqttClient extends BaseServiceClient implements MqttServiceClient {
       new Promise<void>((resolve, reject) => {
         client.subscribe(topic, options || {}, (error) => {
           if (error) {
+            const errorMessage = error instanceof Error ? error.message : String(error);
             reject(
               new Error(
                 `Failed to subscribe to ${
                   Array.isArray(topic) ? topic.join(", ") : topic
-                }: ${error.message}`,
+                }: ${errorMessage}`,
               ),
             );
           } else {
@@ -292,7 +319,8 @@ export class MqttClient extends BaseServiceClient implements MqttServiceClient {
 
   /**
    * Unsubscribe from a topic or topics
-   * @param topic The topic or topics to unsubscribe from
+   *
+   * @param topic - The topic or topics to unsubscribe from
    */
   async unsubscribe(topic: string | string[]): Promise<void> {
     this.ensureInitialized();
@@ -302,9 +330,10 @@ export class MqttClient extends BaseServiceClient implements MqttServiceClient {
     const client = this.client;
 
     return new Promise<void>((resolve, reject) => {
-      client.unsubscribe(topic, (err) => {
-        if (err) {
-          reject(new Error(`Failed to unsubscribe from ${topic}: ${err}`));
+      client.unsubscribe(topic, (error) => {
+        if (error) {
+          const errorMessage = error instanceof Error ? error.message : String(error);
+          reject(new Error(`Failed to unsubscribe from ${topic}: ${errorMessage}`));
         } else {
           resolve();
         }
@@ -317,7 +346,7 @@ export class MqttClient extends BaseServiceClient implements MqttServiceClient {
    *
    * @param topic - The topic to listen for messages on
    * @param timeoutMs - Optional timeout in milliseconds (default: 30000)
-   * @returns Promise that resolves with the received message as string, or null if timed out
+   * @return Promise that resolves with the received message as string, or null if timed out
    * @throws Error if client is not initialized or subscription fails
    */
   async waitForMessage(topic: string, timeoutMs = 30000): Promise<string | null> {
@@ -390,7 +419,7 @@ export class MqttClient extends BaseServiceClient implements MqttServiceClient {
    * Client-specific cleanup logic
    * Disconnects from the MQTT broker and clears message callbacks
    *
-   * @returns Promise that resolves when cleanup is complete
+   * @return Promise that resolves when cleanup is complete
    */
   public async cleanupClient(): Promise<void> {
     if (this.client) {

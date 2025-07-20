@@ -1,25 +1,181 @@
 /**
- * AWS client implementations and utilities
+ * AWS Client Module
  *
- * This file centralizes all AWS client interactions for better organization and testability.
- * It provides wrapper classes for S3 and SSM clients with utility methods for common operations.
+ * This module centralizes all AWS client interactions for better organization and testability.
+ * It provides wrapper classes and interfaces for AWS services like S3 and SSM with utility
+ * methods for common operations.
  *
- * AWS client wrapper implementations
+ * Key features:
+ * - Type-safe interfaces for AWS service clients
+ * - Wrapper implementations that simplify AWS SDK usage
+ * - Utility functions for working with AWS resources (URLs, streams, etc.)
+ * - Parameter caching for improved performance
+ * - Consistent error handling across AWS services
  */
+
 import { GetObjectCommand, S3Client } from "@aws-sdk/client-s3";
 import { GetParameterCommand, SSMClient } from "@aws-sdk/client-ssm";
 import { Readable } from "node:stream";
-import type { IS3Client, ISSMClient, ParsedS3Url } from "../interfaces";
+
+/**
+ * Parsed S3 URL components
+ *
+ * Represents the result of parsing an S3 URL in the format s3://bucket/key.
+ * Contains the extracted bucket name and object key for use in S3 operations.
+ *
+ * @property bucket - The S3 bucket name extracted from the URL
+ * @property key - The object key (path) within the bucket extracted from the URL
+ */
+export interface ParsedS3Url {
+  bucket: string;
+  key: string;
+}
+
+/**
+ * Interface for S3 client operations
+ *
+ * Defines the contract for interacting with AWS Simple Storage Service (S3),
+ * providing methods to retrieve objects as strings or parsed JSON, and utilities
+ * for working with S3 URLs and references.
+ *
+ * This interface abstracts the underlying AWS SDK implementation details,
+ * providing a simplified API for common S3 operations while maintaining
+ * flexibility for different implementation strategies.
+ *
+ * @see {S3ClientWrapper} The standard implementation of this interface
+ */
+export interface IS3Client {
+  /**
+   * Get the underlying S3 client
+   *
+   * @return The S3 client instance
+   */
+  getClient(): S3Client;
+
+  /**
+   * Get an object from S3 and return it as a string
+   *
+   * @param bucket - S3 bucket name
+   * @param key - S3 object key
+   * @return Promise that resolves to the object content as string
+   * @throws Error if the object cannot be retrieved
+   */
+  getObjectAsString(bucket: string, key: string): Promise<string>;
+
+  /**
+   * Get and parse a JSON object from S3
+   *
+   * @param bucket - S3 bucket name
+   * @param key - S3 object key
+   * @return Promise that resolves to the parsed JSON object
+   * @throws Error if the object cannot be retrieved or parsed
+   */
+  getObjectAsJson<T = Record<string, unknown>>(bucket: string, key: string): Promise<T>;
+
+  /**
+   * Check if a value is an S3 JSON reference
+   *
+   * @param value - Value to check
+   * @return True if the value is an S3 JSON reference (starts with s3:// and ends with .json)
+   */
+  isS3JsonReference(value: string): boolean;
+
+  /**
+   * Get content from an S3 URL - handles both JSON and non-JSON files
+   *
+   * @param s3Url - S3 URL in the format s3://bucket/path/file[.ext]
+   * @return Promise that resolves to either a parsed JSON object or a string depending on the file extension
+   * @throws Error if the URL is invalid or the object cannot be retrieved
+   */
+  getContentFromUrl<T = Record<string, unknown>>(s3Url: string): Promise<T | string>;
+}
+
+/**
+ * Interface for SSM parameter store client operations
+ *
+ * Defines the contract for interacting with AWS Systems Manager Parameter Store,
+ * providing methods to retrieve parameters, manage parameter caching, and utilities
+ * for working with parameter references in configuration strings.
+ *
+ * This interface abstracts the underlying AWS SDK implementation details,
+ * providing a simplified API for common Parameter Store operations while supporting
+ * features like parameter caching, reference parsing, and automatic decryption.
+ *
+ * @see {SSMClientWrapper} The standard implementation of this interface
+ */
+export interface ISSMClient {
+  /**
+   * Get the underlying SSM client
+   *
+   * @return The SSM client instance
+   */
+  getClient(): SSMClient;
+
+  /**
+   * Clear the parameter cache
+   */
+  clearCache(): void;
+
+  /**
+   * Get a parameter from SSM Parameter Store
+   *
+   * @param name - Parameter name (without ssm:// prefix)
+   * @param useCache - Whether to use and update the cache (default: true)
+   * @return Promise that resolves to the parameter value
+   * @throws Error if the parameter cannot be retrieved
+   */
+  getParameter(name: string, useCache?: boolean): Promise<string>;
+
+  /**
+   * Parse an SSM parameter reference from a string
+   *
+   * @param value - String potentially containing SSM parameter path in format ssm://parameter/path
+   * @return Parameter name without the prefix, or null if not an SSM reference
+   */
+  parseSSMUrl(value: string): string | null;
+
+  /**
+   * Check if a value is an SSM parameter reference
+   *
+   * @param value - Value to check
+   * @return True if the value is an SSM parameter reference (starts with ssm://)
+   */
+  isSSMReference(value: string): boolean;
+
+  /**
+   * Check if a value is an S3 JSON reference
+   *
+   * @param value - Value to check
+   * @return True if the value is an S3 JSON reference (starts with s3:// and ends with .json)
+   */
+  isS3JsonReference(value: string): boolean;
+}
 
 /**
  * Default AWS region to use when no region is specified
+ *
+ * This constant provides a fallback AWS region when none is explicitly provided.
+ * It first checks for an AWS_REGION environment variable, and if not found,
+ * defaults to "us-east-1" (N. Virginia region).
  */
 export const DEFAULT_AWS_REGION = process.env.AWS_REGION || "us-east-1";
 
 /**
  * Parse an S3 URL into bucket and key components
- * @param s3Url S3 URL to parse (s3://bucket/key)
- * @returns Parsed S3 URL components or null if invalid
+ *
+ * Extracts the bucket name and object key from an S3 URL in the format s3://bucket/key.
+ * This utility function is used for working with S3 references in configuration and
+ * for resolving S3 paths to actual object locations.
+ *
+ * @param s3Url - S3 URL to parse (s3://bucket/key) or undefined
+ * @return Parsed S3 URL components or null if the URL is invalid or undefined
+ *
+ * @example
+ * // Parse an S3 URL
+ * const parsed = parseS3Url("s3://my-bucket/path/to/file.json");
+ * if (parsed) {
+ *   console.log(`Bucket: ${parsed.bucket}, Key: ${parsed.key}`);
+ * }
  */
 export function parseS3Url(s3Url: string | undefined): ParsedS3Url | null {
   if (!s3Url) return null;
@@ -39,8 +195,26 @@ export function parseS3Url(s3Url: string | undefined): ParsedS3Url | null {
 
 /**
  * Convert a stream or buffer response to a string
- * @param streamOrData Stream, Buffer, or string data from AWS SDK response
- * @returns Promise that resolves to the content as string
+ *
+ * Utility function that handles various response types from AWS SDK calls and
+ * converts them to a string representation. This is particularly useful when
+ * working with S3 object content or other AWS responses that might return
+ * different data types depending on the context.
+ *
+ * The function handles several input types:
+ * - String values (returned as-is)
+ * - Buffer objects (converted using UTF-8 encoding)
+ * - Readable streams (consumed and concatenated)
+ * - Objects with toString() methods
+ *
+ * @param streamOrData - Stream, Buffer, string, or other data from AWS SDK response
+ * @return Promise that resolves to the content as string
+ * @throws Error if the data cannot be converted to a string
+ *
+ * @example
+ * // Convert an S3 object response to string
+ * const response = await s3Client.send(new GetObjectCommand({ Bucket, Key }));
+ * const content = await streamToString(response.Body);
  */
 export async function streamToString(
   streamOrData: Readable | Buffer | string | unknown,
@@ -75,7 +249,7 @@ export async function streamToString(
       const stream = streamOrData as Readable;
       const chunks: Buffer[] = [];
       stream.on("data", (chunk) => chunks.push(Buffer.from(chunk)));
-      stream.on("error", (err) => reject(err));
+      stream.on("error", (error) => reject(error));
       stream.on("end", () => resolve(Buffer.concat(chunks).toString("utf8")));
     });
   }
@@ -85,15 +259,27 @@ export async function streamToString(
 }
 
 /**
- * S3 client wrapper for common S3 operations
+ * S3 client wrapper implementation
+ *
+ * This class provides a wrapper around the AWS SDK S3 client, offering simplified
+ * methods for common S3 operations like retrieving objects as strings or JSON.
+ * It implements the IS3Client interface for consistent API access.
+ *
+ * The wrapper handles AWS SDK initialization, authentication, and provides utility
+ * methods for working with S3 URLs and content types. It includes features for
+ * parsing S3 URLs, determining content types based on file extensions, and
+ * automatically handling JSON parsing for appropriate files.
+ *
+ * @implements {IS3Client}
  */
 export class S3ClientWrapper implements IS3Client {
   private client: S3Client;
 
   /**
    * Create a new S3 client wrapper
-   * @param region AWS region to use (defaults to environment variable or us-east-1)
-   * @param clientOverride Optional S3Client instance for testing
+   *
+   * @param region - AWS region to use (defaults to environment variable or us-east-1)
+   * @param clientOverride - Optional S3Client instance for testing
    */
   constructor(region?: string, clientOverride?: S3Client) {
     this.client =
@@ -105,7 +291,8 @@ export class S3ClientWrapper implements IS3Client {
 
   /**
    * Get the underlying S3 client
-   * @returns The S3 client instance
+   *
+   * @return The S3 client instance
    */
   getClient(): S3Client {
     return this.client;
@@ -113,9 +300,10 @@ export class S3ClientWrapper implements IS3Client {
 
   /**
    * Get an object from S3 and return it as a string
-   * @param bucket S3 bucket name
-   * @param key S3 object key
-   * @returns Promise that resolves to the object content as string
+   *
+   * @param bucket - S3 bucket name
+   * @param key - S3 object key
+   * @return Promise that resolves to the object content as string
    * @throws Error if the object cannot be retrieved
    */
   async getObjectAsString(bucket: string, key: string): Promise<string> {
@@ -134,9 +322,10 @@ export class S3ClientWrapper implements IS3Client {
 
   /**
    * Get and parse a JSON object from S3
-   * @param bucket S3 bucket name
-   * @param key S3 object key
-   * @returns Promise that resolves to the parsed JSON object
+   *
+   * @param bucket - S3 bucket name
+   * @param key - S3 object key
+   * @return Promise that resolves to the parsed JSON object
    * @throws Error if the object cannot be retrieved or parsed
    */
   async getObjectAsJson<T = Record<string, unknown>>(bucket: string, key: string): Promise<T> {
@@ -146,8 +335,9 @@ export class S3ClientWrapper implements IS3Client {
 
   /**
    * Check if a value is an S3 JSON reference
-   * @param value Value to check
-   * @returns True if the value is an S3 JSON reference (starts with s3:// and ends with .json)
+   *
+   * @param value - Value to check
+   * @return True if the value is an S3 JSON reference (starts with s3:// and ends with .json)
    */
   isS3JsonReference(value: string): boolean {
     return (
@@ -158,25 +348,10 @@ export class S3ClientWrapper implements IS3Client {
   }
 
   /**
-   * Get and parse a JSON object from an S3 URL
-   * @param s3Url S3 URL in the format s3://bucket/path/file.json
-   * @returns Promise that resolves to the parsed JSON object
-   * @throws Error if the URL is invalid, the object cannot be retrieved, or it cannot be parsed
-   * @deprecated Use getContentFromUrl instead which handles both JSON and non-JSON files
-   */
-  async getJsonFromUrl<T = Record<string, unknown>>(s3Url: string): Promise<T> {
-    const parsed = parseS3Url(s3Url);
-    if (!parsed) {
-      throw new Error(`Invalid S3 URL format: ${s3Url}`);
-    }
-
-    return await this.getObjectAsJson<T>(parsed.bucket, parsed.key);
-  }
-
-  /**
    * Get content from an S3 URL - handles both JSON and non-JSON files
-   * @param s3Url S3 URL in the format s3://bucket/path/file[.ext]
-   * @returns Promise that resolves to either a parsed JSON object or a string depending on the file extension
+   *
+   * @param s3Url - S3 URL in the format s3://bucket/path/file[.ext]
+   * @return Promise that resolves to either a parsed JSON object or a string depending on the file extension
    * @throws Error if the URL is invalid or the object cannot be retrieved
    */
   async getContentFromUrl<T = Record<string, unknown>>(s3Url: string): Promise<T | string> {
@@ -212,14 +387,26 @@ export const ssmParameterCache: Record<
 
 /**
  * SSM client wrapper for common Parameter Store operations
+ *
+ * This class provides a wrapper around the AWS SDK SSM client, offering simplified
+ * methods for accessing AWS Systems Manager Parameter Store. It implements the
+ * ISSMClient interface for consistent API access.
+ *
+ * The wrapper handles AWS SDK initialization, authentication, and provides utility
+ * methods for working with parameter references. It includes features for parameter
+ * caching to improve performance, parsing SSM parameter references from strings,
+ * and automatic decryption of secure parameters.
+ *
+ * @implements {ISSMClient}
  */
 export class SSMClientWrapper implements ISSMClient {
   private client: SSMClient;
 
   /**
    * Create a new SSM client wrapper
-   * @param region AWS region to use (defaults to environment variable or us-east-1)
-   * @param clientOverride Optional SSMClient instance for testing
+   *
+   * @param region - AWS region to use (defaults to environment variable or us-east-1)
+   * @param clientOverride - Optional SSMClient instance for testing
    */
   constructor(region?: string, clientOverride?: SSMClient) {
     this.client =
@@ -231,7 +418,8 @@ export class SSMClientWrapper implements ISSMClient {
 
   /**
    * Get the underlying SSM client
-   * @returns The SSM client instance
+   *
+   * @return The SSM client instance
    */
   getClient(): SSMClient {
     return this.client;
@@ -249,9 +437,10 @@ export class SSMClientWrapper implements ISSMClient {
 
   /**
    * Get a parameter from SSM Parameter Store
-   * @param name Parameter name (without ssm:// prefix)
-   * @param useCache Whether to use and update the cache (default: true)
-   * @returns Promise that resolves to the parameter value
+   *
+   * @param name - Parameter name (without ssm:// prefix)
+   * @param useCache - Whether to use and update the cache (default: true)
+   * @return Promise that resolves to the parameter value
    * @throws Error if the parameter cannot be retrieved
    */
   async getParameter(name: string, useCache = true): Promise<string> {
@@ -268,8 +457,8 @@ export class SSMClientWrapper implements ISSMClient {
       });
 
       const response = await this.client.send(command);
-      const value = response.Parameter?.Value;
 
+      const value = response.Parameter?.Value;
       if (value === undefined) {
         throw new Error(`Parameter ${name} has no value`);
       }
@@ -287,8 +476,9 @@ export class SSMClientWrapper implements ISSMClient {
 
   /**
    * Parse an SSM parameter reference from a string
-   * @param value String potentially containing SSM parameter path in format ssm://parameter/path
-   * @returns Parameter name without the prefix, or null if not an SSM reference
+   *
+   * @param value - String potentially containing SSM parameter path in format ssm://parameter/path
+   * @return Parameter name without the prefix, or null if not an SSM reference
    */
   parseSSMUrl(value: string): string | null {
     if (typeof value !== "string") {
@@ -307,8 +497,9 @@ export class SSMClientWrapper implements ISSMClient {
 
   /**
    * Check if a value is an SSM parameter reference
-   * @param value Value to check
-   * @returns True if the value is an SSM parameter reference (starts with ssm://)
+   *
+   * @param value - Value to check
+   * @return True if the value is an SSM parameter reference (starts with ssm://)
    */
   isSSMReference(value: string): boolean {
     return typeof value === "string" && value.startsWith("ssm://");
@@ -316,8 +507,9 @@ export class SSMClientWrapper implements ISSMClient {
 
   /**
    * Check if a value is an S3 JSON reference
-   * @param value Value to check
-   * @returns True if the value is an S3 JSON reference (starts with s3:// and ends with .json)
+   *
+   * @param value - Value to check
+   * @return True if the value is an S3 JSON reference (starts with s3:// and ends with .json)
    */
   isS3JsonReference(value: string): boolean {
     return (

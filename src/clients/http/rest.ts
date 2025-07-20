@@ -1,10 +1,14 @@
 /**
- * REST client for HTTP API interactions
+ * REST Client Module
  *
- * Provides functionality to interact with HTTP APIs using standard REST methods.
- * Implements HTTP operations (GET, POST, PUT, PATCH, DELETE) with configurable
- * base URL and headers.
+ * This module provides interfaces and implementations for HTTP REST service clients.
+ * It defines the contract for REST operations such as GET, POST, PUT, PATCH, and DELETE
+ * with configurable base URL, headers, and request options.
+ *
+ * The module includes functionality to interact with HTTP APIs using standard REST methods,
+ * supporting features like automatic request retries, response parsing, and error handling.
  */
+
 import axios, { type AxiosInstance, type AxiosRequestConfig, type AxiosResponse } from "axios";
 import { BaseServiceClient, type ServiceClient } from "../core";
 
@@ -12,6 +16,16 @@ import { BaseServiceClient, type ServiceClient } from "../core";
  * Interface for REST client operations
  *
  * Defines the contract for REST clients with methods for standard HTTP operations
+ * such as GET, POST, PUT, PATCH, and DELETE. Extends the base ServiceClient interface
+ * to ensure consistent lifecycle management.
+ *
+ * This interface provides a comprehensive API for making HTTP requests to REST endpoints,
+ * with support for different HTTP methods, request/response body handling, and configuration
+ * options. It uses TypeScript generics to provide type-safe response handling, allowing
+ * consumers to specify the expected response data structure for each request.
+ *
+ * @extends {ServiceClient}
+ * @see {ServiceClient} The base service client interface
  */
 export interface RestServiceClient extends ServiceClient {
   /**
@@ -25,7 +39,7 @@ export interface RestServiceClient extends ServiceClient {
    * @template T - Response data type
    * @param url - The URL to request
    * @param config - Optional axios request configuration
-   * @returns Promise resolving to Axios response
+   * @return Promise resolving to Axios response
    * @throws Error if request fails
    */
   get<T = unknown>(url: string, config?: AxiosRequestConfig): Promise<AxiosResponse<T>>;
@@ -37,7 +51,7 @@ export interface RestServiceClient extends ServiceClient {
    * @param url - The URL to request
    * @param data - The data to send in the request body
    * @param config - Optional axios request configuration
-   * @returns Promise resolving to Axios response
+   * @return Promise resolving to Axios response
    * @throws Error if request fails
    */
   post<T = unknown>(
@@ -53,7 +67,7 @@ export interface RestServiceClient extends ServiceClient {
    * @param url - The URL to request
    * @param data - The data to send in the request body
    * @param config - Optional axios request configuration
-   * @returns Promise resolving to Axios response
+   * @return Promise resolving to Axios response
    * @throws Error if request fails
    */
   put<T = unknown>(
@@ -69,7 +83,7 @@ export interface RestServiceClient extends ServiceClient {
    * @param url - The URL to request
    * @param data - The data to send in the request body
    * @param config - Optional axios request configuration
-   * @returns Promise resolving to Axios response
+   * @return Promise resolving to Axios response
    * @throws Error if request fails
    */
   patch<T = unknown>(
@@ -84,7 +98,7 @@ export interface RestServiceClient extends ServiceClient {
    * @template T - Response data type
    * @param url - The URL to request
    * @param config - Optional axios request configuration
-   * @returns Promise resolving to Axios response
+   * @return Promise resolving to Axios response
    * @throws Error if request fails
    */
   delete<T = unknown>(url: string, config?: AxiosRequestConfig): Promise<AxiosResponse<T>>;
@@ -93,8 +107,19 @@ export interface RestServiceClient extends ServiceClient {
 /**
  * REST client implementation for HTTP API interactions
  *
- * Implements the RestServiceClient interface using the Axios HTTP client library.
- * Provides methods for standard HTTP operations with configurable base URL and headers.
+ * This class provides methods to interact with HTTP APIs using standard REST operations,
+ * including GET, POST, PUT, PATCH, and DELETE. It implements the RestServiceClient interface
+ * and extends BaseServiceClient for consistent lifecycle management.
+ *
+ * The client uses the Axios HTTP library to handle requests and responses, with support for
+ * configurable base URLs, headers, and request timeouts. It includes proper error handling
+ * with detailed error messages and URL validation to ensure valid requests.
+ *
+ * Each HTTP method is implemented with type-safe response handling through TypeScript
+ * generics, allowing consumers to specify the expected response data structure.
+ *
+ * @implements {RestServiceClient}
+ * @extends {BaseServiceClient}
  */
 export class RestClient extends BaseServiceClient implements RestServiceClient {
   private client: AxiosInstance | null = null;
@@ -148,7 +173,7 @@ export class RestClient extends BaseServiceClient implements RestServiceClient {
    * Validate a URL string
    *
    * @param url - The URL to validate
-   * @returns True if the URL is valid, false otherwise
+   * @return True if the URL is valid, false otherwise
    */
   private isValidUrl(url: string): boolean {
     try {
@@ -166,7 +191,7 @@ export class RestClient extends BaseServiceClient implements RestServiceClient {
    * @template T - Response data type
    * @param url - The URL to request
    * @param config - Optional axios request configuration
-   * @returns Promise resolving to Axios response
+   * @return Promise resolving to Axios response
    * @throws Error if request fails or client is not initialized
    */
   async get<T = unknown>(url: string, config?: AxiosRequestConfig): Promise<AxiosResponse<T>> {
@@ -193,7 +218,7 @@ export class RestClient extends BaseServiceClient implements RestServiceClient {
    * @param url - The URL to request
    * @param data - The data to send in the request body
    * @param config - Optional axios request configuration
-   * @returns Promise resolving to Axios response
+   * @return Promise resolving to Axios response
    * @throws Error if request fails or client is not initialized
    */
   async post<T = unknown>(
@@ -224,7 +249,7 @@ export class RestClient extends BaseServiceClient implements RestServiceClient {
    * @param url - The URL to request
    * @param data - The data to send in the request body
    * @param config - Optional axios request configuration
-   * @returns Promise resolving to Axios response
+   * @return Promise resolving to Axios response
    * @throws Error if request fails or client is not initialized
    */
   async put<T = unknown>(
@@ -255,7 +280,7 @@ export class RestClient extends BaseServiceClient implements RestServiceClient {
    * @param url - The URL to request
    * @param data - The data to send in the request body
    * @param config - Optional axios request configuration
-   * @returns Promise resolving to Axios response
+   * @return Promise resolving to Axios response
    * @throws Error if request fails or client is not initialized
    */
   async patch<T = unknown>(
@@ -285,7 +310,7 @@ export class RestClient extends BaseServiceClient implements RestServiceClient {
    * @template T - Response data type
    * @param url - The URL to request
    * @param config - Optional axios request configuration
-   * @returns Promise resolving to Axios response
+   * @return Promise resolving to Axios response
    * @throws Error if request fails or client is not initialized
    */
   async delete<T = unknown>(url: string, config?: AxiosRequestConfig): Promise<AxiosResponse<T>> {

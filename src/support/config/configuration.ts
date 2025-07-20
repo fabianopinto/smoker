@@ -1,84 +1,231 @@
 /**
- * Configuration manager for the application
+ * Configuration Module
  *
- * This file provides a centralized configuration management system with a singleton pattern.
- * It allows loading configuration from various sources and accessing values using a dot-notation path.
- * Supports merging configurations from multiple sources with proper type validation.
+ * This module provides a comprehensive configuration management system based on a factory pattern.
+ * It defines the core interfaces, types, and classes for working with application configuration.
  *
- * Main configuration implementation
+ * Key features:
+ * - Type-safe configuration access with dot-notation paths
+ * - Automatic resolution of SSM parameters and S3 references
+ * - Immutable configuration objects after creation
+ * - Global configuration instance for application-wide access
+ * - Support for hierarchical configuration with nested objects
+ *
+ * The module implements a factory pattern for configuration creation and provides
+ * helper functions for common configuration operations.
  */
-import { resolve } from "node:path";
-import type { ConfigObject, ConfigValue, ConfigurationSource, SmokeConfig } from "../interfaces";
-import {
-  FileConfigurationSource,
-  ObjectConfigurationSource,
-  S3ConfigurationSource,
-  SSMParameterSource,
-} from "./configuration-sources";
+
+import { S3ClientWrapper, SSMClientWrapper } from "../aws";
+import { ConfigurationFactory } from "./config-factory";
 
 /**
- * Configuration singleton for managing application configuration
- * This provides a centralized location for all configurable parameters
+ * Configuration provider interface for accessing configuration values
+ *
+ * Defines the contract for accessing configuration values by key path. This interface
+ * abstracts the details of configuration storage and resolution, allowing for
+ * different implementations and easier testing through mocking.
+ *
+ * The interface supports asynchronous value retrieval to accommodate automatic
+ * resolution of external references like SSM parameters and S3 objects.
+ */
+export interface ConfigurationProvider {
+  getValue<T extends ConfigValue>(keyPath: string, defaultValue?: T): Promise<T | undefined>;
+}
+
+/**
+ * ConfigValue type
+ *
+ * Represents any type of value that can be stored in the configuration system.
+ * This union type allows for flexibility in configuration data types while
+ * maintaining type safety throughout the application.
+ *
+ * Supported types include:
+ * - Primitive values (string, number, boolean)
+ * - Nested objects (ConfigObject)
+ * - Arrays of any ConfigValue
+ * - null (to explicitly indicate absence of a value)
+ */
+export type ConfigValue = string | number | boolean | ConfigObject | ConfigValue[] | null;
+
+/**
+ * ConfigObject interface
+ *
+ * Represents a nested configuration object with string keys and ConfigValue values.
+ * This interface enables complex configuration hierarchies with arbitrary nesting depth,
+ * allowing for organized and structured configuration data.
+ *
+ * The interface uses an index signature to support dynamic property access while
+ * maintaining type safety for the values stored in the configuration object.
+ */
+export interface ConfigObject {
+  [key: string]: ConfigValue;
+}
+
+/**
+ * SmokeConfig type
+ *
+ * Defines the structure for the application's configuration object. This type
+ * represents the root configuration object that contains all application settings.
+ *
+ * The type is defined as a Record with string keys and ConfigValue values, allowing
+ * for flexible extension with additional properties while maintaining type safety.
+ * This approach enables dynamic access to configuration properties without requiring
+ * explicit interface updates for each new property.
+ */
+export type SmokeConfig = Record<string, ConfigValue>;
+
+/**
+ * Configuration class for managing application configuration
+ *
+ * This class provides a centralized location for all configurable parameters and
+ * implements the ConfigurationProvider interface. It manages access to configuration
+ * values with support for automatic resolution of external references.
+ *
+ * Features include dot-notation path access to nested values, automatic resolution
+ * of SSM parameters and S3 references, and type-safe access to configuration values.
+ *
+ * The configuration is immutable after creation and can only be built
+ * using the ConfigurationFactory.
+ *
+ * @implements {ConfigurationProvider}
  */
 export class Configuration {
-  private static instance: Configuration;
-  private configSources: ConfigurationSource[] = [];
-  private config: SmokeConfig;
-  private loaded = false;
-
   /**
-   * Create a new configuration instance with default values
+   * Singleton instance of the configuration
+   *
+   * @private
    */
-  private constructor() {
-    this.config = {};
-  }
+  private static instance: Configuration | null = null;
 
   /**
-   * Get the singleton instance of the configuration
-   * @returns The configuration instance
+   * Get the global configuration instance
+   *
+   * If the instance doesn't exist yet, it will throw an error as the configuration
+   * must be explicitly initialized before use with initializeGlobalInstance.
+   *
+   * @return The global configuration instance
+   * @throws Error if the configuration has not been initialized
+   *
+   * @example
+   * // Get the global configuration and access a value
+   * const config = Configuration.getInstance();
+   * const value = await config.getValue("api.timeout");
    */
   public static getInstance(): Configuration {
-    if (!Configuration.instance) {
-      Configuration.instance = new Configuration();
+    if (Configuration.instance === null) {
+      throw new Error("Global configuration is not initialized");
     }
     return Configuration.instance;
   }
 
   /**
-   * Reset the configuration to its default state
-   * This is primarily used for testing
+   * Reset the global configuration instance
+   *
+   * Sets the global configuration instance to the provided configuration or clears it.
+   * This is useful for testing scenarios or when reinitializing the application.
+   *
+   * @param newInstance - Optional new configuration instance to set as global
+   *
+   * @example
+   * // Reset the global configuration
+   * Configuration.resetInstance();
+   *
+   * @example
+   * // Set a new configuration as the global instance
+   * const newConfig = await new ConfigurationFactory()
+   *   .addFile("new-config.json")
+   *   .build();
+   * Configuration.resetInstance(newConfig);
    */
-  public static resetInstance(): void {
-    Configuration.instance = new Configuration();
+  public static resetInstance(newInstance?: Configuration): void {
+    Configuration.instance = newInstance || null;
   }
 
   /**
-   * Add a configuration source
-   * @param source The configuration source to add
+   * Initialize the global configuration instance
+   *
+   * Sets the global configuration instance to the provided configuration.
+   * If a global configuration already exists, it will be overwritten with a warning.
+   * This method is part of the factory pattern implementation for configuration management.
+   *
+   * @param config - The configuration instance to set as global
+   *
+   * @example
+   * // Create a configuration and set it as global
+   * const config = await new ConfigurationFactory()
+   *   .addFile("config.json")
+   *   .build(false); // Don't set as global automatically
+   * Configuration.initializeGlobalInstance(config);
    */
-  public addConfigurationSource(source: ConfigurationSource): void {
-    this.configSources.push(source);
-    this.loaded = false;
+  public static initializeGlobalInstance(config: Configuration): void {
+    if (Configuration.instance !== null) {
+      console.warn("Global configuration is already initialized, overwriting");
+    }
+    Configuration.instance = config;
+  }
+
+  private readonly config: SmokeConfig;
+
+  /**
+   * Create a new configuration instance with the provided config object
+   *
+   * @param config - The configuration object
+   */
+  constructor(config: SmokeConfig) {
+    this.config = { ...config };
   }
 
   /**
    * Get the current configuration
-   * @returns The current configuration
+   *
+   * @return A copy of the current configuration
    */
   public getConfig(): SmokeConfig {
     return { ...this.config };
   }
 
   /**
-   * Get a configuration value by key path
-   * @param keyPath Dot-separated path to the configuration value (e.g. "aws.region")
-   * @param defaultValue Default value to return if the key is not found
-   * @returns The configuration value at the specified key path
+   * Get a configuration value by key path and resolve any SSM or S3 references
+   *
+   * This function supports automatic resolution of references to external resources:
+   * - SSM parameters: Values starting with "ssm://" will be resolved from AWS SSM Parameter Store
+   * - S3 objects: Values starting with "s3://" will be retrieved from AWS S3
+   *   - JSON files (ending with .json) will be automatically parsed and set in the configuration
+   *   - Other file types will be returned as strings in the configuration value
+   *
+   * @template T - The type of the configuration value to retrieve
+   * @param keyPath - Dot-separated path to the configuration value (e.g. "aws.region")
+   * @param defaultValue - Default value to return if the key is not found or resolution fails
+   * @return Promise resolving to the configuration value at the specified key path
+   *
+   * @example
+   * // Retrieve a regular configuration value
+   * const region = await config.getValue("aws.region");
+   *
+   * @example
+   * // Retrieve and resolve an SSM parameter reference
+   * // Configuration contains: { "apiKey": "ssm://my/secret/api-key" }
+   * const apiKey = await config.getValue("apiKey"); // Returns the actual SSM parameter value
+   *
+   * @example
+   * // Retrieve and parse a JSON file from S3
+   * // Configuration contains: { "settings": "s3://my-bucket/config/settings.json" }
+   * const settings = await config.getValue("settings"); // Returns the parsed JSON object
    */
-  public getValue<T extends ConfigValue>(keyPath: string, defaultValue?: T): T | undefined {
+  public async getValue<T extends ConfigValue>(
+    keyPath: string,
+    defaultValue?: T,
+  ): Promise<T | undefined> {
+    // Validate keyPath format
+    if (!this.isValidKeyPath(keyPath)) {
+      console.error(`Invalid key path format: ${keyPath}. Must match [a-zA-Z0-9_$.]+`);
+      return defaultValue;
+    }
+
     const keys = keyPath.split(".");
     let value: ConfigValue = this.config;
 
+    // Navigate through the configuration object using the key path
     for (const key of keys) {
       if (
         value === null ||
@@ -90,228 +237,139 @@ export class Configuration {
       value = (value as ConfigObject)[key];
     }
 
+    // If the value is a string, check for SSM or S3 references
+    if (typeof value === "string") {
+      // Handle SSM references (ssm://path/to/parameter)
+      if (value.startsWith("ssm://")) {
+        return await this.resolveSSMReference(value, defaultValue);
+      }
+
+      // Handle S3 references (s3://bucket/path/to/file)
+      if (value.startsWith("s3://")) {
+        return await this.resolveS3Reference(value, defaultValue);
+      }
+    }
+
     return value as T;
   }
 
   /**
-   * Update the configuration with new values
-   * @param partialConfig Partial configuration to merge with existing configuration
-   */
-  public updateConfig(partialConfig: Partial<SmokeConfig>): void {
-    // Create a clean version without undefined values
-    const cleanConfig: Record<string, ConfigValue> = {};
-
-    // Add all non-undefined values from partialConfig
-    Object.entries(partialConfig).forEach(([key, value]) => {
-      if (value !== undefined) {
-        cleanConfig[key] = value as ConfigValue;
-      }
-    });
-
-    this.config = { ...this.config, ...cleanConfig } as SmokeConfig;
-  }
-
-  /**
-   * Deep merge two objects recursively
-   * - Handles arrays by replacing them completely
-   * - Handles null values by removing the property
-   * - Removes empty objects after merge
+   * Validate that a key path matches the required format [a-zA-Z0-9_$]+
    *
-   * @param target Target object to merge into
-   * @param source Source object to merge from
-   * @returns New object with merged properties
-   * @private Used for internal merging and testing
+   * @param keyPath - The key path to validate
+   * @return True if the key path is valid, false otherwise
+   * @private
    */
-  private deepMerge(
-    target: Record<string, ConfigValue>,
-    source: Record<string, ConfigValue>,
-  ): Record<string, ConfigValue> {
-    const result: Record<string, ConfigValue> = { ...target };
-
-    for (const key in source) {
-      if (Object.prototype.hasOwnProperty.call(source, key)) {
-        const sourceValue = source[key];
-        const targetValue = target[key];
-
-        // If source value is null, remove the property
-        if (sourceValue === null) {
-          // Use defineProperty with enumerable: false instead of delete to avoid ESLint warning
-          const propertyKey = key;
-          Object.defineProperty(result, propertyKey, {
-            value: undefined,
-            enumerable: false,
-            configurable: true,
-          });
-          continue;
-        }
-
-        // If both are objects (but not arrays), recursively merge them
-        if (
-          sourceValue !== null &&
-          targetValue !== null &&
-          typeof sourceValue === "object" &&
-          typeof targetValue === "object" &&
-          !Array.isArray(sourceValue) &&
-          !Array.isArray(targetValue)
-        ) {
-          // Recursively merge objects
-          const mergedObj = this.deepMerge(
-            targetValue as Record<string, ConfigValue>,
-            sourceValue as Record<string, ConfigValue>,
-          );
-
-          // Only add the property if the merged object has properties
-          if (Object.keys(mergedObj).length > 0) {
-            result[key] = mergedObj;
-          } else {
-            // Use defineProperty with enumerable: false instead of delete to avoid ESLint warning
-            const propertyKey = key;
-            Object.defineProperty(result, propertyKey, {
-              value: undefined,
-              enumerable: false,
-              configurable: true,
-            });
-          }
-        } else {
-          // For arrays, primitive values, or incompatible types, just replace
-          result[key] = sourceValue;
-        }
-      }
-    }
-
-    return result;
+  private isValidKeyPath(keyPath: string): boolean {
+    // Each segment of the key path must match the pattern
+    const keySegments = keyPath.split(".");
+    return keySegments.every((segment) => /^[a-zA-Z0-9_$]+$/.test(segment));
   }
 
   /**
-   * Load configurations from all sources
+   * Resolve an SSM parameter reference
+   *
+   * @param reference - The SSM reference string (e.g., "ssm://path/to/parameter")
+   * @param defaultValue - Default value to return if resolution fails
+   * @return The resolved parameter value or the default value
+   * @private
    */
-  public async loadConfigurations(): Promise<void> {
-    // Don't reload if already loaded
-    if (this.loaded && this.configSources.length > 0) {
-      console.log("Configuration already loaded, skipping reload");
-      return;
-    }
-
+  private async resolveSSMReference<T extends ConfigValue>(
+    reference: string,
+    defaultValue?: T,
+  ): Promise<T | undefined> {
     try {
-      let mergedConfig: ConfigObject = {};
-
-      // Load configurations from all sources and merge them
-      for (const source of this.configSources) {
-        try {
-          const sourceConfig = await source.load();
-          mergedConfig = { ...mergedConfig, ...sourceConfig };
-        } catch (error) {
-          console.error("Error loading configuration from source:", error);
-        }
-      }
-
-      if (Object.keys(mergedConfig).length > 0) {
-        // Create a validated config with only valid properties
-        const validConfig: Record<string, ConfigValue> = {};
-        // Filter out entries with undefined values
-        const filteredEntries = Object.entries(mergedConfig).filter(
-          // eslint-disable-next-line @typescript-eslint/no-unused-vars
-          ([_, value]) => value !== undefined,
-        );
-
-        for (const [key, value] of filteredEntries) {
-          // Only add values that match ConfigValue type (excluding undefined)
-          if (value !== undefined) {
-            validConfig[key] = value as ConfigValue;
-          }
-        }
-
-        // Update the configuration with the validated config
-        this.config = validConfig as SmokeConfig;
-      }
-
-      console.log("Configuration loaded and merged successfully");
-      this.loaded = true;
+      const parameterName = reference.substring(6); // Remove "ssm://" prefix
+      const ssmClient = new SSMClientWrapper();
+      return (await ssmClient.getParameter(parameterName)) as unknown as T;
     } catch (error) {
-      console.error("Error loading configurations:", error);
+      console.error(`Error resolving SSM parameter reference ${reference}:`, error);
+      return defaultValue;
+    }
+  }
+
+  /**
+   * Resolve an S3 reference
+   *
+   * @param reference - The S3 reference string (e.g., "s3://bucket/path/to/file.json")
+   * @param defaultValue - Default value to return if resolution fails
+   * @return The resolved S3 content (parsed if JSON, string otherwise) or the default value
+   * @private
+   */
+  private async resolveS3Reference<T extends ConfigValue>(
+    reference: string,
+    defaultValue?: T,
+  ): Promise<T | undefined> {
+    try {
+      const s3Client = new S3ClientWrapper();
+      const content = await s3Client.getContentFromUrl(reference);
+
+      // If it's a JSON file, return the parsed content
+      if (reference.toLowerCase().endsWith(".json")) {
+        return content as unknown as T;
+      }
+
+      // For non-JSON files, ensure we're returning a string
+      return String(content) as unknown as T;
+    } catch (error) {
+      console.error(`Error resolving S3 reference ${reference}:`, error);
+      return defaultValue;
     }
   }
 }
 
 /**
- * Helper function to access the configuration
+ * Create a configuration from multiple file paths or S3 URLs
+ *
+ * Helper function that creates a ConfigurationFactory, adds file paths,
+ * and builds a Configuration object. Part of the factory pattern implementation.
+ *
+ * @param filePaths - Array of file paths or S3 URLs to load
+ * @param setAsGlobal - Whether to set the configuration as global (default: true)
+ * @return Promise resolving to a new Configuration object
  */
-export function getConfig(): SmokeConfig {
-  return Configuration.getInstance().getConfig();
-}
+export async function createConfiguration(
+  filePaths: string[],
+  setAsGlobal = true,
+): Promise<Configuration> {
+  const factory = new ConfigurationFactory();
 
-/**
- * Helper function to get a specific configuration value
- */
-export function getValue<T extends ConfigValue>(keyPath: string, defaultValue?: T): T | undefined {
-  return Configuration.getInstance().getValue(keyPath, defaultValue);
-}
+  filePaths.forEach((path) => factory.addFile(path));
 
-/**
- * Helper function to update the configuration
- */
-export function updateConfig(partialConfig: Partial<SmokeConfig>): void {
-  Configuration.getInstance().updateConfig(partialConfig);
-}
+  const config = await factory.build();
 
-/**
- * Helper function to add a configuration source from a file path or S3 URL
- * Automatically detects if the path is a local file or S3 URL
- * @param filePath File path or S3 URL (s3://bucket/path/file.json)
- */
-export function addConfigurationFile(filePath: string): void {
-  let source: ConfigurationSource;
-
-  if (filePath.startsWith("s3://")) {
-    source = new S3ConfigurationSource(filePath);
-  } else {
-    source = new FileConfigurationSource(resolve(filePath));
+  // Automatically set as global configuration unless explicitly disabled
+  if (setAsGlobal) {
+    Configuration.initializeGlobalInstance(config);
   }
 
-  Configuration.getInstance().addConfigurationSource(source);
+  return config;
 }
 
 /**
- * Helper function to add an S3 configuration source
- * @param s3Url S3 URL in the format s3://bucket/path/file.json
- * @param region Optional AWS region (defaults to environment variable or us-east-1)
+ * Create a configuration from an object
+ *
+ * Helper function that creates a ConfigurationFactory, adds a configuration object,
+ * and builds a Configuration object. Part of the factory pattern implementation.
+ *
+ * @param configObject - Configuration object to use as the source
+ * @param setAsGlobal - Whether to set the configuration as global (default: true)
+ * @return Promise resolving to a new Configuration object
  */
-export function addS3ConfigurationFile(s3Url: string, region?: string): void {
-  const source = new S3ConfigurationSource(s3Url, region);
-  Configuration.getInstance().addConfigurationSource(source);
-}
+export async function createConfigurationFromObject(
+  configObject: ConfigObject,
+  setAsGlobal = true,
+): Promise<Configuration> {
+  const factory = new ConfigurationFactory();
 
-/**
- * Helper function to add an object configuration source
- */
-export function addConfigurationObject(config: ConfigObject): void {
-  const source = new ObjectConfigurationSource(config);
-  Configuration.getInstance().addConfigurationSource(source);
-}
+  factory.addObject(configObject);
 
-/**
- * Helper function to add an SSM parameter source that will resolve SSM parameter references
- * This is useful when you have a configuration object that may contain SSM references
- * @param config Configuration object with potential SSM references
- * @param region Optional AWS region (defaults to environment variable or us-east-1)
- */
-export function addSSMParameterSource(config: ConfigObject, region?: string): void {
-  const source = new SSMParameterSource(config, region);
-  Configuration.getInstance().addConfigurationSource(source);
-}
+  const config = await factory.build();
 
-/**
- * Helper function to load all configurations
- */
-export async function loadConfigurations(): Promise<void> {
-  await Configuration.getInstance().loadConfigurations();
-}
+  // Automatically set as global configuration unless explicitly disabled
+  if (setAsGlobal) {
+    Configuration.initializeGlobalInstance(config);
+  }
 
-/**
- * Load configuration from multiple file paths or S3 URLs
- * @param filePaths Array of file paths or S3 URLs to load
- */
-export async function loadConfigurationFiles(filePaths: string[]): Promise<void> {
-  filePaths.forEach((path) => addConfigurationFile(path));
-  await loadConfigurations();
+  return config;
 }

@@ -1,9 +1,11 @@
 /**
- * S3 client for AWS S3 bucket operations
+ * S3 Client Module
  *
- * Provides functionality to interact with Amazon S3 storage service,
- * including reading, writing, and deleting objects from S3 buckets.
+ * This module provides interfaces and implementations for AWS S3 service clients.
+ * It defines the contract for S3 operations such as reading, writing, and deleting
+ * objects in S3 buckets, and includes a concrete implementation using AWS SDK.
  */
+
 import {
   S3Client as AwsS3Client,
   DeleteObjectCommand,
@@ -13,18 +15,32 @@ import {
 import { BaseServiceClient, type ServiceClient } from "../core";
 
 /**
- * Interface for S3 client operations
+ * Interface for S3 service client
  *
- * Defines the contract for S3 clients with methods for basic object operations
- * such as reading, writing, and deleting objects in S3 buckets.
+ * Defines the contract for interacting with AWS S3 storage services, providing
+ * methods to read, write, and delete objects from S3 buckets. Extends the base
+ * ServiceClient interface to ensure consistent lifecycle management.
+ *
+ * This interface provides a comprehensive API for working with S3 objects,
+ * including support for reading and writing both text and JSON content. It
+ * handles serialization and deserialization of JSON data, and provides type-safe
+ * access to JSON objects through TypeScript generics. Implementations handle
+ * the details of AWS SDK interactions while providing a simplified API.
+ *
+ * @extends {ServiceClient}
+ * @see {ServiceClient} The base service client interface
  */
 export interface S3ServiceClient extends ServiceClient {
   /**
    * Read an object from S3
    *
    * @param key - The object key (path within the bucket)
-   * @returns Promise resolving to the object content as a string
+   * @return Promise resolving to the object content as a string
    * @throws Error if object does not exist or cannot be read
+   *
+   * @example
+   * // Read a text file from S3
+   * const content = await s3Client.read("path/to/file.txt");
    */
   read(key: string): Promise<string>;
 
@@ -33,8 +49,13 @@ export interface S3ServiceClient extends ServiceClient {
    *
    * @template T - The expected type of the parsed JSON
    * @param key - The object key (path within the bucket)
-   * @returns Promise resolving to the parsed JSON object
+   * @return Promise resolving to the parsed JSON object
    * @throws Error if object does not exist, cannot be read, or is invalid JSON
+   *
+   * @example
+   * // Read and parse a JSON configuration file
+   * interface Config { apiKey: string; endpoint: string; }
+   * const config = await s3Client.readJson<Config>("config/settings.json");
    */
   readJson<T>(key: string): Promise<T>;
 
@@ -43,7 +64,12 @@ export interface S3ServiceClient extends ServiceClient {
    *
    * @param key - The object key (path within the bucket)
    * @param content - The string content to write
+   * @return Promise that resolves when the write operation completes
    * @throws Error if writing fails
+   *
+   * @example
+   * // Write a text file to S3
+   * await s3Client.write("logs/output.txt", "Operation completed successfully");
    */
   write(key: string, content: string): Promise<void>;
 
@@ -68,8 +94,18 @@ export interface S3ServiceClient extends ServiceClient {
 /**
  * S3 client implementation for AWS S3 bucket operations
  *
- * Implements the S3ServiceClient interface for interacting with Amazon S3.
- * Provides methods for reading, writing, and deleting objects in S3 buckets.
+ * This class provides methods to interact with AWS S3 storage services,
+ * including reading, writing, and deleting objects in S3 buckets. It implements
+ * the S3ServiceClient interface and extends BaseServiceClient for consistent
+ * lifecycle management.
+ *
+ * The client handles AWS SDK initialization, authentication, and provides a
+ * simplified API for common S3 operations. It supports both text and JSON data
+ * formats, with specialized methods for each use case. The implementation
+ * includes proper error handling and resource cleanup.
+ *
+ * @implements {S3ServiceClient}
+ * @extends {BaseServiceClient}
  */
 export class S3Client extends BaseServiceClient implements S3ServiceClient {
   private client: AwsS3Client | null = null;
@@ -127,7 +163,7 @@ export class S3Client extends BaseServiceClient implements S3ServiceClient {
    * Read an object from S3
    *
    * @param key - The object key (path within the bucket)
-   * @returns Promise resolving to the object content as a string
+   * @return Promise resolving to the object content as a string
    * @throws Error if object does not exist or cannot be read
    */
   async read(key: string): Promise<string> {
@@ -163,13 +199,13 @@ export class S3Client extends BaseServiceClient implements S3ServiceClient {
    * Convert a readable stream to string
    *
    * @param stream - The readable stream to convert
-   * @returns Promise resolving to the stream content as string
+   * @return Promise resolving to the stream content as string
    */
   private async streamToString(stream: NodeJS.ReadableStream): Promise<string> {
     const chunks: Buffer[] = [];
     return new Promise((resolve, reject) => {
       stream.on("data", (chunk) => chunks.push(Buffer.from(chunk)));
-      stream.on("error", (err) => reject(err));
+      stream.on("error", (error) => reject(error));
       stream.on("end", () => resolve(Buffer.concat(chunks).toString("utf8")));
     });
   }
@@ -179,7 +215,7 @@ export class S3Client extends BaseServiceClient implements S3ServiceClient {
    *
    * @template T - The expected type of the parsed JSON
    * @param key - The object key (path within the bucket)
-   * @returns Promise resolving to the parsed JSON object
+   * @return Promise resolving to the parsed JSON object
    * @throws Error if object does not exist, cannot be read, or is invalid JSON
    */
   async readJson<T>(key: string): Promise<T> {
@@ -188,12 +224,12 @@ export class S3Client extends BaseServiceClient implements S3ServiceClient {
       return JSON.parse(content) as T;
     } catch (error) {
       // If it's already our custom error from read(), just propagate it
-      if (error instanceof Error && error.message.startsWith(`Failed to read object`)) {
+      if (error instanceof Error && error.message.startsWith("Failed to read object")) {
         throw error;
       }
       // Otherwise wrap JSON parsing errors with more context
       throw new Error(
-        `Failed to parse JSON from ${key}: ${error instanceof Error ? error.message : String(error)}`,
+        `Failed to parse JSON from object ${key}: ${error instanceof Error ? error.message : String(error)}`,
       );
     }
   }
