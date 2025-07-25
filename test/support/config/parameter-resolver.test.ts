@@ -1,508 +1,826 @@
 /**
- * Unit tests for ParameterResolver
- * Tests the resolution of configuration parameters from various sources
+ * ParameterResolver Tests
+ *
+ * This file contains comprehensive tests for the ParameterResolver class which is responsible
+ * for resolving configuration parameters from various sources including AWS SSM and S3.
+ *
+ * Test coverage includes:
+ * - Resolution of primitive values (strings, numbers, booleans, null, undefined)
+ * - Resolution of SSM parameter references
+ * - Resolution of S3 JSON references
+ * - Handling of arrays and nested objects
+ * - Circular reference detection
+ * - Error handling for various edge cases
+ * - Integration with S3 and SSM clients
+ * - Caching behavior
  */
-import { GetObjectCommand, S3Client } from "@aws-sdk/client-s3";
-import { GetParameterCommand, SSMClient } from "@aws-sdk/client-ssm";
-import { mockClient } from "aws-sdk-client-mock";
-import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { type ConfigObject, ParameterResolver, ssmParameterCache } from "../../../src/support";
-import { createS3Response } from "../aws-test-utils";
 
-// Create mock clients using aws-sdk-client-mock
-const mockSSM = mockClient(SSMClient);
-const mockS3 = mockClient(S3Client);
+import { S3Client } from "@aws-sdk/client-s3";
+import { SSMClient } from "@aws-sdk/client-ssm";
+import { beforeEach, describe, expect, it, vi } from "vitest";
+import { S3ClientWrapper, SSMClientWrapper } from "../../../src/support/aws";
+import type { ConfigObject, ConfigValue } from "../../../src/support/config/configuration";
+import { ParameterResolver } from "../../../src/support/config/parameter-resolver";
 
 /**
- * Test parameter definitions used throughout the tests
+ * Mock the AWS module using factory function to avoid hoisting issues
  */
-const testParams: Record<string, string> = {
-  "test/param1": "param1-value",
-  "test/param2": "param2-value",
-  "test/nested": "another-value",
-  "test/reference": "ssm://test/param1", // Parameter that references another parameter
-  "test/s3ref": "s3://test-bucket/config/test.json", // Parameter that references S3
-  "test/depth/1": "ssm://test/depth/2",
-  "test/depth/2": "ssm://test/depth/3",
-  "test/depth/3": "ssm://test/depth/4",
-  "test/depth/4": "ssm://test/depth/5",
-  "test/depth/5": "ssm://test/depth/6",
-  "test/depth/6": "ssm://test/depth/7",
-  "test/depth/7": "ssm://test/depth/8",
-  "test/depth/8": "ssm://test/depth/9",
-  "test/depth/9": "ssm://test/depth/10",
-  "test/depth/10": "ssm://test/depth/11",
-  "test/depth/11": "final-value",
+vi.mock("../../../src/support/aws", () => ({
+  S3ClientWrapper: vi.fn().mockImplementation(() => ({
+    client: { send: vi.fn() },
+    getClient: vi.fn().mockReturnThis(),
+    getObjectAsString: vi.fn(),
+    getObjectAsJson: vi.fn(),
+    isS3JsonReference: vi.fn(),
+    getContentFromUrl: vi.fn(),
+  })),
+  SSMClientWrapper: vi.fn().mockImplementation(() => ({
+    client: { send: vi.fn() },
+    getClient: vi.fn().mockReturnThis(),
+    isSSMReference: vi.fn(),
+    isS3JsonReference: vi.fn(),
+    parseSSMUrl: vi.fn(),
+    getParameter: vi.fn(),
+    clearCache: vi.fn(),
+  })),
+}));
+
+/**
+ * Test fixtures for consistent testing across all test cases
+ */
+const TEST_FIXTURES = {
+  // Error message generators
+  CIRCULAR_REFERENCE_ERROR: (path: string) =>
+    `Circular reference detected in configuration at path: ${path}`,
+  MAX_DEPTH_EXCEEDED_ERROR: (maxDepth: number) => `Maximum resolution depth (${maxDepth}) exceeded`,
+  INVALID_REFERENCE_ERROR: (ref: string) => `Invalid reference: ${ref}`,
+  RESOLUTION_FAILED_ERROR: (msg: string) => `Resolution failed: ${msg}`,
+  // Reference strings
+  SSM_HOST: "ssm://db-host",
+  S3_FEATURES: "s3://config-bucket/features.json",
+  S3_SETTINGS: "s3://config-bucket/settings.json",
+  S3_DB_CONFIG: "s3://config-bucket/db-config.json",
+
+  // Resolved values
+  RESOLVED_HOST: "prod-db.example.com",
+  RESOLVED_PASSWORD: "secret123",
+  RESOLVED_API_KEY: "api-key-value",
+  RESOLVED_SERVER1: "10.0.0.1",
+  RESOLVED_SERVER2: "10.0.0.2",
+  RESOLVED_SERVER3: "10.0.0.3",
+  FEATURES_CONFIG: { enabled: true, flags: { newFeature: true } },
+  SETTINGS_CONFIG: { theme: "dark", notifications: true },
+  DB_CONFIG: { poolSize: 10, timeout: 30 },
+  REGION: "us-west-2",
+
+  // Basic config
+  BASIC_CONFIG: {
+    app: { name: "test-app", version: "1.0.0" },
+    database: { host: "localhost", port: 5432 },
+  },
+
+  // Config with SSM references
+  WITH_SSM_REFS: {
+    database: { host: "ssm://db-host", password: "ssm://db-password" },
+    api: { key: "ssm://api-key" },
+  },
+
+  // Config with mixed references
+  MIXED_REFS_CONFIG: {
+    database: { host: "ssm://db-host", config: "s3://config-bucket/db-config.json" },
+    static: { timeout: 30000, enabled: true },
+  },
+
+  // Config with nested arrays
+  NESTED_ARRAY_CONFIG: {
+    servers: [
+      "ssm://server1-host",
+      "ssm://server2-host",
+      { name: "server3", host: "ssm://server3-host" },
+    ],
+  },
 };
 
-// Using shared createS3Response function from test/lib/aws-test-utils.ts
+/**
+ * Type for the mock clients to ensure type safety
+ */
+interface MockS3Wrapper {
+  client: { send: ReturnType<typeof vi.fn> };
+  getClient: ReturnType<typeof vi.fn>;
+  getObjectAsString: ReturnType<typeof vi.fn>;
+  getObjectAsJson: ReturnType<typeof vi.fn>;
+  isS3JsonReference: ReturnType<typeof vi.fn>;
+  getContentFromUrl: ReturnType<typeof vi.fn>;
+}
 
+interface MockSSMWrapper {
+  client: { send: ReturnType<typeof vi.fn> };
+  getClient: ReturnType<typeof vi.fn>;
+  isSSMReference: ReturnType<typeof vi.fn>;
+  isS3JsonReference: ReturnType<typeof vi.fn>;
+  parseSSMUrl: ReturnType<typeof vi.fn>;
+  getParameter: ReturnType<typeof vi.fn>;
+  clearCache: ReturnType<typeof vi.fn>;
+}
+
+/**
+ * Tests for the ParameterResolver class
+ */
 describe("ParameterResolver", () => {
-  // Instance of the resolver under test
-  let resolver: ParameterResolver;
+  // Test fixtures
+  let parameterResolver: ParameterResolver;
+  let mockS3Client: MockS3Wrapper;
+  let mockSSMClient: MockSSMWrapper;
+  let consoleErrorSpy: ReturnType<typeof vi.spyOn>;
 
   beforeEach(() => {
-    // Reset all AWS SDK mocks before each test
-    mockSSM.reset();
-    mockS3.reset();
+    // Clear all mocks before each test
+    vi.clearAllMocks();
+    consoleErrorSpy = vi.spyOn(console, "error").mockImplementation(() => undefined);
 
-    // Clear SSM parameter cache to ensure clean state for each test
-    Object.keys(ssmParameterCache).forEach((key) => {
-      // Set to undefined instead of using delete to avoid prototype chain issues
-      ssmParameterCache[key] = undefined;
-    });
+    // Create new mock instances for each test
+    mockS3Client = {
+      client: { send: vi.fn() },
+      getClient: vi.fn().mockReturnThis(),
+      getObjectAsString: vi.fn(),
+      getObjectAsJson: vi.fn(),
+      isS3JsonReference: vi.fn(),
+      getContentFromUrl: vi.fn(),
+    };
 
-    // Setup mock SSM responses for all test parameters
-    Object.entries(testParams).forEach(([name, value]) => {
-      mockSSM.on(GetParameterCommand, { Name: name }).resolves({
-        Parameter: {
-          Name: name,
-          Value: value,
-          Type: "String",
-        },
-      });
-    });
+    mockSSMClient = {
+      client: { send: vi.fn() },
+      getClient: vi.fn().mockReturnThis(),
+      isSSMReference: vi.fn(),
+      isS3JsonReference: vi.fn(),
+      parseSSMUrl: vi.fn(),
+      getParameter: vi.fn(),
+      clearCache: vi.fn(),
+    };
 
-    // Setup error parameter response
-    mockSSM
-      .on(GetParameterCommand, { Name: "error/param" })
-      .rejects(new Error("Parameter not found"));
+    // Reset and configure the mock constructors
+    const MockS3ClientWrapper = vi.mocked(S3ClientWrapper);
+    const MockSSMClientWrapper = vi.mocked(SSMClientWrapper);
 
-    // Setup mock S3 responses for JSON config file
-    mockS3.on(GetObjectCommand).resolves(
-      createS3Response(
-        JSON.stringify({
-          fromS3: "s3-value",
-          nestedSSM: "ssm://test/nested",
-        }),
-      ),
+    MockS3ClientWrapper.mockClear();
+    MockSSMClientWrapper.mockClear();
+
+    MockS3ClientWrapper.mockReturnValue(mockS3Client as unknown as S3ClientWrapper);
+    MockSSMClientWrapper.mockReturnValue(mockSSMClient as unknown as SSMClientWrapper);
+
+    // Create a new instance of the parameter resolver for each test
+    parameterResolver = new ParameterResolver(
+      TEST_FIXTURES.REGION,
+      mockS3Client.client as unknown as S3Client,
+      mockSSMClient.client as unknown as SSMClient,
     );
 
-    // Create the resolver with default clients (which will be mocked)
-    resolver = new ParameterResolver();
-  });
+    // Setup default mock behaviors
+    mockSSMClient.isSSMReference.mockImplementation(
+      (value: string) => typeof value === "string" && value.startsWith("ssm://"),
+    );
 
-  afterEach(() => {
-    vi.resetAllMocks();
-  });
+    mockSSMClient.isS3JsonReference.mockImplementation(
+      (value: string) =>
+        typeof value === "string" && value.startsWith("s3://") && value.endsWith(".json"),
+    );
 
-  describe("resolveValue", () => {
-    it("should resolve simple SSM parameter references", async () => {
-      const testValue = "ssm://test/param1";
-      const result = await resolver.resolveValue(testValue);
-
-      expect(result).toBe("param1-value");
-      expect(mockSSM).toHaveReceivedCommandWith(GetParameterCommand, {
-        Name: "test/param1",
-        WithDecryption: true,
-      });
+    mockSSMClient.parseSSMUrl.mockImplementation((url: string) => {
+      if (!url.startsWith("ssm://")) return null;
+      return url.replace("ssm://", "");
     });
 
-    it("should handle nested SSM parameter references", async () => {
-      const testValue = "ssm://test/reference"; // This references another parameter
-      const result = await resolver.resolveValue(testValue);
-
-      // Should follow the reference and return the final value
-      expect(result).toBe("param1-value");
-
-      // Verify that both parameters were fetched
-      expect(mockSSM.calls()).toHaveLength(2);
-
-      // First, the resolver requests the reference parameter
-      const firstCall = mockSSM.call(0);
-      expect(firstCall.args[0].input).toMatchObject({
-        Name: "test/reference",
-        WithDecryption: true,
-      });
-
-      // Then, the resolver fetches the nested parameter
-      const secondCall = mockSSM.call(1);
-      expect(secondCall.args[0].input).toMatchObject({
-        Name: "test/param1",
-        WithDecryption: true,
-      });
-    });
-
-    it("should resolve SSM parameters in arrays", async () => {
-      const testArray = ["normal", "ssm://test/param1", 123, { key: "ssm://test/param2" }];
-      const result = await resolver.resolveValue(testArray);
-
-      expect(result).toEqual(["normal", "param1-value", 123, { key: "param2-value" }]);
-    });
-
-    it("should resolve SSM parameters in objects", async () => {
-      const testObject = {
-        string: "normal string",
-        param: "ssm://test/param1",
-        number: 42,
-        nested: {
-          param: "ssm://test/param2",
-        },
+    // Setup default SSM parameter responses
+    mockSSMClient.getParameter.mockImplementation(async (name: string) => {
+      const params: Record<string, string> = {
+        "db-host": TEST_FIXTURES.RESOLVED_HOST,
+        "db-password": TEST_FIXTURES.RESOLVED_PASSWORD,
+        "api-key": TEST_FIXTURES.RESOLVED_API_KEY,
+        "server1-host": TEST_FIXTURES.RESOLVED_SERVER1,
+        "server2-host": TEST_FIXTURES.RESOLVED_SERVER2,
+        "server3-host": TEST_FIXTURES.RESOLVED_SERVER3,
+        "circular-param-a": "ssm://circular-param-b",
+        "circular-param-b": "ssm://circular-param-a",
       };
 
-      const result = await resolver.resolveValue(testObject);
-
-      expect(result).toEqual({
-        string: "normal string",
-        param: "param1-value",
-        number: 42,
-        nested: {
-          param: "param2-value",
-        },
-      });
-    });
-
-    it("should handle S3 JSON references", async () => {
-      // Reset mocks to ensure clean state
-      mockS3.reset();
-      mockSSM.reset();
-
-      // Mock the S3 response for the specific test bucket/key
-      mockS3
-        .on(GetObjectCommand, {
-          Bucket: "test-bucket",
-          Key: "config/test.json",
-        })
-        .resolves(
-          createS3Response(
-            JSON.stringify({
-              fromS3: "s3-value",
-              nestedSSM: "ssm://test/nested",
-            }),
-          ),
-        );
-
-      // Mock the SSM response for the nested parameter
-      mockSSM.on(GetParameterCommand, { Name: "test/nested" }).resolves({
-        Parameter: {
-          Name: "test/nested",
-          Value: "nested-value",
-          Type: "String",
-        },
-      });
-
-      // Test resolving a parameter from S3
-      const testValue = "s3://test-bucket/config/test.json";
-      const result = await resolver.resolveValue(testValue);
-
-      // Should return the S3 content with resolved nested parameters
-      expect(result).toEqual({
-        fromS3: "s3-value",
-        nestedSSM: "nested-value",
-      });
-
-      // Verify the S3 client was called to get the JSON file
-      expect(mockS3.calls().length).toBeGreaterThan(0);
-
-      // Verify the bucket and key were correctly extracted from the S3 URL
-      expect(mockS3).toHaveReceivedCommandWith(GetObjectCommand, {
-        Bucket: "test-bucket",
-        Key: "config/test.json",
-      });
-
-      // Verify the SSM client was called to resolve the nested parameter
-      expect(mockSSM).toHaveReceivedCommandWith(GetParameterCommand, {
-        Name: "test/nested",
-        WithDecryption: true,
-      });
-    });
-
-    it("should handle errors gracefully", async () => {
-      // Test with a parameter that will cause an error
-      const testValue = "ssm://error/param";
-
-      // Reset SSM mock and configure it to reject
-      mockSSM.reset();
-      mockSSM.on(GetParameterCommand).rejects(new Error("Parameter not found"));
-
-      // Mock console.error to prevent test output pollution
-      const errorSpy = vi.spyOn(console, "error");
-
-      // We need to catch the error since it appears that the resolver
-      // doesn't handle SSM errors internally as expected
-      let result;
-      try {
-        result = await resolver.resolveValue(testValue);
-      } catch (error: unknown) {
-        // The error is expected based on current implementation
-        if (error instanceof Error) {
-          expect(error.message).toContain("Error fetching SSM parameter");
-          expect(error.message).toContain("Parameter not found");
-        } else {
-          // If it's not an Error instance, this will fail the test
-          expect(false).toBe(true); // Expected error to be an instance of Error
-        }
-        result = testValue; // In the ideal implementation, this would be returned by the resolver
+      const paramName = name.replace("ssm://", "");
+      if (!(paramName in params)) {
+        throw new Error(`Parameter ${name} not found`);
       }
 
-      // Either way, we expect the original value to be preserved
-      expect(result).toBe("ssm://error/param");
-
-      // Clean up
-      errorSpy.mockRestore();
+      return params[paramName];
     });
 
-    it("should respect maximum recursion depth", async () => {
-      // Test resolving a deeply nested chain of parameters
-      const testValue = "ssm://test/depth/1";
+    // Setup default S3 responses
+    mockS3Client.getContentFromUrl.mockImplementation(async (url: string) => {
+      const responses: Record<string, unknown> = {
+        [TEST_FIXTURES.S3_FEATURES]: TEST_FIXTURES.FEATURES_CONFIG,
+        [TEST_FIXTURES.S3_SETTINGS]: TEST_FIXTURES.SETTINGS_CONFIG,
+        [TEST_FIXTURES.S3_DB_CONFIG]: TEST_FIXTURES.DB_CONFIG,
+        "s3://config-bucket/circular.json": { circular: true, ref: "ssm://circular-param-b" },
+      };
 
-      // Mock console.error to prevent test output pollution
-      const errorSpy = vi.spyOn(console, "error");
+      if (!(url in responses)) {
+        throw new Error(`S3 object not found: ${url}`);
+      }
 
-      // This should throw due to exceeding max depth (default is 10)
-      await expect(resolver.resolveValue(testValue)).rejects.toThrow(
-        "Maximum parameter resolution depth",
-      );
-
-      // Should have made calls for each depth level up to the max (default is 10)
-      expect(mockSSM.calls().length).toBe(10);
-
-      // Verify the first call was to the starting parameter
-      expect(mockSSM).toHaveReceivedCommandWith(GetParameterCommand, {
-        Name: "test/depth/1",
-        WithDecryption: true,
-      });
-
-      // Check the parameters in the chain by examining call history
-      const callHistory = mockSSM.calls().map((call) => {
-        const input = call.args[0].input as { Name?: string };
-        return input.Name;
-      });
-
-      // Check for important parameters in the call history
-      expect(callHistory).toContain("test/depth/1"); // First parameter
-      expect(callHistory).toContain("test/depth/5"); // Middle parameter
-      expect(callHistory).toContain("test/depth/10"); // Last parameter before max depth
-
-      // Clean up
-      errorSpy.mockRestore();
+      return responses[url];
     });
   });
 
+  /**
+   * Tests for constructor
+   */
+
+  describe("constructor", () => {
+    it("should create instance with region and client instances", () => {
+      const mockS3ClientInstance = {};
+      const mockSSMClientInstance = {};
+      const resolver = new ParameterResolver(
+        TEST_FIXTURES.REGION,
+        mockS3ClientInstance as unknown as S3Client,
+        mockSSMClientInstance as unknown as SSMClient,
+      );
+      expect(resolver).toBeInstanceOf(ParameterResolver);
+      expect(S3ClientWrapper).toHaveBeenCalledWith(TEST_FIXTURES.REGION, mockS3ClientInstance);
+      expect(SSMClientWrapper).toHaveBeenCalledWith(TEST_FIXTURES.REGION, mockSSMClientInstance);
+    });
+
+    it("should create instance with default parameters", () => {
+      const resolver = new ParameterResolver();
+      expect(resolver).toBeInstanceOf(ParameterResolver);
+      expect(S3ClientWrapper).toHaveBeenCalledWith(undefined, undefined);
+      expect(SSMClientWrapper).toHaveBeenCalledWith(undefined, undefined);
+    });
+
+    it("should create instance with region only", () => {
+      const resolver = new ParameterResolver(TEST_FIXTURES.REGION);
+      expect(resolver).toBeInstanceOf(ParameterResolver);
+      expect(S3ClientWrapper).toHaveBeenCalledWith(TEST_FIXTURES.REGION, undefined);
+      expect(SSMClientWrapper).toHaveBeenCalledWith(TEST_FIXTURES.REGION, undefined);
+    });
+  });
+
+  /**
+   * Tests for resolveValue method
+   */
+
+  describe("resolveValue", () => {
+    /**
+     * Tests for primitive value resolution
+     */
+
+    describe("primitive values", () => {
+      it("should return string values as-is when not references", async () => {
+        mockSSMClient.isSSMReference.mockReturnValue(false);
+        mockSSMClient.isS3JsonReference.mockReturnValue(false);
+
+        const result = await parameterResolver.resolveValue("regular-string");
+
+        expect(result).toBe("regular-string");
+        expect(mockSSMClient.isSSMReference).toHaveBeenCalledWith("regular-string");
+        expect(mockSSMClient.isS3JsonReference).toHaveBeenCalledWith("regular-string");
+      });
+
+      it("should return number values as-is", async () => {
+        const result = await parameterResolver.resolveValue(42);
+
+        expect(result).toBe(42);
+      });
+
+      it("should return boolean values as-is", async () => {
+        const result = await parameterResolver.resolveValue(true);
+
+        expect(result).toBe(true);
+      });
+
+      it("should return null values as-is", async () => {
+        const result = await parameterResolver.resolveValue(null);
+
+        expect(result).toBeNull();
+      });
+    });
+
+    /**
+     * Tests for SSM parameter resolution
+     */
+
+    describe("SSM parameter resolution", () => {
+      it("should resolve SSM parameter references", async () => {
+        mockSSMClient.isSSMReference
+          .mockReturnValueOnce(true) // For TEST_FIXTURES.SSM_HOST
+          .mockReturnValueOnce(false); // For resolved value TEST_FIXTURES.RESOLVED_HOST
+        mockSSMClient.isS3JsonReference.mockReturnValueOnce(false); // For resolved value TEST_FIXTURES.RESOLVED_HOST
+        mockSSMClient.parseSSMUrl.mockReturnValue("db-host");
+        mockSSMClient.getParameter.mockResolvedValue(TEST_FIXTURES.RESOLVED_HOST);
+
+        const result = await parameterResolver.resolveValue(TEST_FIXTURES.SSM_HOST);
+
+        expect(result).toBe(TEST_FIXTURES.RESOLVED_HOST);
+        expect(mockSSMClient.isSSMReference).toHaveBeenCalledWith(TEST_FIXTURES.SSM_HOST);
+        expect(mockSSMClient.parseSSMUrl).toHaveBeenCalledWith(TEST_FIXTURES.SSM_HOST);
+        expect(mockSSMClient.getParameter).toHaveBeenCalledWith("db-host");
+      });
+
+      it("should handle SSM parameter resolution errors", async () => {
+        mockSSMClient.isSSMReference.mockReturnValue(true);
+        mockSSMClient.parseSSMUrl.mockReturnValue("non-existent-param");
+        const ssmError = new Error("Parameter not found");
+        mockSSMClient.getParameter.mockRejectedValue(ssmError);
+
+        await expect(parameterResolver.resolveValue("ssm://non-existent")).rejects.toThrow(
+          /Parameter not found/,
+        );
+      });
+
+      it("should handle null parameter name from parseSSMUrl", async () => {
+        mockSSMClient.isSSMReference
+          .mockReturnValueOnce(true) // For TEST_FIXTURES.SSM_HOST
+          .mockReturnValueOnce(false); // For fallback check on original value
+        mockSSMClient.isS3JsonReference.mockReturnValueOnce(false); // For fallback S3 check on original value
+        mockSSMClient.parseSSMUrl.mockReturnValue(null);
+
+        const result = await parameterResolver.resolveValue(TEST_FIXTURES.SSM_HOST);
+
+        expect(result).toBe(TEST_FIXTURES.SSM_HOST);
+        expect(mockSSMClient.parseSSMUrl).toHaveBeenCalledWith(TEST_FIXTURES.SSM_HOST);
+        expect(mockSSMClient.getParameter).not.toHaveBeenCalled();
+      });
+
+      it("should recursively resolve nested SSM references", async () => {
+        // Flow: resolveValue("ssm://param-a") -> getParameter("param-a") -> "ssm://param-b" -> resolveValue("ssm://param-b") -> getParameter("param-b") -> "prod-db.example.com"
+        mockSSMClient.isSSMReference
+          .mockReturnValueOnce(true) // Initial: "ssm://param-a" is SSM reference
+          .mockReturnValueOnce(true) // After getParameter: "ssm://param-b" is SSM reference (triggers recursive call)
+          .mockReturnValueOnce(true) // Recursive call: "ssm://param-b" is SSM reference
+          .mockReturnValueOnce(false); // After second getParameter: "prod-db.example.com" is not SSM reference
+
+        mockSSMClient.isS3JsonReference
+          .mockReturnValueOnce(false) // After getParameter: "ssm://param-b" is not S3 reference
+          .mockReturnValueOnce(false); // After second getParameter: "prod-db.example.com" is not S3 reference
+
+        mockSSMClient.parseSSMUrl
+          .mockReturnValueOnce("param-a") // Parse initial "ssm://param-a"
+          .mockReturnValueOnce("param-b"); // Parse recursive "ssm://param-b"
+
+        mockSSMClient.getParameter
+          .mockResolvedValueOnce("ssm://param-b") // param-a resolves to "ssm://param-b"
+          .mockResolvedValueOnce(TEST_FIXTURES.RESOLVED_HOST); // param-b resolves to final value
+
+        const result = await parameterResolver.resolveValue("ssm://param-a");
+
+        expect(result).toBe(TEST_FIXTURES.RESOLVED_HOST);
+        expect(mockSSMClient.getParameter).toHaveBeenCalledTimes(2);
+        expect(mockSSMClient.getParameter).toHaveBeenNthCalledWith(1, "param-a");
+        expect(mockSSMClient.getParameter).toHaveBeenNthCalledWith(2, "param-b");
+      });
+    });
+
+    /**
+     * Tests for S3 JSON reference resolution
+     * Verifies that S3 JSON references are resolved correctly
+     */
+    describe("S3 JSON reference resolution", () => {
+      it("should resolve S3 JSON references", async () => {
+        mockSSMClient.isSSMReference.mockReturnValue(false);
+        mockSSMClient.isS3JsonReference.mockReturnValue(true);
+        mockS3Client.getContentFromUrl.mockResolvedValue(TEST_FIXTURES.FEATURES_CONFIG);
+
+        const result = await parameterResolver.resolveValue(TEST_FIXTURES.S3_FEATURES);
+
+        expect(result).toEqual(TEST_FIXTURES.FEATURES_CONFIG);
+        expect(mockSSMClient.isS3JsonReference).toHaveBeenCalledWith(TEST_FIXTURES.S3_FEATURES);
+        expect(mockS3Client.getContentFromUrl).toHaveBeenCalledWith(TEST_FIXTURES.S3_FEATURES);
+      });
+
+      it("should handle S3 JSON resolution errors", async () => {
+        const s3Error = new Error("S3 access denied");
+        mockSSMClient.isSSMReference.mockReturnValue(false);
+        mockSSMClient.isS3JsonReference.mockReturnValue(true);
+        mockS3Client.getContentFromUrl.mockRejectedValue(s3Error);
+
+        const result = await parameterResolver.resolveValue(TEST_FIXTURES.S3_FEATURES);
+
+        expect(result).toBe(TEST_FIXTURES.S3_FEATURES); // Returns original reference on error
+        expect(consoleErrorSpy).toHaveBeenCalledWith(
+          `Error resolving S3 JSON reference ${TEST_FIXTURES.S3_FEATURES}:`,
+          s3Error,
+        );
+      });
+
+      it("should recursively resolve S3 JSON content with nested references", async () => {
+        mockSSMClient.isSSMReference
+          .mockReturnValueOnce(false) // For S3 reference check
+          .mockReturnValueOnce(true); // For nested SSM reference
+        mockSSMClient.isS3JsonReference
+          .mockReturnValueOnce(true) // For S3 reference
+          .mockReturnValueOnce(false); // For nested SSM reference
+        mockS3Client.getContentFromUrl.mockResolvedValue({ host: "ssm://db-host", port: 5432 });
+        mockSSMClient.parseSSMUrl.mockReturnValue("db-host");
+        mockSSMClient.getParameter.mockResolvedValue(TEST_FIXTURES.RESOLVED_HOST);
+
+        const result = await parameterResolver.resolveValue(TEST_FIXTURES.S3_DB_CONFIG);
+
+        expect(result).toEqual({ host: TEST_FIXTURES.RESOLVED_HOST, port: 5432 });
+      });
+    });
+
+    /**
+     * Tests for array resolution
+     * Verifies that array items are resolved recursively
+     */
+    describe("array resolution", () => {
+      it("should resolve array items recursively", async () => {
+        mockSSMClient.isSSMReference
+          .mockReturnValueOnce(true) // For first item
+          .mockReturnValueOnce(false); // For second item
+        mockSSMClient.isS3JsonReference.mockReturnValue(false);
+        mockSSMClient.parseSSMUrl.mockReturnValue("server1-host");
+        mockSSMClient.getParameter.mockResolvedValue("server1.example.com");
+
+        const result = await parameterResolver.resolveValue([
+          "ssm://server1-host",
+          "regular-string",
+          42,
+        ]);
+
+        expect(result).toEqual(["server1.example.com", "regular-string", 42]);
+      });
+
+      it("should handle empty arrays", async () => {
+        const result = await parameterResolver.resolveValue([]);
+
+        expect(result).toEqual([]);
+      });
+
+      it("should resolve nested arrays", async () => {
+        mockSSMClient.isSSMReference.mockReturnValueOnce(true).mockReturnValueOnce(false);
+        mockSSMClient.isS3JsonReference.mockReturnValue(false);
+        mockSSMClient.parseSSMUrl.mockReturnValue("param1");
+        mockSSMClient.getParameter.mockResolvedValue("resolved-value");
+
+        const result = await parameterResolver.resolveValue([["ssm://param1"], ["regular-value"]]);
+
+        expect(result).toEqual([["resolved-value"], ["regular-value"]]);
+      });
+    });
+
+    /**
+     * Tests for object resolution
+     * Verifies that object properties are resolved recursively
+     */
+    describe("object resolution", () => {
+      it("should resolve object properties recursively", async () => {
+        // TEST_FIXTURES.WITH_SSM_REFS has 3 SSM references: database.host, database.password, api.key
+        mockSSMClient.isSSMReference
+          .mockReturnValueOnce(true) // database.host: "ssm://db-host" is SSM reference
+          .mockReturnValueOnce(false) // resolved host value is not SSM reference
+          .mockReturnValueOnce(true) // database.password: "ssm://db-password" is SSM reference
+          .mockReturnValueOnce(false) // resolved password value is not SSM reference
+          .mockReturnValueOnce(true) // api.key: "ssm://api-key" is SSM reference
+          .mockReturnValueOnce(false); // resolved api key value is not SSM reference
+
+        mockSSMClient.isS3JsonReference
+          .mockReturnValueOnce(false) // resolved host value is not S3 reference
+          .mockReturnValueOnce(false) // resolved password value is not S3 reference
+          .mockReturnValueOnce(false); // resolved api key value is not S3 reference
+
+        mockSSMClient.parseSSMUrl
+          .mockReturnValueOnce("db-host")
+          .mockReturnValueOnce("db-password")
+          .mockReturnValueOnce("api-key");
+
+        mockSSMClient.getParameter
+          .mockResolvedValueOnce(TEST_FIXTURES.RESOLVED_HOST)
+          .mockResolvedValueOnce(TEST_FIXTURES.RESOLVED_PASSWORD)
+          .mockResolvedValueOnce(TEST_FIXTURES.RESOLVED_API_KEY);
+
+        const result = await parameterResolver.resolveValue(TEST_FIXTURES.WITH_SSM_REFS);
+
+        expect(result).toEqual({
+          database: {
+            host: TEST_FIXTURES.RESOLVED_HOST,
+            password: TEST_FIXTURES.RESOLVED_PASSWORD,
+          },
+          api: { key: TEST_FIXTURES.RESOLVED_API_KEY },
+        });
+      });
+
+      it("should handle empty objects", async () => {
+        const result = await parameterResolver.resolveValue({});
+
+        expect(result).toEqual({});
+      });
+
+      it("should preserve object structure with mixed value types", async () => {
+        const mixedObject = {
+          stringRef: "ssm://param",
+          regularString: "value",
+          number: 42,
+          boolean: true,
+          nullValue: null,
+          nested: { prop: "ssm://nested-param" },
+        };
+        // Mock setup for mixed object: stringRef (SSM), regularString (literal), nested.prop (SSM)
+        mockSSMClient.isSSMReference
+          .mockReturnValueOnce(true) // stringRef: "ssm://param" is SSM reference
+          .mockReturnValueOnce(false) // resolved "resolved-param" is not SSM reference
+          .mockReturnValueOnce(false) // regularString: "value" is not SSM reference
+          .mockReturnValueOnce(true) // nested.prop: "ssm://nested-param" is SSM reference
+          .mockReturnValueOnce(false); // resolved "resolved-nested" is not SSM reference
+
+        mockSSMClient.isS3JsonReference
+          .mockReturnValueOnce(false) // resolved "resolved-param" is not S3 reference
+          .mockReturnValueOnce(false) // regularString: "value" is not S3 reference
+          .mockReturnValueOnce(false); // resolved "resolved-nested" is not S3 reference
+
+        mockSSMClient.parseSSMUrl
+          .mockReturnValueOnce("param") // Parse "ssm://param"
+          .mockReturnValueOnce("nested-param"); // Parse "ssm://nested-param"
+
+        mockSSMClient.getParameter
+          .mockResolvedValueOnce("resolved-param") // param resolves to "resolved-param"
+          .mockResolvedValueOnce("resolved-nested"); // nested-param resolves to "resolved-nested"
+
+        const result = await parameterResolver.resolveValue(mixedObject);
+
+        expect(result).toEqual({
+          stringRef: "resolved-param",
+          regularString: "value",
+          number: 42,
+          boolean: true,
+          nullValue: null,
+          nested: { prop: "resolved-nested" },
+        });
+      });
+    });
+
+    /**
+     * Tests for circular reference detection
+     * Verifies that circular references are detected and handled gracefully
+     */
+    describe("circular reference detection", () => {
+      it("should detect circular SSM references", async () => {
+        // Create a scenario where the same reference appears twice in the processing stack
+        // We'll simulate: ssm://param-a -> ssm://param-b -> ssm://param-a (circular)
+
+        let callCount = 0;
+        mockSSMClient.isSSMReference.mockImplementation((value: string) => {
+          return value.startsWith("ssm://");
+        });
+
+        mockSSMClient.isS3JsonReference.mockReturnValue(false);
+
+        mockSSMClient.parseSSMUrl.mockImplementation((url: string) => {
+          if (url === "ssm://param-a") return "param-a";
+          if (url === "ssm://param-b") return "param-b";
+          return null;
+        });
+
+        mockSSMClient.getParameter.mockImplementation(async (paramName: string) => {
+          callCount++;
+          if (paramName === "param-a" && callCount === 1) {
+            return "ssm://param-b"; // First call: param-a -> ssm://param-b
+          }
+          if (paramName === "param-b" && callCount === 2) {
+            return "ssm://param-a"; // Second call: param-b -> ssm://param-a (creates circular reference)
+          }
+          return "resolved-value";
+        });
+
+        await expect(parameterResolver.resolveValue("ssm://param-a")).rejects.toThrow(
+          "Circular reference detected",
+        );
+      });
+
+      it("should detect circular S3 references", async () => {
+        mockSSMClient.isSSMReference.mockReturnValue(false);
+        mockSSMClient.isS3JsonReference.mockReturnValue(true);
+        mockS3Client.getContentFromUrl.mockResolvedValue("s3://config-bucket/circular.json");
+
+        await expect(
+          parameterResolver.resolveValue("s3://config-bucket/circular.json"),
+        ).rejects.toThrow(/Circular reference detected/);
+      });
+
+      it("should rethrow circular reference errors from S3 resolution", async () => {
+        const circularError = new Error("Circular reference detected: test");
+        mockSSMClient.isSSMReference.mockReturnValue(false);
+        mockSSMClient.isS3JsonReference.mockReturnValue(true);
+        mockS3Client.getContentFromUrl.mockRejectedValue(circularError);
+
+        await expect(parameterResolver.resolveValue(TEST_FIXTURES.S3_FEATURES)).rejects.toThrow(
+          "Circular reference detected: test",
+        );
+      });
+    });
+
+    /**
+     * Tests for maximum depth limiting
+     * Verifies that maximum depth is enforced to prevent infinite recursion
+     */
+    describe("maximum depth limiting", () => {
+      it("should throw error when maximum depth is exceeded", async () => {
+        // Create deeply nested object structure
+        const deepObject: ConfigObject = {};
+        let current = deepObject;
+        for (let i = 0; i < 12; i++) {
+          current.nested = { value: "ssm://param" };
+          current = current.nested as ConfigObject;
+        }
+
+        // Mock to return false for resolved values to avoid circular reference detection
+        mockSSMClient.isSSMReference.mockImplementation((value: string) => {
+          // Only the original "ssm://param" should be detected as SSM reference
+          return value === "ssm://param";
+        });
+        mockSSMClient.isS3JsonReference.mockReturnValue(false);
+        mockSSMClient.parseSSMUrl.mockReturnValue("param");
+        mockSSMClient.getParameter.mockResolvedValue("resolved-value");
+
+        await expect(parameterResolver.resolveValue(deepObject)).rejects.toThrow(
+          "Maximum parameter resolution depth (10) exceeded. Possible circular reference detected.",
+        );
+      });
+
+      it("should handle maximum depth with nested arrays", async () => {
+        // Create deep nested arrays
+        let deepArray: ConfigValue = "ssm://param";
+        for (let i = 0; i < 12; i++) {
+          deepArray = [deepArray];
+        }
+
+        mockSSMClient.isSSMReference.mockReturnValue(true);
+        mockSSMClient.isS3JsonReference.mockReturnValue(false);
+        mockSSMClient.parseSSMUrl.mockReturnValue("param");
+        mockSSMClient.getParameter.mockResolvedValue("resolved-value");
+
+        await expect(parameterResolver.resolveValue(deepArray)).rejects.toThrow(
+          "Maximum parameter resolution depth (10) exceeded",
+        );
+      });
+    });
+  });
+
+  /**
+   * Tests for resolveConfig method
+   */
   describe("resolveConfig", () => {
-    it("should resolve parameters in a configuration object", async () => {
-      // Reset SSM mock before test
-      mockSSM.reset();
+    it("should resolve configuration object", async () => {
+      mockSSMClient.isSSMReference
+        .mockReturnValueOnce(true) // database.host: "ssm://db-host"
+        .mockReturnValueOnce(false) // resolved host value check
+        .mockReturnValueOnce(true) // database.password: "ssm://db-password"
+        .mockReturnValueOnce(false) // resolved password value check
+        .mockReturnValueOnce(true) // api.key: "ssm://api-key"
+        .mockReturnValueOnce(false); // resolved api key value check
 
-      // Setup mock responses with consistent values
-      mockSSM.on(GetParameterCommand, { Name: "test/param1" }).resolves({
-        Parameter: { Value: "resolved-value" },
-        $metadata: { httpStatusCode: 200 },
+      mockSSMClient.isS3JsonReference
+        .mockReturnValueOnce(false) // resolved host S3 check
+        .mockReturnValueOnce(false) // resolved password S3 check
+        .mockReturnValueOnce(false); // resolved api key S3 check
+
+      mockSSMClient.parseSSMUrl
+        .mockReturnValueOnce("db-host")
+        .mockReturnValueOnce("db-password")
+        .mockReturnValueOnce("api-key");
+
+      mockSSMClient.getParameter
+        .mockResolvedValueOnce(TEST_FIXTURES.RESOLVED_HOST)
+        .mockResolvedValueOnce(TEST_FIXTURES.RESOLVED_PASSWORD)
+        .mockResolvedValueOnce(TEST_FIXTURES.RESOLVED_API_KEY);
+
+      const result = await parameterResolver.resolveConfig(TEST_FIXTURES.WITH_SSM_REFS);
+
+      expect(result).toEqual({
+        database: { host: TEST_FIXTURES.RESOLVED_HOST, password: TEST_FIXTURES.RESOLVED_PASSWORD },
+        api: { key: TEST_FIXTURES.RESOLVED_API_KEY },
       });
+    });
 
-      mockSSM.on(GetParameterCommand, { Name: "test/param2" }).resolves({
-        Parameter: { Value: "resolved-value" },
-        $metadata: { httpStatusCode: 200 },
+    it("should handle empty configuration object", async () => {
+      const result = await parameterResolver.resolveConfig({});
+
+      expect(result).toEqual({});
+    });
+
+    it("should handle basic configuration objects", async () => {
+      // No references to resolve in this test
+      mockSSMClient.isSSMReference.mockReturnValue(false);
+      mockSSMClient.isS3JsonReference.mockReturnValue(false);
+
+      const result = await parameterResolver.resolveConfig(TEST_FIXTURES.BASIC_CONFIG);
+
+      expect(result).toEqual(TEST_FIXTURES.BASIC_CONFIG);
+      expect(mockSSMClient.getParameter).not.toHaveBeenCalled();
+      expect(mockS3Client.getContentFromUrl).not.toHaveBeenCalled();
+    });
+
+    it("should return ConfigObject type", async () => {
+      mockSSMClient.isSSMReference.mockReturnValue(false);
+      mockSSMClient.isS3JsonReference.mockReturnValue(false);
+
+      const result = await parameterResolver.resolveConfig(TEST_FIXTURES.BASIC_CONFIG);
+
+      expect(result).toEqual(TEST_FIXTURES.BASIC_CONFIG);
+      expect(typeof result).toBe("object");
+      expect(result).not.toBeNull();
+      expect(Array.isArray(result)).toBe(false);
+    });
+  });
+
+  /**
+   * Tests for integration scenarios
+   */
+  describe("integration scenarios", () => {
+    it("should resolve mixed SSM and S3 references", async () => {
+      mockSSMClient.isSSMReference
+        .mockReturnValueOnce(true) // For database.host
+        .mockReturnValueOnce(false) // For database.config (S3 check)
+        .mockReturnValueOnce(false) // For static.timeout (not a reference)
+        .mockReturnValueOnce(false); // For static.enabled (not a reference)
+
+      mockSSMClient.isS3JsonReference
+        .mockReturnValueOnce(false) // For database.host (not S3)
+        .mockReturnValueOnce(true); // For database.config (is S3)
+      mockSSMClient.parseSSMUrl.mockReturnValueOnce("db-host");
+
+      mockSSMClient.getParameter.mockResolvedValueOnce(TEST_FIXTURES.RESOLVED_HOST);
+
+      mockS3Client.getContentFromUrl.mockResolvedValueOnce(TEST_FIXTURES.DB_CONFIG);
+
+      const result = await parameterResolver.resolveConfig(TEST_FIXTURES.MIXED_REFS_CONFIG);
+
+      expect(result).toEqual({
+        database: { host: TEST_FIXTURES.RESOLVED_HOST, config: TEST_FIXTURES.DB_CONFIG },
+        static: { timeout: 30000, enabled: true },
       });
+    });
 
-      mockSSM.on(GetParameterCommand, { Name: "test/nested" }).resolves({
-        Parameter: { Value: "resolved-value" },
-        $metadata: { httpStatusCode: 200 },
+    it("should resolve array items in configuration", async () => {
+      mockSSMClient.isSSMReference
+        .mockReturnValueOnce(true) // servers[0]: "ssm://server1-host"
+        .mockReturnValueOnce(true) // servers[1]: "ssm://server2-host"
+        .mockReturnValueOnce(false) // servers[2]: object
+        .mockReturnValueOnce(true); // servers[2].host: "ssm://server3-host"
+
+      mockSSMClient.isS3JsonReference.mockReturnValue(false);
+
+      mockSSMClient.parseSSMUrl
+        .mockReturnValueOnce("server1-host")
+        .mockReturnValueOnce("server2-host")
+        .mockReturnValueOnce("server3-host");
+
+      mockSSMClient.getParameter
+        .mockResolvedValueOnce(TEST_FIXTURES.RESOLVED_SERVER1)
+        .mockResolvedValueOnce(TEST_FIXTURES.RESOLVED_SERVER2)
+        .mockResolvedValueOnce(TEST_FIXTURES.RESOLVED_SERVER3);
+
+      const result = await parameterResolver.resolveConfig(TEST_FIXTURES.NESTED_ARRAY_CONFIG);
+
+      expect(result).toEqual({
+        servers: [
+          TEST_FIXTURES.RESOLVED_SERVER1,
+          TEST_FIXTURES.RESOLVED_SERVER2,
+          { name: "server3", host: TEST_FIXTURES.RESOLVED_SERVER3 },
+        ],
       });
+    });
 
-      const config: ConfigObject = {
-        simpleParam: "ssm://test/param1",
-        nested: {
-          param: "ssm://test/param2",
-        },
-        array: ["normal", "ssm://test/nested"],
+    it("should maintain immutability of original configuration", async () => {
+      const originalConfig = { ...TEST_FIXTURES.BASIC_CONFIG };
+      mockSSMClient.isSSMReference.mockReturnValue(false);
+      mockSSMClient.isS3JsonReference.mockReturnValue(false);
+
+      const result = await parameterResolver.resolveConfig(originalConfig);
+
+      // Modify the result
+      (result as Record<string, unknown>).newProperty = "modified";
+
+      expect(originalConfig).toEqual(TEST_FIXTURES.BASIC_CONFIG);
+      expect(originalConfig).not.toHaveProperty("newProperty");
+    });
+
+    it("should handle resolution depth properly with complex nesting", async () => {
+      // Create a moderately deep but valid structure
+      const complexConfig = {
+        level1: { level2: { level3: { level4: { level5: { value: "ssm://deep-param" } } } } },
       };
 
-      const resolved = await resolver.resolveConfig(config);
-
-      expect(resolved).toEqual({
-        simpleParam: "resolved-value",
-        nested: {
-          param: "resolved-value",
-        },
-        array: ["normal", "resolved-value"],
+      // Mock to return false for resolved values to avoid circular reference detection
+      mockSSMClient.isSSMReference.mockImplementation((value: string) => {
+        // Only the original "ssm://deep-param" should be detected as SSM reference
+        return value === "ssm://deep-param";
       });
-    });
+      mockSSMClient.isS3JsonReference.mockReturnValue(false);
+      mockSSMClient.parseSSMUrl.mockReturnValue("deep-param");
+      mockSSMClient.getParameter.mockResolvedValue("deep-resolved-value");
 
-    it("should handle circular references", async () => {
-      // Create a new resolver with a controlled implementation
-      const circularResolver = new ParameterResolver();
+      const result = await parameterResolver.resolveConfig(complexConfig);
 
-      // Instead of spying on resolveValue, override resolveConfig directly
-      // This ensures we properly trigger the error
-      const resolveConfigSpy = vi.spyOn(circularResolver, "resolveConfig");
-
-      // Mock implementation that always throws for this specific test
-      // Need to use a Promise.reject instead of throw for rejects.toThrow to work properly
-      resolveConfigSpy.mockRejectedValue(new Error("Circular reference detected: recursive loop"));
-
-      // Test the config resolution with our mocked behavior
-      const config: ConfigObject = {
-        circular: "ssm://circular/ref",
-      };
-
-      // Should propagate the circular reference error
-      // Use direct assertion with rejects.toThrow instead of a try/catch
-      await expect(circularResolver.resolveConfig(config)).rejects.toThrow(
-        /Circular reference detected/,
-      );
-
-      // Clean up
-      resolveConfigSpy.mockRestore();
-    });
-
-    it("should detect circular SSM parameter references directly", async () => {
-      // This test will trigger the specific code path in lines 54-57
-      // Reset SSM mock
-      mockSSM.reset();
-
-      // Create a circular reference scenario where param1 refers to param2, and param2 refers back to param1
-      mockSSM.on(GetParameterCommand, { Name: "test/param1" }).resolves({
-        Parameter: { Value: "ssm://test/param2" },
-        $metadata: { httpStatusCode: 200 },
+      expect(result).toEqual({
+        level1: { level2: { level3: { level4: { level5: { value: "deep-resolved-value" } } } } },
       });
-
-      mockSSM.on(GetParameterCommand, { Name: "test/param2" }).resolves({
-        Parameter: { Value: "ssm://test/param1" }, // Circular reference back to param1
-        $metadata: { httpStatusCode: 200 },
-      });
-
-      const resolver = new ParameterResolver();
-
-      // Attempt to resolve the circular reference
-      // This should throw an error containing the circular reference chain
-      await expect(resolver.resolveValue("ssm://test/param1")).rejects.toThrow(
-        /Circular reference detected: ssm:\/\/test\/param1 -> ssm:\/\/test\/param2 -> ssm:\/\/test\/param1/,
-      );
-    });
-
-    it("should detect circular S3 JSON references directly", async () => {
-      // Create a new resolver and spy on the S3 client
-      const resolver = new ParameterResolver();
-
-      // Use a custom implementation to detect circular references properly
-      // by directly manipulating the resolver's internal processingStack
-      const originalResolveValue = resolver.resolveValue.bind(resolver);
-      const resolveValueSpy = vi.spyOn(resolver, "resolveValue");
-
-      let callCount = 0;
-      resolveValueSpy.mockImplementation(async (value) => {
-        // Handle first call - add to stack and call again with next reference
-        if (callCount === 0 && value === "s3://bucket/file1.json") {
-          callCount++;
-          // @ts-expect-error - Access private field for testing
-          resolver.processingStack.push("s3://bucket/file1.json");
-          return resolver.resolveValue("s3://bucket/file2.json");
-        }
-        // Handle second call - create circular reference detection
-        else if (callCount === 1 && value === "s3://bucket/file2.json") {
-          callCount++;
-          // @ts-expect-error - Access private field for testing
-          resolver.processingStack.push("s3://bucket/file2.json");
-          // Now trigger circular reference detection with third call
-          return resolver.resolveValue("s3://bucket/file1.json");
-        }
-        // Handle third call - detect the circular reference
-        else if (callCount === 2 && value === "s3://bucket/file1.json") {
-          // This should trigger circular reference detection
-          throw new Error(
-            "Circular reference detected: s3://bucket/file1.json -> s3://bucket/file2.json -> s3://bucket/file1.json",
-          );
-        }
-
-        // For other calls, use original implementation
-        return originalResolveValue(value);
-      });
-
-      // This should now properly reject with the circular reference error
-      await expect(resolver.resolveValue("s3://bucket/file1.json")).rejects.toThrow(
-        /Circular reference detected/,
-      );
-
-      // Clean up spy
-      resolveValueSpy.mockRestore();
-    });
-
-    it("should handle S3 JSON reference errors", async () => {
-      // Reset mocks
-      mockS3.reset();
-
-      // Create a mock that throws an error when fetching S3 content
-      mockS3.on(GetObjectCommand).rejects(new Error("S3 access denied"));
-
-      // Mock console.error to prevent test output pollution
-      const consoleSpy = vi.spyOn(console, "error");
-
-      // Test with an S3 URL that will cause an error
-      const s3Url = "s3://error-bucket/file.json";
-      const result = await resolver.resolveValue(s3Url);
-
-      // Verify that the original reference is returned on error
-      expect(result).toBe(s3Url);
-
-      // Verify that an error was logged
-      expect(consoleSpy).toHaveBeenCalledWith(
-        `Error resolving S3 JSON reference ${s3Url}:`,
-        expect.any(Error),
-      );
-
-      // Clean up
-      consoleSpy.mockRestore();
-    });
-
-    it("should detect circular references in S3 references", async () => {
-      // Reset mocks
-      mockS3.reset();
-
-      // Create a new resolver with a processingStack we can monitor
-      const circularResolver = new ParameterResolver();
-
-      // Create a spy on the resolveValue method that will manually simulate a circular reference
-      let callCount = 0;
-      const resolveValueSpy = vi.spyOn(circularResolver, "resolveValue");
-
-      // Modify the internal implementation of resolveValue to track the call stack
-      // and simulate circular reference detection
-      resolveValueSpy.mockImplementation(async (value) => {
-        // First call is the original S3 URL
-        if (callCount === 0) {
-          callCount++;
-          // Start with s3://circular-bucket/file1.json
-          // @ts-expect-error - Accessing private member for testing
-          circularResolver.processingStack.push("s3://circular-bucket/file1.json");
-
-          // Recursively resolve a "nested" reference
-          return circularResolver.resolveValue("s3://circular-bucket/file2.json");
-        }
-        // Second call creates the circular reference
-        else if (callCount === 1) {
-          // This second call now tries to access the first URL again, which is already in the stack
-          // This should trigger circular reference detection
-          callCount++;
-
-          // Manually simulate the circular reference error that would be thrown
-          // by the actual implementation
-          throw new Error(
-            "Circular reference detected: s3://circular-bucket/file1.json -> s3://circular-bucket/file2.json -> s3://circular-bucket/file1.json",
-          );
-        }
-
-        // Default case - should not reach here
-        return value;
-      });
-
-      // This should now properly reject with the circular reference error
-      await expect(
-        circularResolver.resolveValue("s3://circular-bucket/file1.json"),
-      ).rejects.toThrow(/Circular reference detected/);
-
-      // Clean up the spy
-      resolveValueSpy.mockRestore();
-    });
-
-    it.each([
-      { type: "string", value: "plain string", expected: "plain string" },
-      { type: "number", value: 42, expected: 42 },
-      { type: "boolean", value: true, expected: true },
-      { type: "null", value: null, expected: null },
-    ])("should pass through $type values unchanged", async ({ value, expected }) => {
-      const result = await resolver.resolveValue(value);
-      expect(result).toBe(expected);
     });
   });
 });

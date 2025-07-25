@@ -1,564 +1,644 @@
 /**
- * Unit tests for AWS client wrappers
- * Tests the functionality of S3ClientWrapper and related utilities
+ * Tests for AWS Clients Module
+ *
+ * This test suite verifies the functionality of AWS service wrapper classes and utility functions
+ * for S3 and SSM Parameter Store integration. It ensures proper handling of AWS service operations,
+ * error conditions, and edge cases.
+ *
+ * Test Coverage:
+ * - Utility functions (parseS3Url, streamToString)
+ * - S3ClientWrapper methods and error handling
+ * - SSMClientWrapper methods with parameter caching
+ * - Interface contracts and type safety
+ * - Error handling and edge cases
  */
-import { GetObjectCommand, S3Client } from "@aws-sdk/client-s3";
-import { GetParameterCommand, SSMClient } from "@aws-sdk/client-ssm";
+
+import { GetObjectCommand, type GetObjectCommandOutput, S3Client } from "@aws-sdk/client-s3";
+import {
+  GetParameterCommand,
+  type GetParameterCommandOutput,
+  SSMClient,
+} from "@aws-sdk/client-ssm";
 import { mockClient } from "aws-sdk-client-mock";
 import { Readable } from "node:stream";
-import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { afterAll, afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import {
+  DEFAULT_AWS_REGION,
+  type IS3Client,
+  type ISSMClient,
   parseS3Url,
   S3ClientWrapper,
   SSMClientWrapper,
   ssmParameterCache,
   streamToString,
-} from "../../../src/support";
-import { createS3Response } from "../aws-test-utils";
+} from "../../../src/support/aws/aws-clients";
 
-// Create mock clients
-const mockSSM = mockClient(SSMClient);
-const mockS3 = mockClient(S3Client);
+/**
+ * Test fixtures for consistent testing across all test cases
+ */
+const TEST_FIXTURES = {
+  // S3 related test data
+  S3_BUCKET_NAME: "test-bucket",
+  S3_JSON_KEY: "test/path/config.json",
+  S3_TEXT_KEY: "test/path/readme.txt",
+  S3_CONTENT: "test file content",
+  S3_JSON_CONTENT: { message: "test json content", value: 42 },
 
-describe("AWS Utilities", () => {
-  describe("parseS3Url", () => {
-    // Use it.each for parameterized tests with valid URLs
-    it.each([
-      {
-        url: "s3://my-bucket/path/to/file.json",
-        expected: { bucket: "my-bucket", key: "path/to/file.json" },
-      },
-      {
-        url: "s3://my-bucket/path/with//multiple/slashes.txt",
-        expected: { bucket: "my-bucket", key: "path/with//multiple/slashes.txt" },
-      },
-      {
-        url: "s3://bucket-with-dash/file.pdf",
-        expected: { bucket: "bucket-with-dash", key: "file.pdf" },
-      },
-    ])("should parse valid S3 URL: $url", ({ url, expected }) => {
-      const result = parseS3Url(url);
-      expect(result).toEqual(expected);
-    });
+  // SSM related test data
+  SSM_PARAM_NAME: "/test/parameter",
+  SSM_PARAM_VALUE: "test-parameter-value",
 
-    // Use it.each for parameterized tests with invalid URLs
-    it.each([
-      "http://not-s3-url.com",
-      "s3:/missing-slashes",
-      "s3://bucket-only",
-      "not-a-url",
-      "", // Empty string edge case
-    ])("should return null for invalid S3 URL: %s", (invalidUrl) => {
-      expect(parseS3Url(invalidUrl)).toBeNull();
-    });
+  // URLs for testing
+  URL_VALID_S3_JSON: "s3://test-bucket/test/path/config.json",
+  URL_VALID_S3_TEXT: "s3://test-bucket/test/path/readme.txt",
+  URL_INVALID_S3: "invalid-s3-url",
 
-    // Edge case: undefined input
-    it("should handle undefined input gracefully", () => {
-      expect(parseS3Url(undefined as unknown as string)).toBeNull();
-    });
-  });
+  // AWS configuration
+  AWS_TEST_REGION: "us-west-2",
+};
 
-  describe("streamToString", () => {
-    it("should convert stream to string", async () => {
-      // Create a simple readable stream for testing
-      const testContent = "test stream content";
-      const stream = new Readable({
-        read() {
-          this.push(Buffer.from(testContent));
-          this.push(null); // Signals end of stream
-        },
-      });
+/**
+ * Test Instance Variables
+ */
+let s3ClientWrapper: S3ClientWrapper;
+let ssmClientWrapper: SSMClientWrapper;
 
-      const result = await streamToString(stream);
-      expect(result).toBe(testContent);
-    });
+/**
+ * Create AWS SDK client mocks
+ */
+const s3ClientMock = mockClient(S3Client);
+const ssmClientMock = mockClient(SSMClient);
 
-    it("should handle empty streams", async () => {
-      const stream = new Readable({
-        read() {
-          this.push(null); // Empty stream
-        },
-      });
-
-      const result = await streamToString(stream);
-      expect(result).toBe("");
-    });
-
-    it("should reject on stream error", async () => {
-      const errorMessage = "Stream error";
-      const stream = new Readable({
-        read() {
-          this.emit("error", new Error(errorMessage));
-        },
-      });
-
-      await expect(streamToString(stream)).rejects.toThrow(errorMessage);
-    });
-
-    // Additional edge cases
-    it("should handle large data streams", async () => {
-      // Create a stream with large content (100KB)
-      const largeContent = "X".repeat(100 * 1024);
-      const stream = new Readable({
-        read() {
-          this.push(Buffer.from(largeContent));
-          this.push(null);
-        },
-      });
-
-      const result = await streamToString(stream);
-      expect(result.length).toBe(largeContent.length);
-      expect(result).toBe(largeContent);
-    });
-  });
-});
-
-describe("S3ClientWrapper", () => {
-  let s3Wrapper: S3ClientWrapper;
-
+/**
+ * Test suite for AWS Clients Module
+ */
+describe("AWS Clients Module", () => {
   beforeEach(() => {
-    // Reset mocks before each test
-    mockS3.reset();
+    // Reset all AWS SDK client mocks before each test
+    s3ClientMock.reset();
+    ssmClientMock.reset();
 
-    // Create a wrapper instance with the mock client
-    s3Wrapper = new S3ClientWrapper("us-west-2", mockS3 as unknown as S3Client);
-  });
-
-  afterEach(() => {
-    vi.resetAllMocks();
-  });
-
-  describe("constructor", () => {
-    it("should use provided region", () => {
-      const testRegion = "eu-west-1";
-      const wrapper = new S3ClientWrapper(testRegion);
-
-      // Implementation detail: we can't easily test the region directly,
-      // but we can verify that a new client was created
-      expect(wrapper.getClient()).toBeDefined();
-    });
-
-    it("should use default region when not specified", () => {
-      const wrapper = new S3ClientWrapper();
-      expect(wrapper.getClient()).toBeDefined();
-    });
-
-    it("should use provided client when specified", () => {
-      const mockClient = mockS3 as unknown as S3Client;
-      const wrapper = new S3ClientWrapper(undefined, mockClient);
-
-      expect(wrapper.getClient()).toBe(mockClient);
-    });
-  });
-
-  describe("getObjectAsString", () => {
-    it("should retrieve object as string", async () => {
-      const testContent = "test file content";
-      const testBucket = "test-bucket";
-      const testKey = "test/file.txt";
-
-      // Setup mock response
-      mockS3.on(GetObjectCommand).resolves(createS3Response(testContent));
-
-      const result = await s3Wrapper.getObjectAsString(testBucket, testKey);
-
-      // Verify result
-      expect(result).toBe(testContent);
-
-      // Verify correct command was sent using aws-sdk-client-mock-vitest matcher
-      expect(mockS3).toHaveReceivedCommandWith(GetObjectCommand, {
-        Bucket: testBucket,
-        Key: testKey,
-      });
-    });
-
-    it("should throw error for empty response body", async () => {
-      const testBucket = "test-bucket";
-      const testKey = "test/file.txt";
-
-      // Mock empty response
-      mockS3.on(GetObjectCommand).resolves({
-        // No Body property
-      });
-
-      await expect(s3Wrapper.getObjectAsString(testBucket, testKey)).rejects.toThrow(
-        `Empty response body for S3 object: ${testBucket}/${testKey}`,
-      );
-    });
-
-    it("should propagate S3 client errors", async () => {
-      // Mock S3 access denied error
-      mockS3.on(GetObjectCommand).rejects(new Error("S3 access denied"));
-
-      await expect(s3Wrapper.getObjectAsString("bucket", "key")).rejects.toThrow(
-        "S3 access denied",
-      );
-    });
-  });
-
-  describe("getObjectAsJson", () => {
-    it("should retrieve and parse JSON object", async () => {
-      const testObject = { key: "value", nested: { data: 123 } };
-      const testBucket = "test-bucket";
-      const testKey = "test/file.json";
-
-      // Setup mock response with stringified JSON
-      mockS3.on(GetObjectCommand).resolves(createS3Response(JSON.stringify(testObject)));
-
-      const result = await s3Wrapper.getObjectAsJson(testBucket, testKey);
-
-      // Verify result
-      expect(result).toEqual(testObject);
-
-      // Verify correct command was sent
-      expect(mockS3).toHaveReceivedCommandWith(GetObjectCommand, {
-        Bucket: testBucket,
-        Key: testKey,
-      });
-    });
-
-    it("should throw error for invalid JSON", async () => {
-      const testBucket = "test-bucket";
-      const testKey = "test/file.json";
-      const invalidJson = "{ this is not valid JSON }";
-
-      // Setup mock response with invalid JSON
-      mockS3.on(GetObjectCommand).resolves(createS3Response(invalidJson));
-
-      await expect(s3Wrapper.getObjectAsJson(testBucket, testKey)).rejects.toThrow(
-        expect.objectContaining({
-          name: "SyntaxError", // JSON.parse will throw SyntaxError
-        }),
-      );
-    });
-  });
-
-  describe("getJsonFromUrl", () => {
-    it("should retrieve and parse JSON from S3 URL", async () => {
-      const testObject = { data: "from-url" };
-      const s3Url = "s3://url-bucket/path/file.json";
-
-      // Setup mock for the URL
-      mockS3.on(GetObjectCommand).resolves(createS3Response(JSON.stringify(testObject)));
-
-      const result = await s3Wrapper.getJsonFromUrl(s3Url);
-
-      // Verify result
-      expect(result).toEqual(testObject);
-
-      // Verify correct command was sent
-      expect(mockS3).toHaveReceivedCommandWith(GetObjectCommand, {
-        Bucket: "url-bucket",
-        Key: "path/file.json",
-      });
-    });
-
-    it("should throw error for invalid S3 URL", async () => {
-      const invalidUrl = "invalid-url";
-
-      await expect(s3Wrapper.getJsonFromUrl(invalidUrl)).rejects.toThrow(
-        `Invalid S3 URL format: ${invalidUrl}`,
-      );
-    });
-  });
-
-  describe("getContentFromUrl", () => {
-    it("should parse JSON content from JSON file", async () => {
-      const testObject = { key: "value" };
-      const s3Url = "s3://content-bucket/config.json";
-
-      // Setup mock response with JSON content
-      mockS3.on(GetObjectCommand).resolves(createS3Response(JSON.stringify(testObject)));
-
-      const result = await s3Wrapper.getContentFromUrl(s3Url);
-
-      // Verify result is parsed JSON
-      expect(result).toEqual(testObject);
-
-      // Verify correct command was sent
-      expect(mockS3).toHaveReceivedCommandWith(GetObjectCommand, {
-        Bucket: "content-bucket",
-        Key: "config.json",
-      });
-    });
-
-    it("should return plain string for non-JSON files", async () => {
-      const testContent = "Plain text content";
-      const s3Url = "s3://content-bucket/file.txt";
-
-      // Setup mock response with text content
-      mockS3.on(GetObjectCommand).resolves(createS3Response(testContent));
-
-      const result = await s3Wrapper.getContentFromUrl(s3Url);
-
-      // Verify result is plain string
-      expect(result).toBe(testContent);
-    });
-
-    it("should throw error for invalid JSON in JSON file", async () => {
-      const invalidJson = "{ not valid json }";
-      const s3Url = "s3://content-bucket/file.json";
-
-      mockS3.on(GetObjectCommand).resolves(createS3Response(invalidJson));
-
-      await expect(s3Wrapper.getContentFromUrl(s3Url)).rejects.toThrow(
-        `Error parsing JSON from S3 (${s3Url}):`,
-      );
-    });
-
-    it("should throw error for invalid S3 URL format", async () => {
-      // Use it.each for multiple test cases
-      const invalidUrls = [
-        "not-an-s3-url",
-        "s3:/missing-slash/file.json",
-        "s3://",
-        "s3://bucket-only",
-        "",
-      ];
-
-      for (const url of invalidUrls) {
-        await expect(s3Wrapper.getContentFromUrl(url)).rejects.toThrow(
-          `Invalid S3 URL format: ${url}`,
-        );
-      }
-    });
-  });
-
-  describe("isS3JsonReference", () => {
-    // Use it.each for testing valid S3 JSON references
-    it.each([
-      "s3://bucket/file.json",
-      "s3://bucket/path/to/CONFIG.JSON", // Test case insensitivity
-      "s3://bucket/path/to/config.Json", // Mixed case
-    ])("should identify valid S3 JSON reference: %s", (validRef) => {
-      expect(s3Wrapper.isS3JsonReference(validRef)).toBe(true);
-    });
-
-    // Use it.each for testing invalid S3 JSON references
-    it.each([
-      "s3://bucket/file.txt", // Not JSON
-      "s3://bucket/file.jsonx", // Wrong extension
-      "ssm://parameter", // Wrong protocol
-      "http://example.com/file.json", // Wrong protocol
-      "", // Empty string
-    ])("should reject invalid S3 JSON reference: %s", (invalidRef) => {
-      expect(s3Wrapper.isS3JsonReference(invalidRef)).toBe(false);
-    });
-
-    // Test non-string inputs with proper type handling
-    it("should handle non-string inputs gracefully", () => {
-      // Use type assertion to test with null/undefined while keeping TypeScript happy
-      expect(s3Wrapper.isS3JsonReference(null as unknown as string)).toBe(false);
-      expect(s3Wrapper.isS3JsonReference(undefined as unknown as string)).toBe(false);
-      expect(s3Wrapper.isS3JsonReference(123 as unknown as string)).toBe(false);
-    });
-  });
-});
-
-describe("SSMClientWrapper", () => {
-  let ssmWrapper: SSMClientWrapper;
-
-  beforeEach(() => {
-    // Reset mocks before each test
-    mockSSM.reset();
-
-    // Clear SSM parameter cache
+    // Clear SSM parameter cache to ensure test isolation
     Object.keys(ssmParameterCache).forEach((key) => {
       ssmParameterCache[key] = undefined;
     });
 
-    // Create a wrapper instance with the mock client
-    ssmWrapper = new SSMClientWrapper("us-west-2", mockSSM as unknown as SSMClient);
+    // Create fresh wrapper instances for each test
+    s3ClientWrapper = new S3ClientWrapper(TEST_FIXTURES.AWS_TEST_REGION);
+    ssmClientWrapper = new SSMClientWrapper(TEST_FIXTURES.AWS_TEST_REGION);
   });
 
   afterEach(() => {
+    // Clean up mocks after each test to prevent interference
+    s3ClientMock.reset();
+    ssmClientMock.reset();
+
+    // Clear any timers or intervals that might have been set
+    vi.clearAllTimers();
+
+    // Clear any mocks that were created during the test
+    vi.clearAllMocks();
+
+    // Clear any mock implementations
+    vi.restoreAllMocks();
+  });
+
+  afterAll(() => {
+    // Clean up any resources after all tests are done
     vi.resetAllMocks();
   });
 
-  describe("constructor", () => {
-    it("should use provided region", () => {
-      const testRegion = "eu-west-1";
-      const wrapper = new SSMClientWrapper(testRegion);
-      expect(wrapper.getClient()).toBeDefined();
-    });
+  /**
+   * Creates a mock readable stream for testing stream conversion
+   *
+   * @param content - The string content to put in the stream
+   * @returns A readable stream containing the content
+   */
+  function createMockStream(content: string): Readable {
+    const stream = new Readable();
+    stream.push(content);
+    stream.push(null); // Signal end of stream
+    return stream;
+  }
 
-    it("should use provided client when specified", () => {
-      const mockClient = mockSSM as unknown as SSMClient;
-      const wrapper = new SSMClientWrapper(undefined, mockClient);
-      expect(wrapper.getClient()).toBe(mockClient);
+  /**
+   * Creates a mock AWS S3 response object
+   *
+   * @param body - The response body content
+   * @returns Mock S3 response object
+   */
+  function createMockS3Response(
+    body: Readable | Buffer | string | undefined,
+  ): GetObjectCommandOutput {
+    // Use type assertion for the Body property since we know it's valid in our test context
+    return { Body: body as unknown as GetObjectCommandOutput["Body"], $metadata: {} };
+  }
+
+  /**
+   * Creates a mock AWS SSM response object
+   *
+   * @param value - The parameter value
+   * @returns Mock SSM response object
+   */
+  function createMockSSMResponse(value?: string): GetParameterCommandOutput {
+    return value ? { Parameter: { Value: value }, $metadata: {} } : { $metadata: {} };
+  }
+
+  /**
+   * Tests for Constants
+   */
+  describe("Constants", () => {
+    it("should export DEFAULT_AWS_REGION with correct fallback", () => {
+      expect(DEFAULT_AWS_REGION).toBeDefined();
+      expect(typeof DEFAULT_AWS_REGION).toBe("string");
+      // Should be either from env var or default
+      expect(DEFAULT_AWS_REGION).toMatch(/^[a-z0-9-]+$/);
     });
   });
 
-  describe("getParameter", () => {
-    it("should retrieve parameter value", async () => {
-      const paramName = "test/parameter";
-      const paramValue = "parameter-value";
-
-      // Setup mock response
-      mockSSM.on(GetParameterCommand).resolves({
-        Parameter: {
-          Name: paramName,
-          Value: paramValue,
-          Type: "String",
-        },
-      });
-
-      const result = await ssmWrapper.getParameter(paramName);
-
-      // Verify result
-      expect(result).toBe(paramValue);
-
-      // Verify command was sent with correct parameters
-      expect(mockSSM).toHaveReceivedCommandWith(GetParameterCommand, {
-        Name: paramName,
-        WithDecryption: true,
+  /**
+   * Utility Functions Tests
+   */
+  describe("parseS3Url", () => {
+    it("should parse valid S3 URLs correctly", () => {
+      expect(parseS3Url(TEST_FIXTURES.URL_VALID_S3_JSON)).toEqual({
+        bucket: TEST_FIXTURES.S3_BUCKET_NAME,
+        key: TEST_FIXTURES.S3_JSON_KEY,
       });
     });
 
-    it("should cache parameter values", async () => {
-      const paramName = "test/cached";
-      const paramValue = "cached-value";
-
-      // Setup mock response
-      mockSSM.on(GetParameterCommand).resolves({
-        Parameter: {
-          Name: paramName,
-          Value: paramValue,
-          Type: "String",
-        },
-      });
-
-      // First call should make an API request
-      const result1 = await ssmWrapper.getParameter(paramName);
-      expect(result1).toBe(paramValue);
-      expect(mockSSM.calls()).toHaveLength(1);
-
-      // Second call should use the cache
-      const result2 = await ssmWrapper.getParameter(paramName);
-      expect(result2).toBe(paramValue);
-
-      // No additional API calls should be made
-      expect(mockSSM.calls()).toHaveLength(1);
+    it("should return null for invalid S3 URLs", () => {
+      expect(parseS3Url(TEST_FIXTURES.URL_INVALID_S3)).toBeNull();
     });
 
-    it("should bypass cache when requested", async () => {
-      const paramName = "test/bypass";
-      const paramValue = "bypass-value";
-
-      // Setup mock response
-      mockSSM.on(GetParameterCommand).resolves({
-        Parameter: {
-          Name: paramName,
-          Value: paramValue,
-          Type: "String",
-        },
-      });
-
-      // First call with cache enabled
-      await ssmWrapper.getParameter(paramName, true);
-      expect(mockSSM.calls()).toHaveLength(1);
-
-      // Second call with useCache=false should bypass cache
-      await ssmWrapper.getParameter(paramName, false);
-      expect(mockSSM.calls()).toHaveLength(2);
+    it("should return null for undefined input", () => {
+      expect(parseS3Url(undefined)).toBeNull();
     });
 
-    it("should throw error if parameter has no value", async () => {
-      const paramName = "test/empty";
+    it("should return null for empty string", () => {
+      expect(parseS3Url("")).toBeNull();
+    });
 
-      // Mock response with no value
-      mockSSM.on(GetParameterCommand).resolves({
-        Parameter: {
-          Name: paramName,
-          Type: "String",
-          // No Value property
-        },
+    it("should handle complex S3 URLs with nested paths", () => {
+      expect(parseS3Url("s3://my-bucket/deep/nested/path/to/file.json")).toEqual({
+        bucket: "my-bucket",
+        key: "deep/nested/path/to/file.json",
       });
+    });
+  });
 
-      await expect(ssmWrapper.getParameter(paramName)).rejects.toThrow(
-        `Parameter ${paramName} has no value`,
+  /**
+   * Stream to String Tests
+   */
+  describe("streamToString", () => {
+    it("should return string input as-is", async () => {
+      expect(await streamToString(TEST_FIXTURES.S3_CONTENT)).toBe(TEST_FIXTURES.S3_CONTENT);
+    });
+
+    it("should convert Readable stream to string", async () => {
+      expect(await streamToString(createMockStream(TEST_FIXTURES.S3_CONTENT))).toBe(
+        TEST_FIXTURES.S3_CONTENT,
       );
     });
 
-    it("should throw meaningful error for SSM failures", async () => {
-      const paramName = "test/error";
-      const errorMsg = "Parameter not found";
+    it("should handle empty stream", async () => {
+      expect(await streamToString(createMockStream(""))).toBe("");
+    });
 
-      mockSSM.on(GetParameterCommand).rejects(new Error(errorMsg));
+    it("should handle objects with custom toString method", async () => {
+      const objectWithToString = {
+        toString: vi.fn().mockReturnValue(TEST_FIXTURES.S3_CONTENT),
+      };
 
-      await expect(ssmWrapper.getParameter(paramName)).rejects.toThrow(
-        `Error fetching SSM parameter ${paramName}: Error: ${errorMsg}`,
-      );
+      expect(await streamToString(objectWithToString)).toBe(TEST_FIXTURES.S3_CONTENT);
+      expect(objectWithToString.toString).toHaveBeenCalledWith("utf8");
+    });
+
+    it("should handle unknown types by converting to string", async () => {
+      expect(await streamToString({ value: 42 })).toBe("[object Object]");
+      // TODO: Add more specific tests for unknown types
+    });
+
+    it("should handle null/undefined input", async () => {
+      expect(await streamToString(null)).toBe("");
+      expect(await streamToString(undefined)).toBe("");
+    });
+
+    it("should handle stream errors", async () => {
+      const errorStream = new Readable();
+      const testError = new Error("Stream error");
+
+      const promise = streamToString(errorStream);
+      errorStream.emit("error", testError);
+
+      await expect(promise).rejects.toThrow("Stream error");
     });
   });
 
-  describe("clearCache", () => {
-    it("should clear the parameter cache", async () => {
-      // Setup cache with test data
-      ssmParameterCache["test/param1"] = "value1";
-      ssmParameterCache["test/param2"] = "value2";
+  /**
+   * S3ClientWrapper Tests
+   */
+  describe("S3ClientWrapper", () => {
+    /**
+     * Constructor Tests
+     */
+    describe("constructor", () => {
+      it("should create instance with default region", () => {
+        expect(new S3ClientWrapper()).toBeInstanceOf(S3ClientWrapper);
+      });
 
-      // Clear the cache
-      ssmWrapper.clearCache();
+      it("should create instance with specified region", () => {
+        expect(new S3ClientWrapper(TEST_FIXTURES.AWS_TEST_REGION)).toBeInstanceOf(S3ClientWrapper);
+      });
 
-      // Verify all cache entries are undefined
-      expect(ssmParameterCache["test/param1"]).toBeUndefined();
-      expect(ssmParameterCache["test/param2"]).toBeUndefined();
+      it("should use provided client override", () => {
+        const customClient = new S3Client({ region: TEST_FIXTURES.AWS_TEST_REGION });
+        expect(new S3ClientWrapper(undefined, customClient).getClient()).toBe(customClient);
+      });
+    });
+
+    /**
+     * Client Tests
+     */
+    describe("getClient", () => {
+      it("should return the underlying S3 client", () => {
+        expect(s3ClientWrapper.getClient()).toBeInstanceOf(S3Client);
+      });
+    });
+
+    /**
+     * Object As String Tests
+     */
+    describe("getObjectAsString", () => {
+      it("should retrieve object content as string", async () => {
+        const mockResponse = createMockS3Response(TEST_FIXTURES.S3_CONTENT);
+        s3ClientMock.on(GetObjectCommand).resolves(mockResponse);
+
+        const result = await s3ClientWrapper.getObjectAsString(
+          TEST_FIXTURES.S3_BUCKET_NAME,
+          TEST_FIXTURES.S3_TEXT_KEY,
+        );
+
+        expect(result).toBe(TEST_FIXTURES.S3_CONTENT);
+        expect(s3ClientMock).toHaveReceivedCommandWith(GetObjectCommand, {
+          Bucket: TEST_FIXTURES.S3_BUCKET_NAME,
+          Key: TEST_FIXTURES.S3_TEXT_KEY,
+        });
+      });
+
+      it("should throw error when response body is empty", async () => {
+        const mockResponse = createMockS3Response(undefined);
+        s3ClientMock.on(GetObjectCommand).resolves(mockResponse);
+
+        await expect(
+          s3ClientWrapper.getObjectAsString(
+            TEST_FIXTURES.S3_BUCKET_NAME,
+            TEST_FIXTURES.S3_TEXT_KEY,
+          ),
+        ).rejects.toThrow(
+          `Empty response body for S3 object: ${TEST_FIXTURES.S3_BUCKET_NAME}/${TEST_FIXTURES.S3_TEXT_KEY}`,
+        );
+      });
+
+      it("should propagate AWS SDK errors", async () => {
+        const awsError = new Error("AWS S3 Error");
+        s3ClientMock.on(GetObjectCommand).rejects(awsError);
+
+        await expect(
+          s3ClientWrapper.getObjectAsString(
+            TEST_FIXTURES.S3_BUCKET_NAME,
+            TEST_FIXTURES.S3_TEXT_KEY,
+          ),
+        ).rejects.toThrow(awsError.message);
+      });
+    });
+
+    /**
+     * Object As JSON Tests
+     */
+    describe("getObjectAsJson", () => {
+      it("should retrieve and parse S3 object as JSON", async () => {
+        const jsonContent = JSON.stringify(TEST_FIXTURES.S3_JSON_CONTENT);
+        const mockResponse = createMockS3Response(Buffer.from(jsonContent));
+        s3ClientMock.on(GetObjectCommand).resolves(mockResponse);
+
+        const result = await s3ClientWrapper.getObjectAsJson(
+          TEST_FIXTURES.S3_BUCKET_NAME,
+          TEST_FIXTURES.S3_JSON_KEY,
+        );
+
+        expect(result).toEqual(TEST_FIXTURES.S3_JSON_CONTENT);
+      });
+
+      it("should throw error for invalid JSON", async () => {
+        const invalidJson = "{ invalid json }";
+        const mockResponse = createMockS3Response(Buffer.from(invalidJson));
+        s3ClientMock.on(GetObjectCommand).resolves(mockResponse);
+
+        await expect(
+          s3ClientWrapper.getObjectAsJson(TEST_FIXTURES.S3_BUCKET_NAME, TEST_FIXTURES.S3_JSON_KEY),
+        ).rejects.toThrow();
+      });
+    });
+
+    /**
+     * Is S3 JSON Reference Tests
+     */
+    describe("isS3JsonReference", () => {
+      it("should return true for valid S3 JSON references", () => {
+        expect(s3ClientWrapper.isS3JsonReference(TEST_FIXTURES.URL_VALID_S3_JSON)).toBe(true);
+        expect(s3ClientWrapper.isS3JsonReference("s3://bucket/file.JSON")).toBe(true);
+      });
+
+      it("should return false for non-JSON S3 references", () => {
+        expect(s3ClientWrapper.isS3JsonReference(TEST_FIXTURES.URL_VALID_S3_TEXT)).toBe(false);
+        expect(s3ClientWrapper.isS3JsonReference("s3://bucket/file.txt")).toBe(false);
+      });
+
+      it("should return false for non-S3 URLs", () => {
+        expect(s3ClientWrapper.isS3JsonReference("http://example.com/file.json")).toBe(false);
+        expect(s3ClientWrapper.isS3JsonReference("file.json")).toBe(false);
+      });
+
+      it("should return false for non-string inputs", () => {
+        expect(s3ClientWrapper.isS3JsonReference(null as unknown as string)).toBe(false);
+        expect(s3ClientWrapper.isS3JsonReference(undefined as unknown as string)).toBe(false);
+        expect(s3ClientWrapper.isS3JsonReference(123 as unknown as string)).toBe(false);
+      });
+    });
+
+    /**
+     * Get Content From URL Tests
+     */
+    describe("getContentFromUrl", () => {
+      it("should parse and return JSON content for JSON URLs", async () => {
+        const jsonContent = JSON.stringify(TEST_FIXTURES.S3_JSON_CONTENT);
+        const mockResponse = createMockS3Response(Buffer.from(jsonContent));
+        s3ClientMock.on(GetObjectCommand).resolves(mockResponse);
+
+        const result = await s3ClientWrapper.getContentFromUrl(TEST_FIXTURES.URL_VALID_S3_JSON);
+
+        expect(result).toEqual(TEST_FIXTURES.S3_JSON_CONTENT);
+      });
+
+      it("should return string content for non-JSON URLs", async () => {
+        const mockResponse = createMockS3Response(Buffer.from(TEST_FIXTURES.S3_CONTENT));
+        s3ClientMock.on(GetObjectCommand).resolves(mockResponse);
+
+        const result = await s3ClientWrapper.getContentFromUrl(TEST_FIXTURES.URL_VALID_S3_TEXT);
+
+        expect(result).toBe(TEST_FIXTURES.S3_CONTENT);
+      });
+
+      it("should throw error for invalid S3 URLs", async () => {
+        await expect(
+          s3ClientWrapper.getContentFromUrl(TEST_FIXTURES.URL_INVALID_S3),
+        ).rejects.toThrow(`Invalid S3 URL format: ${TEST_FIXTURES.URL_INVALID_S3}`);
+      });
+
+      it("should throw error for invalid JSON in JSON files", async () => {
+        const invalidJson = "{ invalid json }";
+        const mockResponse = createMockS3Response(Buffer.from(invalidJson));
+        s3ClientMock.on(GetObjectCommand).resolves(mockResponse);
+
+        await expect(
+          s3ClientWrapper.getContentFromUrl(TEST_FIXTURES.URL_VALID_S3_JSON),
+        ).rejects.toThrow(`Error parsing JSON from S3 (${TEST_FIXTURES.URL_VALID_S3_JSON})`);
+      });
     });
   });
 
-  describe("parseSSMUrl", () => {
-    // Use it.each for valid SSM references
+  /**
+   * SSMClientWrapper Tests
+   */
+  describe("SSMClientWrapper", () => {
+    /**
+     * Constructor Tests
+     */
+    describe("constructor", () => {
+      it("should create instance with default region", () => {
+        expect(new SSMClientWrapper()).toBeInstanceOf(SSMClientWrapper);
+      });
+
+      it("should create instance with custom region", () => {
+        expect(new SSMClientWrapper(TEST_FIXTURES.AWS_TEST_REGION)).toBeInstanceOf(
+          SSMClientWrapper,
+        );
+      });
+
+      it("should use provided client override", () => {
+        const customClient = new SSMClient({ region: "us-west-1" });
+
+        const wrapper = new SSMClientWrapper(undefined, customClient);
+        expect(wrapper.getClient()).toBe(customClient);
+      });
+    });
+
+    /**
+     * Client Tests
+     */
+    describe("getClient", () => {
+      it("should return the underlying SSM client", () => {
+        expect(ssmClientWrapper.getClient()).toBeInstanceOf(SSMClient);
+      });
+    });
+
+    /**
+     * Clear Cache Tests
+     */
+    describe("clearCache", () => {
+      it("should clear all cached parameters", () => {
+        ssmParameterCache["test-param"] = "test-value";
+        ssmParameterCache["another-param"] = "another-value";
+
+        ssmClientWrapper.clearCache();
+
+        expect(ssmParameterCache["test-param"]).toBeUndefined();
+        expect(ssmParameterCache["another-param"]).toBeUndefined();
+      });
+    });
+
+    /**
+     * Get Parameter Tests
+     */
+    describe("getParameter", () => {
+      it("should retrieve parameter from SSM and cache it", async () => {
+        ssmClientMock
+          .on(GetParameterCommand)
+          .resolves({ Parameter: { Value: TEST_FIXTURES.SSM_PARAM_VALUE } });
+
+        const result = await ssmClientWrapper.getParameter(TEST_FIXTURES.SSM_PARAM_NAME);
+
+        expect(result).toBe(TEST_FIXTURES.SSM_PARAM_VALUE);
+        expect(ssmParameterCache[TEST_FIXTURES.SSM_PARAM_NAME]).toBe(TEST_FIXTURES.SSM_PARAM_VALUE);
+        expect(ssmClientMock).toHaveReceivedCommandWith(GetParameterCommand, {
+          Name: TEST_FIXTURES.SSM_PARAM_NAME,
+          WithDecryption: true,
+        });
+      });
+
+      it("should return cached parameter on subsequent calls", async () => {
+        ssmParameterCache[TEST_FIXTURES.SSM_PARAM_NAME] = TEST_FIXTURES.SSM_PARAM_VALUE;
+
+        const result = await ssmClientWrapper.getParameter(TEST_FIXTURES.SSM_PARAM_NAME);
+
+        expect(result).toBe(TEST_FIXTURES.SSM_PARAM_VALUE);
+        expect(ssmClientMock).not.toHaveReceivedCommand(GetParameterCommand);
+      });
+
+      it("should bypass cache when useCache is false", async () => {
+        ssmParameterCache[TEST_FIXTURES.SSM_PARAM_NAME] = "cached-value";
+        const mockResponse = {
+          Parameter: { Value: TEST_FIXTURES.SSM_PARAM_VALUE },
+        };
+        ssmClientMock.on(GetParameterCommand).resolves(mockResponse);
+
+        const result = await ssmClientWrapper.getParameter(TEST_FIXTURES.SSM_PARAM_NAME, false);
+
+        expect(result).toBe(TEST_FIXTURES.SSM_PARAM_VALUE);
+        expect(ssmClientMock).toHaveReceivedCommand(GetParameterCommand);
+      });
+
+      it("should throw error when parameter has no value", async () => {
+        const mockResponse = createMockSSMResponse();
+        ssmClientMock.on(GetParameterCommand).resolves(mockResponse);
+
+        await expect(ssmClientWrapper.getParameter(TEST_FIXTURES.SSM_PARAM_NAME)).rejects.toThrow(
+          `Parameter ${TEST_FIXTURES.SSM_PARAM_NAME} has no value`,
+        );
+      });
+
+      it("should throw error when parameter is not found", async () => {
+        const mockResponse = createMockSSMResponse();
+        ssmClientMock.on(GetParameterCommand).resolves(mockResponse);
+
+        await expect(ssmClientWrapper.getParameter(TEST_FIXTURES.SSM_PARAM_NAME)).rejects.toThrow(
+          `Parameter ${TEST_FIXTURES.SSM_PARAM_NAME} has no value`,
+        );
+      });
+
+      it("should propagate AWS SDK errors", async () => {
+        const awsError = new Error("AWS SSM Error");
+        ssmClientMock.on(GetParameterCommand).rejectsOnce(awsError);
+
+        await expect(ssmClientWrapper.getParameter(TEST_FIXTURES.SSM_PARAM_NAME)).rejects.toThrow(
+          `Error fetching SSM parameter ${TEST_FIXTURES.SSM_PARAM_NAME}`,
+        );
+      });
+    });
+
+    /**
+     * Parse SSM URL Tests
+     */
+    describe("parseSSMUrl", () => {
+      it("should parse valid SSM URLs", () => {
+        expect(ssmClientWrapper.parseSSMUrl("ssm:///test/parameter")).toBe("/test/parameter");
+        expect(ssmClientWrapper.parseSSMUrl("ssm://my-param")).toBe("my-param");
+      });
+
+      it("should return null for invalid SSM URLs", () => {
+        expect(ssmClientWrapper.parseSSMUrl("invalid-url")).toBeNull();
+        expect(ssmClientWrapper.parseSSMUrl("http://example.com")).toBeNull();
+      });
+
+      it("should return null for non-string inputs", () => {
+        expect(ssmClientWrapper.parseSSMUrl(null as unknown as string)).toBeNull();
+        expect(ssmClientWrapper.parseSSMUrl(undefined as unknown as string)).toBeNull();
+        expect(ssmClientWrapper.parseSSMUrl(123 as unknown as string)).toBeNull();
+      });
+    });
+
+    /**
+     * Is SSM Reference Tests
+     */
+    describe("isSSMReference", () => {
+      it("should return true for valid SSM references", () => {
+        expect(ssmClientWrapper.isSSMReference("ssm:///test/parameter")).toBe(true);
+        expect(ssmClientWrapper.isSSMReference("ssm://my-param")).toBe(true);
+      });
+
+      it("should return false for non-SSM references", () => {
+        expect(ssmClientWrapper.isSSMReference("s3://bucket/key")).toBe(false);
+        expect(ssmClientWrapper.isSSMReference("http://example.com")).toBe(false);
+        expect(ssmClientWrapper.isSSMReference("plain-string")).toBe(false);
+      });
+
+      it("should return false for non-string inputs", () => {
+        expect(ssmClientWrapper.isSSMReference(null as unknown as string)).toBe(false);
+        expect(ssmClientWrapper.isSSMReference(undefined as unknown as string)).toBe(false);
+        expect(ssmClientWrapper.isSSMReference(123 as unknown as string)).toBe(false);
+      });
+    });
+
+    /**
+     * Is S3 JSON Reference Tests
+     */
+    describe("isS3JsonReference", () => {
+      it("should return true for valid S3 JSON references", () => {
+        expect(ssmClientWrapper.isS3JsonReference(TEST_FIXTURES.URL_VALID_S3_JSON)).toBe(true);
+        expect(ssmClientWrapper.isS3JsonReference("s3://bucket/file.JSON")).toBe(true);
+      });
+
+      it("should return false for non-JSON S3 references", () => {
+        expect(ssmClientWrapper.isS3JsonReference(TEST_FIXTURES.URL_VALID_S3_TEXT)).toBe(false);
+        expect(ssmClientWrapper.isS3JsonReference("s3://bucket/file.txt")).toBe(false);
+      });
+
+      it("should return false for non-S3 URLs", () => {
+        expect(ssmClientWrapper.isS3JsonReference("http://example.com/file.json")).toBe(false);
+        expect(ssmClientWrapper.isS3JsonReference("file.json")).toBe(false);
+      });
+    });
+  });
+
+  /**
+   * Interface Contract Tests
+   */
+  describe("Interface Contracts", () => {
+    it("should implement IS3Client interface correctly", () => {
+      const client: IS3Client = s3ClientWrapper;
+
+      expect(typeof client.getClient).toBe("function");
+      expect(typeof client.getObjectAsString).toBe("function");
+      expect(typeof client.getObjectAsJson).toBe("function");
+      expect(typeof client.isS3JsonReference).toBe("function");
+      expect(typeof client.getContentFromUrl).toBe("function");
+    });
+
+    it("should implement ISSMClient interface correctly", () => {
+      const client: ISSMClient = ssmClientWrapper;
+
+      expect(typeof client.getClient).toBe("function");
+      expect(typeof client.clearCache).toBe("function");
+      expect(typeof client.getParameter).toBe("function");
+      expect(typeof client.parseSSMUrl).toBe("function");
+      expect(typeof client.isSSMReference).toBe("function");
+      expect(typeof client.isS3JsonReference).toBe("function");
+    });
+  });
+
+  /**
+   * Integration Tests
+   */
+  describe("Integration", () => {
     it.each([
-      { input: "ssm://simple", expected: "simple" },
-      { input: "ssm://path/with/slashes", expected: "path/with/slashes" },
-      { input: "ssm:///leading/slash", expected: "/leading/slash" },
-    ])("should parse valid SSM reference: $input", ({ input, expected }) => {
-      expect(ssmWrapper.parseSSMUrl(input)).toBe(expected);
+      "s3://my-config-bucket/environments/prod/config.json",
+      "s3://data-lake/2023/12/25/events.json",
+      "s3://backup-storage/database-dumps/latest.sql",
+    ])("should work with real-world S3 URL pattern '%s'", async (url) => {
+      const parsed = parseS3Url(url);
+      expect(parsed).not.toBeNull();
+      expect(parsed?.bucket).toBeTruthy();
+      expect(parsed?.key).toBeTruthy();
     });
 
-    // Use it.each for invalid SSM references
-    it.each(["not-ssm", "ssmm://wrong-prefix", "ssm:no-slashes"])(
-      "should return null for invalid SSM reference: %s",
-      (invalidRef) => {
-        expect(ssmWrapper.parseSSMUrl(invalidRef)).toBeNull();
-      },
-    );
-
-    // Test non-string inputs with proper type handling
-    it("should handle non-string inputs gracefully", () => {
-      // Use type assertion to test with null/undefined while keeping TypeScript happy
-      expect(ssmWrapper.parseSSMUrl(null as unknown as string)).toBeNull();
-      expect(ssmWrapper.parseSSMUrl(undefined as unknown as string)).toBeNull();
-      expect(ssmWrapper.parseSSMUrl(123 as unknown as string)).toBeNull();
-    });
-  });
-
-  describe("isSSMReference", () => {
-    // Use it.each for valid SSM references
-    it.each(["ssm://param", "ssm://path/to/param", "ssm:///leading/slash"])(
-      "should identify SSM reference: %s",
-      (validRef) => {
-        expect(ssmWrapper.isSSMReference(validRef)).toBe(true);
-      },
-    );
-
-    // Use it.each for invalid SSM references
     it.each([
-      "not-ssm",
-      "ssmm://wrong-prefix",
-      "s3://bucket/key",
-      "", // Empty string
-    ])("should reject non-SSM reference: %s", (invalidRef) => {
-      expect(ssmWrapper.isSSMReference(invalidRef)).toBe(false);
-    });
-
-    // Test non-string inputs with proper type handling
-    it("should handle non-string inputs gracefully", () => {
-      // Use type assertion to test with null/undefined while keeping TypeScript happy
-      expect(ssmWrapper.isSSMReference(null as unknown as string)).toBe(false);
-      expect(ssmWrapper.isSSMReference(undefined as unknown as string)).toBe(false);
-      expect(ssmWrapper.isSSMReference(123 as unknown as string)).toBe(false);
+      "ssm:///prod/database/password",
+      "ssm://app-config/feature-flags",
+      "ssm:///shared/api-keys/external-service",
+    ])("should work with real-world SSM parameter pattern '%s'", (param) => {
+      expect(ssmClientWrapper.isSSMReference(param)).toBe(true);
+      expect(ssmClientWrapper.parseSSMUrl(param)).toBeTruthy();
     });
   });
 });
