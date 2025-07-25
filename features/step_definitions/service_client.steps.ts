@@ -115,7 +115,7 @@ When(
 
 // Generic error handling steps
 Then("I should get an error containing {string}", function (this: SmokeWorld, errorText: string) {
-  const error = this.getLastError() as Error;
+  const error = this.getLastError();
   strictEqual(error instanceof Error, true);
   strictEqual(error.message.includes(errorText), true);
 });
