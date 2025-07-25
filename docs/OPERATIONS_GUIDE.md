@@ -1,110 +1,411 @@
 # Operations Guide
 
-[← Back to README](../README.md)
+[← Back to README](../README.md) | [Test Development Guide](TEST_DEVELOPMENT.md) | [Development Guide](DEVELOPMENT_GUIDE.md) | [Service Client Guide](SERVICE_CLIENT_GUIDE.md)
 
-This guide covers how to operate the Smoker framework, including local execution, configuration management, and AWS deployment.
+This comprehensive guide covers all operational aspects of the Smoker framework, including local execution, configuration management, AWS deployment, monitoring, and CI/CD integration.
 
 ## Table of Contents
 
-- [Local Execution](#local-execution)
+- [Operating the Framework Locally](#operating-the-framework-locally)
+- [Cucumber Options and Test Execution](#cucumber-options-and-test-execution)
 - [Configuration Management](#configuration-management)
-- [AWS Deployment](#aws-deployment)
-- [Lambda Integration](#lambda-integration)
-- [Environment Options](#environment-options)
-- [Monitoring and Logging](#monitoring-and-logging)
-- [CI/CD Integration](#cicd-integration)
+- [External References in Configuration](#external-references-in-configuration)
+- [Running Smoke Tests Locally](#running-smoke-tests-locally)
+- [Running Smoke Tests in AWS](#running-smoke-tests-in-aws)
+- [Monitoring Smoke Tests in AWS](#monitoring-smoke-tests-in-aws)
+- [Scaling Smoke Tests in AWS](#scaling-smoke-tests-in-aws)
 
-## Local Execution
+## Operating the Framework Locally
 
-### Running Smoke Tests Locally
+### Prerequisites
 
-1. Build the project:
+Before running the Smoker framework locally, ensure you have:
+
+- **Node.js 18+** and npm installed
+- **AWS CLI configured** (for AWS features)
+- **Appropriate permissions** for AWS services (if using AWS features)
+- **TypeScript knowledge** (recommended for custom development)
+
+### Basic Local Operation
+
+1. **Install dependencies:**
+
+   ```bash
+   npm install
+   ```
+
+2. **Build the project:**
 
    ```bash
    npm run build
    ```
 
-2. Run all tests:
-
+3. **Run smoke tests:**
    ```bash
    npm start
    ```
 
-3. Run specific features:
+### Environment Setup
 
-   ```bash
-   npm start -- --paths "dist/features/api/**/*.feature"
-   ```
+Configure your local environment with necessary variables:
 
-4. Run tests with specific tags:
-   ```bash
-   npm start -- --tags "@smoke and not @wip"
-   ```
+```bash
+# Set log level
+export SMOKER_LOG_LEVEL=info
+
+# Set AWS region (if using AWS services)
+export AWS_DEFAULT_REGION=us-east-1
+
+# Set custom configuration
+export SMOKER_CONFIG='{"api":{"baseUrl":"https://localhost:3000"}}'
+```
+
+## Cucumber Options and Test Execution
 
 ### Command Line Options
 
-| Option     | Description                     | Example                                    |
-| ---------- | ------------------------------- | ------------------------------------------ |
-| `--paths`  | Glob patterns for feature files | `--paths "dist/features/api/**/*.feature"` |
-| `--tags`   | Cucumber tag expression         | `--tags "@api and not @wip"`               |
-| `--config` | Path to config file             | `--config "./config/test.json"`            |
-| `--format` | Output format                   | `--format "json:results.json"`             |
+The framework supports comprehensive Cucumber.js options for flexible test execution:
 
-## Configuration Management
+| Option       | Description                     | Example                                    |
+| ------------ | ------------------------------- | ------------------------------------------ |
+| `--paths`    | Glob patterns for feature files | `--paths "dist/features/api/**/*.feature"` |
+| `--tags`     | Cucumber tag expressions        | `--tags "@smoke and not @wip"`             |
+| `--config`   | Configuration file path         | `--config config/staging.json`             |
+| `--logLevel` | Logging verbosity               | `--logLevel debug`                         |
+| `--timeout`  | Global step timeout (ms)        | `--timeout 30000`                          |
+| `--parallel` | Number of parallel workers      | `--parallel 4`                             |
+| `--format`   | Output format                   | `--format json:reports/results.json`       |
 
-### Configuration Sources
+### Setting Cucumber Options
 
-The framework supports multiple configuration sources:
+**Via Command Line:**
 
-1. **JSON Files**: Local configuration files
-2. **S3 Objects**: Configuration stored in S3 buckets
-3. **Environment Variables**: System environment variables
-4. **AWS SSM Parameters**: Secure parameter storage
-5. **Lambda Event**: Configuration provided in Lambda event
+```bash
+# Run specific features with tags
+npm start -- --paths "dist/features/api/**/*.feature" --tags "@smoke"
 
-### Local Configuration Files
+# Run with custom configuration and debug logging
+npm start -- --config config/production.json --logLevel debug
 
-Create JSON configuration files:
+# Run in parallel with custom timeout
+npm start -- --parallel 2 --timeout 60000
+```
+
+**Via Environment Variables:**
+
+```bash
+export CUCUMBER_PATHS="dist/features/api/**/*.feature"
+export CUCUMBER_TAGS="@smoke and not @wip"
+export CUCUMBER_PARALLEL=2
+```
+
+**Via Configuration File:**
 
 ```json
 {
-  "apiUrl": "https://api.example.com",
-  "timeout": 5000,
-  "credentials": {
-    "username": "testuser",
-    "password": "password123"
+  "cucumber": {
+    "paths": ["dist/features/api/**/*.feature"],
+    "tags": "@smoke and not @wip",
+    "parallel": 2,
+    "timeout": 30000,
+    "format": ["json:reports/results.json", "html:reports/results.html"]
   }
 }
 ```
 
-Load configuration files:
+## Configuration Management
+
+The Smoker framework provides a sophisticated configuration system that supports multiple sources with intelligent merging capabilities.
+
+### Configuration Sources
+
+#### 1. Programmatic Configuration Using Objects
+
+Create configuration objects directly in your code:
 
 ```typescript
-import { addConfigurationFile, loadConfigurations } from "./support";
+import { SmokeWorld } from "../src/world";
 
-// Add configuration file
-addConfigurationFile("./config/default.json");
+// In step definitions or setup
+const config = {
+  api: {
+    baseUrl: "https://api.example.com",
+    timeout: 5000,
+    headers: {
+      "Content-Type": "application/json",
+    },
+  },
+  database: {
+    connectionString: "postgresql://localhost:5432/testdb",
+  },
+};
 
-// Load all configurations
-await loadConfigurations();
+// Apply configuration
+this.setConfiguration(config);
 ```
 
-### Using S3 for Configuration
+#### 2. JSON Configuration Files
 
-Store configuration in S3 buckets:
+**Local Configuration Files:**
+
+```json
+// config/local.json
+{
+  "api": {
+    "baseUrl": "http://localhost:3000",
+    "timeout": 10000,
+    "retries": 3
+  },
+  "database": {
+    "host": "localhost",
+    "port": 5432,
+    "name": "smoker_test"
+  },
+  "logging": {
+    "level": "debug",
+    "format": "json"
+  }
+}
+```
+
+**Environment-Specific Configuration:**
+
+```json
+// config/production.json
+{
+  "api": {
+    "baseUrl": "https://api.production.com",
+    "timeout": 5000,
+    "authToken": "ssm:/production/api/token"
+  },
+  "database": {
+    "connectionString": "ssm:/production/db/connection"
+  }
+}
+```
+
+#### 3. S3 JSON Objects
+
+Store configuration in AWS S3 for centralized management:
+
+```json
+// s3://my-config-bucket/smoker/production.json
+{
+  "api": {
+    "baseUrl": "https://api.production.com",
+    "timeout": 5000,
+    "headers": {
+      "Authorization": "ssm:/production/api/auth-header"
+    }
+  },
+  "monitoring": {
+    "cloudwatchNamespace": "SmokerTests/Production",
+    "reportsBucket": "smoker-reports-production"
+  }
+}
+```
+
+### The Merging Process
+
+#### Deep Merging Process
+
+The framework uses intelligent deep merging to combine configuration from multiple sources:
 
 ```typescript
-// Import from the support barrel file
-import { addS3ConfigurationFile } from "./support";
+// Base configuration
+const base = {
+  api: {
+    baseUrl: "https://api.example.com",
+    timeout: 5000,
+    headers: {
+      "Content-Type": "application/json",
+      "User-Agent": "Smoker/1.0",
+    },
+  },
+};
 
-// Load configuration from S3
-addS3ConfigurationFile("s3://my-bucket/config.json");
+// Override configuration
+const override = {
+  api: {
+    timeout: 10000,
+    headers: {
+      Authorization: "Bearer token123",
+    },
+  },
+};
 
-// With specific region
-addS3ConfigurationFile("s3://my-bucket/config.json", "us-west-2");
+// Merged result preserves all properties
+const merged = {
+  api: {
+    baseUrl: "https://api.example.com", // from base
+    timeout: 10000, // from override
+    headers: {
+      "Content-Type": "application/json", // from base
+      "User-Agent": "Smoker/1.0", // from base
+      Authorization: "Bearer token123", // from override
+    },
+  },
+};
 ```
 
-Required IAM permissions:
+#### Priority Order for Multiple Sources
+
+Configuration sources are merged in the following priority order (highest to lowest):
+
+1. **Command Line Arguments** (highest priority)
+2. **Environment Variables**
+3. **Programmatic Configuration**
+4. **Local Configuration Files**
+5. **S3 Configuration Files**
+6. **Default Values** (lowest priority)
+
+#### Deletion of Values/Branches
+
+Use special syntax to delete configuration values or entire branches:
+
+```json
+{
+  "api": {
+    "timeout": null, // Deletes the timeout property
+    "headers": null // Deletes the entire headers object
+  },
+  "database": null // Deletes the entire database configuration
+}
+```
+
+## External References in Configuration
+
+### Using SSM Parameters
+
+#### Basics of AWS SSM CLI
+
+AWS Systems Manager Parameter Store provides secure, hierarchical storage for configuration data:
+
+**Create Parameters:**
+
+```bash
+# String parameter
+aws ssm put-parameter \
+  --name "/smoker/api/baseUrl" \
+  --value "https://api.production.com" \
+  --type "String"
+
+# Secure string parameter
+aws ssm put-parameter \
+  --name "/smoker/api/authToken" \
+  --value "secret-auth-token-12345" \
+  --type "SecureString"
+```
+
+**Retrieve Parameters:**
+
+```bash
+# Get single parameter
+aws ssm get-parameter --name "/smoker/api/baseUrl"
+
+# Get parameter with decryption
+aws ssm get-parameter --name "/smoker/api/authToken" --with-decryption
+
+# Get parameters by path
+aws ssm get-parameters-by-path --path "/smoker/api" --recursive
+```
+
+#### Using SSM Parameters in Configuration
+
+Reference SSM parameters using the `ssm:` prefix:
+
+```json
+{
+  "api": {
+    "baseUrl": "ssm:/smoker/api/baseUrl",
+    "authToken": "ssm:/smoker/api/authToken",
+    "timeout": "ssm:/smoker/api/timeout"
+  }
+}
+```
+
+### Using S3 Content
+
+#### Raw Content
+
+Reference raw content from S3 objects:
+
+```json
+{
+  "api": {
+    "certificate": "s3://my-certs-bucket/api-cert.pem",
+    "privateKey": "s3://my-certs-bucket/api-key.pem"
+  }
+}
+```
+
+#### Parsed JSON Content
+
+Reference and parse JSON content from S3:
+
+```json
+{
+  "api": {
+    "endpoints": "s3+json://my-config-bucket/api-endpoints.json"
+  }
+}
+```
+
+#### Basics of AWS S3 CLI
+
+**Upload Configuration Files:**
+
+```bash
+# Upload single file
+aws s3 cp config/production.json s3://my-config-bucket/smoker/production.json
+
+# Upload directory
+aws s3 cp config/ s3://my-config-bucket/smoker/ --recursive
+```
+
+**Download Configuration Files:**
+
+```bash
+# Download single file
+aws s3 cp s3://my-config-bucket/smoker/production.json config/production.json
+```
+
+### Notes
+
+#### Runtime Resolution of SSM and S3 References
+
+- **Lazy Resolution**: External references are resolved at runtime when first accessed
+- **Caching**: Resolved values are cached for the duration of the test run
+- **Error Handling**: Failed resolutions are retried with exponential backoff
+
+#### Caching of Resolved References
+
+```typescript
+// First access: Fetches from SSM and caches
+const token1 = await this.getConfig("api.authToken");
+
+// Subsequent access: Returns cached value
+const token2 = await this.getConfig("api.authToken");
+```
+
+#### Requirement About Permissions
+
+**Required AWS Permissions for SSM:**
+
+```json
+{
+  "Version": "2012-10-17",
+  "Statement": [
+    {
+      "Effect": "Allow",
+      "Action": ["ssm:GetParameter", "ssm:GetParameters", "ssm:GetParametersByPath"],
+      "Resource": ["arn:aws:ssm:*:*:parameter/smoker/*"]
+    }
+  ]
+}
+```
+
+**Required AWS Permissions for S3:**
 
 ```json
 {
@@ -113,342 +414,299 @@ Required IAM permissions:
     {
       "Effect": "Allow",
       "Action": ["s3:GetObject"],
-      "Resource": "arn:aws:s3:::my-bucket/config.json"
+      "Resource": ["arn:aws:s3:::my-config-bucket/*"]
     }
   ]
 }
 ```
 
-### Using SSM Parameter Store
+## Running Smoke Tests Locally
 
-Store sensitive configuration in AWS SSM Parameter Store:
+### Basic Local Execution
 
-1. Create parameters in AWS SSM:
-   - `/my-app/api-key` (SecureString)
-   - `/my-app/db/password` (SecureString)
+```bash
+# Run all tests
+npm start
 
-2. Reference parameters in configuration:
+# Run with specific configuration
+npm start -- --config config/local.json
+
+# Run with debug logging
+npm start -- --logLevel debug
+```
+
+### Generating Cucumber Reports
+
+The framework supports multiple report formats:
+
+```bash
+# Generate HTML report
+npm start -- --format html:reports/cucumber-report.html
+
+# Generate multiple formats
+npm start -- \
+  --format json:reports/results.json \
+  --format html:reports/results.html \
+  --format junit:reports/junit.xml
+```
+
+### Advanced Local Testing
+
+**Parallel Execution:**
+
+```bash
+# Run tests in parallel
+npm start -- --parallel 4
+```
+
+**Environment-Specific Testing:**
+
+```bash
+# Test against staging environment
+npm start -- --config config/staging.json --tags "@staging"
+```
+
+## Running Smoke Tests in AWS
+
+### The Lambda Event Structure
+
+The AWS Lambda handler accepts events in the following structure:
+
+```typescript
+interface LambdaEvent {
+  // Cucumber configuration
+  paths?: string[]; // Feature file paths
+  tags?: string; // Tag expressions
+  timeout?: number; // Step timeout in milliseconds
+  parallel?: number; // Number of parallel workers
+
+  // Configuration sources
+  config?: string | object; // Configuration file path or object
+  configS3?: string; // S3 configuration path
+
+  // Execution options
+  logLevel?: "error" | "warn" | "info" | "debug";
+  dryRun?: boolean; // Validate without executing
+
+  // Reporting options
+  reportS3Bucket?: string; // S3 bucket for reports
+  reportS3Key?: string; // S3 key for reports
+  publishMetrics?: boolean; // Publish CloudWatch metrics
+}
+```
+
+**Example Lambda Events:**
 
 ```json
 {
-  "apiKey": "ssm://my-app/api-key",
-  "database": {
-    "password": "ssm://my-app/db/password"
+  "tags": "@smoke",
+  "config": "s3://my-config-bucket/smoker/production.json",
+  "logLevel": "info",
+  "publishMetrics": true,
+  "reportS3Bucket": "smoker-reports",
+  "reportS3Key": "production/smoke-test-results.json"
+}
+```
+
+### The Lambda Environment Variables
+
+Configure the Lambda function with these environment variables:
+
+| Variable                   | Description            | Example                   |
+| -------------------------- | ---------------------- | ------------------------- |
+| `SMOKER_LOG_LEVEL`         | Default logging level  | `info`                    |
+| `SMOKER_CONFIG`            | Default configuration  | `s3://bucket/config.json` |
+| `SMOKER_TIMEOUT`           | Default step timeout   | `30000`                   |
+| `SMOKER_REPORTS_BUCKET`    | Default reports bucket | `smoker-reports`          |
+| `SMOKER_METRICS_NAMESPACE` | CloudWatch namespace   | `SmokerTests`             |
+
+### Basics of AWS Lambda CLI
+
+**Deploy Lambda Function:**
+
+```bash
+# Create deployment package
+npm run package
+
+# Create Lambda function
+aws lambda create-function \
+  --function-name smoker-tests \
+  --runtime nodejs18.x \
+  --role arn:aws:iam::123456789012:role/lambda-execution-role \
+  --handler handler.lambdaHandler \
+  --zip-file fileb://smoker.zip
+```
+
+**Invoke Lambda Function:**
+
+```bash
+# Synchronous invocation
+aws lambda invoke \
+  --function-name smoker-tests \
+  --payload '{"tags":"@smoke","logLevel":"info"}' \
+  response.json
+```
+
+## Monitoring Smoke Tests in AWS
+
+### Publishing Results as CloudWatch Metrics Using Existing Client
+
+The framework includes a built-in CloudWatch client for publishing test results:
+
+```typescript
+// Automatic metrics publishing
+const results = await runSmokeTests(event);
+
+// Published metrics include:
+// - TestsTotal: Total number of tests executed
+// - TestsPassed: Number of passed tests
+// - TestsFailed: Number of failed tests
+// - TestDuration: Total execution time
+```
+
+**Custom Metrics Configuration:**
+
+```json
+{
+  "monitoring": {
+    "cloudwatch": {
+      "namespace": "SmokerTests/Production",
+      "dimensions": {
+        "Environment": "production",
+        "TestSuite": "api-tests"
+      }
+    }
   }
 }
 ```
 
-Required IAM permissions:
+### Logs Producing CloudWatch Custom Metrics
 
-```json
-{
-  "Version": "2012-10-17",
-  "Statement": [
-    {
-      "Effect": "Allow",
-      "Action": ["ssm:GetParameter", "ssm:GetParameters"],
-      "Resource": "arn:aws:ssm:*:*:parameter/my-app/*"
-    },
-    {
-      "Effect": "Allow",
-      "Action": ["kms:Decrypt"],
-      "Resource": "arn:aws:kms:*:*:key/your-kms-key-id"
-    }
-  ]
-}
-```
-
-## AWS Deployment
-
-### Deploying with CDK
-
-The framework includes AWS CDK infrastructure code for deploying as a Lambda function:
-
-1. Install CDK dependencies:
-
-   ```bash
-   npm install --prefix cdk
-   ```
-
-2. Configure the CDK stack in `cdk/lib/smoker-stack.ts`:
-
-   ```typescript
-   // Customize Lambda function properties
-   const smokerFunction = new lambda.Function(this, "SmokerFunction", {
-     runtime: lambda.Runtime.NODEJS_18_X,
-     handler: "dist/index.handler",
-     code: lambda.Code.fromAsset("../"),
-     timeout: Duration.minutes(5),
-     memorySize: 512,
-     environment: {
-       NODE_ENV: "production",
-       LOG_LEVEL: "info",
-     },
-   });
-
-   // Add required permissions
-   smokerFunction.addToRolePolicy(
-     new iam.PolicyStatement({
-       actions: ["s3:GetObject"],
-       resources: ["arn:aws:s3:::my-bucket/*"],
-     }),
-   );
-   ```
-
-3. Deploy the stack:
-   ```bash
-   npm run cdk:deploy
-   ```
-
-### Required IAM Permissions
-
-The Lambda function requires permissions for:
-
-1. **S3 Access**: Reading configuration files and test data
-
-   ```json
-   {
-     "Effect": "Allow",
-     "Action": ["s3:GetObject"],
-     "Resource": "arn:aws:s3:::my-bucket/*"
-   }
-   ```
-
-2. **SSM Parameter Store**: Accessing secure configuration
-
-   ```json
-   {
-     "Effect": "Allow",
-     "Action": ["ssm:GetParameter", "ssm:GetParameters"],
-     "Resource": "arn:aws:ssm:*:*:parameter/my-app/*"
-   }
-   ```
-
-3. **CloudWatch Logs**: Writing logs
-
-   ```json
-   {
-     "Effect": "Allow",
-     "Action": ["logs:CreateLogGroup", "logs:CreateLogStream", "logs:PutLogEvents"],
-     "Resource": "*"
-   }
-   ```
-
-4. **Service-Specific Permissions**: Based on which AWS services your tests interact with
-
-## Lambda Integration
-
-### Lambda Event Structure
-
-When invoking the Lambda function, provide configuration in the event:
-
-```json
-{
-  "paths": ["dist/features/api/**/*.feature"],
-  "tags": "@api and not @wip",
-  "config": {
-    "apiUrl": "https://api.example.com",
-    "timeout": 5000
-  },
-  "configFiles": ["./config/prod-env.json", "s3://my-bucket/configs/prod-settings.json"]
-}
-```
-
-### Lambda Environment Variables
-
-Configure environment variables in the Lambda function:
-
-| Variable                 | Description            | Example                 |
-| ------------------------ | ---------------------- | ----------------------- |
-| `AWS_REGION`             | AWS region             | `us-east-1`             |
-| `LOG_LEVEL`              | Logging level          | `info`                  |
-| `CONFIG_PATH`            | Default config path    | `./config/default.json` |
-| `CUCUMBER_PUBLISH_TOKEN` | Cucumber reports token | `abcd-1234`             |
-
-### Invoking the Lambda Function
-
-Invoke the Lambda function using the AWS CLI:
+Configure log-based metrics for automated monitoring:
 
 ```bash
-aws lambda invoke \
-  --function-name SmokerFunction \
-  --payload '{"paths":["dist/features/api/**/*.feature"],"tags":"@smoke"}' \
-  response.json
+# Create metric filter for test failures
+aws logs put-metric-filter \
+  --log-group-name /aws/lambda/smoker-tests \
+  --filter-name TestFailures \
+  --filter-pattern '[timestamp, requestId, level="ERROR", message="Test failed:*"]' \
+  --metric-transformations \
+    metricName=TestFailures,metricNamespace=SmokerTests,metricValue=1
 ```
 
-Or using the AWS SDK:
+### Publishing Reports to S3 Using Existing Client
 
-```typescript
-import { LambdaClient, InvokeCommand } from "@aws-sdk/client-lambda";
+The framework automatically publishes detailed test reports to S3:
 
-const client = new LambdaClient({ region: "us-east-1" });
-const command = new InvokeCommand({
-  FunctionName: "SmokerFunction",
-  Payload: JSON.stringify({
-    paths: ["dist/features/api/**/*.feature"],
-    tags: "@smoke",
-  }),
-});
-
-const response = await client.send(command);
+```json
+{
+  "reporting": {
+    "s3": {
+      "bucket": "smoker-reports",
+      "keyPrefix": "production/",
+      "formats": ["json", "html", "junit"],
+      "includeTimestamp": true
+    }
+  }
+}
 ```
 
-## Environment Options
+## Scaling Smoke Tests in AWS
 
-### Cucumber Options
+### CI/CD Integration
 
-Configure Cucumber.js behavior:
+#### GitHub Actions
 
-| Option     | Description        | Example                              |
-| ---------- | ------------------ | ------------------------------------ |
-| `paths`    | Feature file paths | `["dist/features/api/**/*.feature"]` |
-| `tags`     | Tag expression     | `"@smoke and not @wip"`              |
-| `format`   | Output format      | `"json:results.json"`                |
-| `parallel` | Run in parallel    | `2`                                  |
-| `retry`    | Retry count        | `1`                                  |
-
-### Framework Options
-
-Configure the Smoker framework:
-
-| Option        | Description          | Example                                |
-| ------------- | -------------------- | -------------------------------------- |
-| `configFiles` | Configuration files  | `["./config/default.json"]`            |
-| `config`      | Inline configuration | `{"apiUrl":"https://api.example.com"}` |
-| `logLevel`    | Logging level        | `"info"`                               |
-| `timeout`     | Global timeout (ms)  | `10000`                                |
-
-## Monitoring and Logging
-
-### CloudWatch Logs
-
-Lambda function logs are automatically sent to CloudWatch Logs:
-
-1. View logs in the AWS Console:
-   - Navigate to CloudWatch > Log groups > `/aws/lambda/SmokerFunction`
-
-2. Filter logs by execution:
-   - Use filter pattern: `"[INFO]"` or `"[ERROR]"`
-
-### Custom Metrics
-
-Publish custom metrics to CloudWatch:
-
-```typescript
-import { CloudWatchClient, PutMetricDataCommand } from "@aws-sdk/client-cloudwatch";
-
-const client = new CloudWatchClient({ region: "us-east-1" });
-await client.send(
-  new PutMetricDataCommand({
-    Namespace: "Smoker",
-    MetricData: [
-      {
-        MetricName: "TestsPassed",
-        Value: passedCount,
-        Unit: "Count",
-        Dimensions: [
-          { Name: "Environment", Value: "Production" },
-          { Name: "TestSuite", Value: "API" },
-        ],
-      },
-    ],
-  }),
-);
-```
-
-### Cucumber Reports
-
-Generate Cucumber reports for test results:
-
-1. Configure report format:
-
-   ```bash
-   npm start -- --format "json:cucumber-report.json"
-   ```
-
-2. Generate HTML report:
-
-   ```bash
-   npx cucumber-html-reporter --json cucumber-report.json --output cucumber-report.html
-   ```
-
-3. Publish to Cucumber Reports service:
-   ```bash
-   export CUCUMBER_PUBLISH_TOKEN=your-token
-   npm start -- --publish
-   ```
-
-## CI/CD Integration
-
-### GitHub Actions
-
-Example GitHub Actions workflow:
+Create a GitHub Actions workflow for automated smoke testing:
 
 ```yaml
+# .github/workflows/smoke-tests.yml
 name: Smoke Tests
 
 on:
+  push:
+    branches: [main, develop]
   schedule:
-    - cron: "0 */4 * * *" # Every 4 hours
-  workflow_dispatch: # Manual trigger
+    # Run smoke tests every hour
+    - cron: "0 * * * *"
 
 jobs:
   smoke-tests:
     runs-on: ubuntu-latest
+
+    strategy:
+      matrix:
+        environment: [staging, production]
+
     steps:
-      - uses: actions/checkout@v3
-
-      - name: Setup Node.js
-        uses: actions/setup-node@v3
+      - name: Configure AWS credentials
+        uses: aws-actions/configure-aws-credentials@v2
         with:
-          node-version: "22"
-          cache: "npm"
-
-      - name: Install dependencies
-        run: npm ci
-
-      - name: Build
-        run: npm run build
+          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          aws-region: us-east-1
 
       - name: Run smoke tests
-        run: npm start -- --tags "@smoke"
-        env:
-          AWS_ACCESS_KEY_ID: ${{ secrets.AWS_ACCESS_KEY_ID }}
-          AWS_SECRET_ACCESS_KEY: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
-          AWS_REGION: us-east-1
-
-      - name: Upload test results
-        if: always()
-        uses: actions/upload-artifact@v3
-        with:
-          name: cucumber-report
-          path: cucumber-report.json
+        run: |
+          aws lambda invoke \
+            --function-name smoker-tests-${{ matrix.environment }} \
+            --payload '{
+              "tags": "@smoke",
+              "config": "s3://smoker-config/${{ matrix.environment }}.json",
+              "publishMetrics": true
+            }' \
+            response.json
 ```
 
-### AWS CodePipeline
+#### AWS CodePipeline
 
-Integrate with AWS CodePipeline:
+Create a CodePipeline for comprehensive CI/CD with smoke testing:
 
-1. Create a CodeBuild project:
+```yaml
+# buildspec.yml
+version: 0.2
 
-   ```yaml
-   version: 0.2
+phases:
+  install:
+    runtime-versions:
+      nodejs: 18
+    commands:
+      - npm install
 
-   phases:
-     install:
-       runtime-versions:
-         nodejs: 22
-       commands:
-         - npm ci
-     build:
-       commands:
-         - npm run build
-         - npm start -- --tags "@smoke" --format "json:cucumber-report.json"
+  build:
+    commands:
+      - npm run build
+      - npm run package
 
-   artifacts:
-     files:
-       - cucumber-report.json
-       - cucumber-report.html
-   ```
+  post_build:
+    commands:
+      # Deploy Lambda function
+      - aws lambda update-function-code --function-name smoker-tests --zip-file fileb://smoker.zip
 
-2. Add the CodeBuild project to your CodePipeline
+      # Run smoke tests
+      - |
+        aws lambda invoke \
+          --function-name smoker-tests \
+          --payload '{"tags":"@smoke","publishMetrics":true}' \
+          response.json
+
+      # Check results
+      - |
+        if grep -q '"success": false' response.json; then
+          echo "Smoke tests failed"
+          exit 1
+        fi
+
+artifacts:
+  files:
+    - smoker.zip
+    - response.json
+```
+
+---
+
+For more detailed information on specific topics, see:
+
+- [Test Development Guide](TEST_DEVELOPMENT.md) for creating smoke tests
+- [Development Guide](DEVELOPMENT_GUIDE.md) for framework development
+- [Service Client Guide](SERVICE_CLIENT_GUIDE.md) for client documentation
