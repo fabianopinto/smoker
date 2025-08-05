@@ -10,7 +10,7 @@
  * managing client lifecycles and providing helper methods for test steps.
  */
 
-import { type IWorldOptions, setWorldConstructor, World } from "@cucumber/cucumber";
+import { type IWorld, type IWorldOptions, setWorldConstructor, World } from "@cucumber/cucumber";
 import type {
   CloudWatchServiceClient,
   KinesisServiceClient,
@@ -38,9 +38,10 @@ import { Configuration, type ConfigurationProvider, type ConfigValue } from "../
  * - Property management for storing and accessing test state
  * - Parameter resolution for configuration and property references
  *
- * @extends {World} The base Cucumber World class
+ * @interface SmokeWorld
+ * @extends {IWorld}
  */
-export interface SmokeWorld extends World {
+export interface SmokeWorld extends IWorld {
   /**
    * Client Access Methods
    *
