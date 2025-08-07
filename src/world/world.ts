@@ -10,7 +10,12 @@
  * managing client lifecycles and providing helper methods for test steps.
  */
 
-import { type IWorld, type IWorldOptions, setWorldConstructor, World } from "@cucumber/cucumber";
+import {
+  World as CucumberWorld,
+  type IWorld,
+  type IWorldOptions,
+  setWorldConstructor,
+} from "@cucumber/cucumber";
 import type {
   CloudWatchServiceClient,
   KinesisServiceClient,
@@ -23,6 +28,7 @@ import type { RestServiceClient } from "../clients/http";
 import type { KafkaServiceClient, MqttServiceClient } from "../clients/messaging";
 import { type ClientConfig, ClientFactory, ClientRegistry } from "../clients/registry";
 import { Configuration, type ConfigurationProvider, type ConfigValue } from "../support/config";
+import { createWorldProperties, WorldProperties } from "./world-properties";
 
 /**
  * SmokeWorld interface
@@ -38,10 +44,10 @@ import { Configuration, type ConfigurationProvider, type ConfigValue } from "../
  * - Property management for storing and accessing test state
  * - Parameter resolution for configuration and property references
  *
- * @interface SmokeWorld
- * @extends {IWorld}
+ * @template T - The type parameter for the world, used to extend the Cucumber World
+ * @extends {IWorld<T>}
  */
-export interface SmokeWorld extends IWorld {
+export interface SmokeWorld<T = unknown> extends IWorld<T> {
   /**
    * Client Access Methods
    *
@@ -412,77 +418,82 @@ export interface SmokeWorld extends IWorld {
    * Property Management Methods
    *
    * These methods provide functionality for storing and retrieving properties
-   * in a nested structure. They are useful for sharing state between test steps
+   * in a flat structure. They are useful for sharing state between test steps
    * and for parameterizing tests.
    */
 
   /**
-   * Set a property value at the specified path
+   * Set a property value with the specified key
    *
-   * Stores a value in the property tree at the specified path. The path can be
-   * a string with dot notation or an array of path segments.
+   * Stores a value in the property map with the specified key. The key is a string
+   * that uniquely identifies the property. The value can be a primitive, array, or plain object.
    *
-   * @param path - The path where to store the value
-   * @param value - The value to store
+   * @param key - The key to store the value under
+   * @param value - The value to store (primitive, array, or plain object)
    *
    * @example
    * // Store a simple value
-   * world.setProperty("user.id", 123);
+   * world.setProperty("userId", 123);
    *
    * // Store a complex object
-   * world.setProperty("api.config", { baseUrl: "https://api.example.com", timeout: 5000 });
+   * world.setProperty("apiConfig", {
+   *   baseUrl: "https://api.example.com",
+   *   timeout: 5000
+   * });
    */
-  setProperty(path: PropertyPath, value: PropertyValue): void;
+  setProperty(key: string, value: unknown): void;
 
   /**
-   * Get a property value at the specified path
+   * Get a property value by key
    *
-   * Retrieves a value from the property tree at the specified path. If the property
+   * Retrieves a value from the property map with the specified key. If the property
    * doesn't exist, returns the default value if provided, or undefined otherwise.
    *
-   * @template T - The type of the property value to retrieve
-   * @param path - The path to the property
+   * @template T - The expected type of the property value
+   * @param key - The key of the property to retrieve
    * @param defaultValue - Optional default value to return if the property doesn't exist
-   * @return The property value or the default value if not found
+   * @return The property value, the default value if not found, or undefined
    *
    * @example
    * // Get a simple value
-   * const userId = world.getProperty<number>("user.id");
+   * const userId = world.getProperty<number>("userId");
    *
    * // Get a complex object with default value
-   * const apiConfig = world.getProperty<ApiConfig>("api.config", { baseUrl: "https://default.com" });
+   * const apiConfig = world.getProperty<ApiConfig>("apiConfig", {
+   *   baseUrl: "https://default.com"
+   * });
    */
-  getProperty<T = PropertyValue>(path: PropertyPath, defaultValue?: T): T;
+  getProperty<T = unknown>(key: string, defaultValue?: T): T | undefined;
 
   /**
-   * Check if a property exists at the specified path
+   * Check if a property exists with the specified key
    *
-   * Verifies whether a property exists in the property tree at the specified path.
+   * Verifies whether a property exists in the property map with the specified key.
    *
-   * @param path - The path to check
+   * @param key - The key to check
    * @return True if the property exists, false otherwise
    *
    * @example
    * // Check if a property exists before using it
-   * if (world.hasProperty("user.preferences")) {
-   *   const preferences = world.getProperty("user.preferences");
+   * if (world.hasProperty("userPreferences")) {
+   *   const preferences = world.getProperty("userPreferences");
    *   // Use preferences...
    * }
    */
-  hasProperty(path: PropertyPath): boolean;
+  hasProperty(key: string): boolean;
 
   /**
-   * Delete a property at the specified path
+   * Delete a property with the specified key
    *
-   * Removes a property from the property tree at the specified path.
+   * Removes a property from the property map with the specified key.
    *
-   * @param path - The path of the property to delete
+   * @param key - The key of the property to delete
    *
    * @example
    * // Delete a property that's no longer needed
-   * world.deleteProperty("temporary.data");
+   * world.deleteProperty("temporaryData");
    */
-  deleteProperty(path: PropertyPath): void;
+  deleteProperty(key: string): void;
 
   /**
    * Resolve a parameter value
@@ -501,22 +512,6 @@ export interface SmokeWorld extends IWorld {
   resolveParam(param: unknown): Promise<unknown>;
 
   /**
-   * Check if a string contains configuration references
-   *
-   * @param input - The input string to check
-   * @return True if the string contains configuration references, false otherwise
-   */
-  containsConfigReferences(input: string): boolean;
-
-  /**
-   * Check if a string contains property references
-   *
-   * @param input - The input string to check
-   * @return True if the string contains property references, false otherwise
-   */
-  containsPropertyReferences(input: string): boolean;
-
-  /**
    * Resolve configuration references in a string
    *
    * @param input - The input string that may contain configuration references
@@ -531,27 +526,22 @@ export interface SmokeWorld extends IWorld {
    * @return The string with all property references replaced
    */
   resolvePropertyValue(input: string): string;
+
+  /**
+   * Check if a string is a property reference
+   *
+   * @param input - The input string to check
+   * @return True if the string is a property reference, false otherwise
+   */
+  isPropertyReference(input: string): boolean;
+
+  /**
+   * Get the WorldProperties instance
+   *
+   * @return The WorldProperties instance used by this world
+   */
+  getWorldProperties(): WorldProperties;
 }
-
-/**
- * PropertyMap interface for storing key-value pairs
- * Keys are strings and values can be simple values or nested PropertyMaps
- */
-export interface PropertyMap {
-  [key: string]: PropertyValue;
-}
-
-/**
- * PropertyValue type for the property map
- * Can be a simple value (string, number, boolean, null) or a nested PropertyMap
- */
-export type PropertyValue = string | number | boolean | null | PropertyMap;
-
-/**
- * Path segments for accessing nested properties
- * Can be a string (for a single level) or an array of strings (for multiple levels)
- */
-export type PropertyPath = string | string[];
 
 /**
  * Default implementation of ConfigurationProvider
@@ -593,10 +583,11 @@ export class DefaultConfigurationProvider implements ConfigurationProvider {
  * typed access to specific client implementations and supports property storage
  * for sharing data between test steps.
  *
- * @extends {World}
- * @implements {SmokeWorld}
+ * @template T - The type parameter for the world, used to extend the Cucumber World
+ * @extends {CucumberWorld<T>}
+ * @implements {SmokeWorld<T>}
  */
-export class SmokeWorldImpl extends World implements SmokeWorld {
+export class SmokeWorldImpl<T = unknown> extends CucumberWorld<T> implements SmokeWorld<T> {
   // Registry for all service clients
   private clients = new Map<string, ServiceClient>();
 
@@ -609,8 +600,8 @@ export class SmokeWorldImpl extends World implements SmokeWorld {
   private lastContent = "";
   private lastError: Error | null = null;
 
-  // Property map for storing key-value pairs
-  private properties: PropertyMap = {};
+  // WorldProperties instance for property management
+  private worldProperties: WorldProperties;
 
   // Configuration provider for resolving config values
   private configProvider: ConfigurationProvider;
@@ -620,16 +611,32 @@ export class SmokeWorldImpl extends World implements SmokeWorld {
    *
    * @param options - Cucumber World constructor options
    * @param config - Optional initial configuration
+   * @param injectedRegistry - Optional client registry for dependency injection
+   * @param injectedFactory - Optional client factory for dependency injection
+   * @param injectedConfigProvider - Optional configuration provider for dependency injection
    */
-  constructor(options: IWorldOptions, config?: Record<string, unknown>) {
+  constructor(
+    options: IWorldOptions,
+    config?: Record<string, unknown>,
+    injectedRegistry?: ClientRegistry,
+    injectedFactory?: ClientFactory,
+    injectedConfigProvider?: ConfigurationProvider,
+  ) {
     super(options);
 
-    // Initialize client registry and factory
-    this.clientRegistry = new ClientRegistry();
-    this.clientFactory = new ClientFactory(this.clientRegistry);
+    // Initialize client registry and factory with injected or new instances
+    this.clientRegistry = injectedRegistry || new ClientRegistry();
+    this.clientFactory =
+      injectedFactory ||
+      (injectedRegistry
+        ? new ClientFactory(injectedRegistry)
+        : new ClientFactory(this.clientRegistry));
 
     // Initialize configuration provider
-    this.configProvider = new DefaultConfigurationProvider();
+    this.configProvider = injectedConfigProvider || new DefaultConfigurationProvider();
+
+    // Initialize WorldProperties instance
+    this.worldProperties = createWorldProperties();
 
     // Register initial configuration if provided
     if (config) {
@@ -950,299 +957,171 @@ export class SmokeWorldImpl extends World implements SmokeWorld {
   }
 
   /**
-   * Normalize a property path to an array of path segments
+   * Set a property value with the specified key
    *
-   * @param path - Property path as a string or array of strings
-   * @return Array of path segments
+   * Stores a value in the property map with the specified key. The value can be
+   * a primitive, array, or plain object.
+   *
+   * @param key - The key to store the value under
+   * @param value - The value to store (primitive, array, or plain object)
+   * @throws Error if the key is empty or contains invalid characters
    */
-  private normalizePath(path: PropertyPath): string[] {
-    if (typeof path === "string") {
-      // Split the string path by dots, but only if not empty
-      return path ? path.split(".") : [];
-    }
-    return path;
+  setProperty(key: string, value: unknown): void {
+    // Delegate to WorldProperties instance
+    this.worldProperties.set(key, value);
   }
 
   /**
-   * Set a property value at the specified path
-   * Creates nested objects as needed
-   *
-   * @param path - Path to the property (string with dot notation or array of segments)
-   * @param value - Value to set at the path
-   */
-  setProperty(path: PropertyPath, value: PropertyValue): void {
-    const segments = this.normalizePath(path);
-
-    if (segments.length === 0) {
-      throw new Error("Property path cannot be empty");
-    }
-
-    let current: PropertyMap = this.properties;
-
-    // Navigate to the parent of the property to set
-    for (let i = 0; i < segments.length - 1; i++) {
-      const segment = segments[i];
-
-      // Create nested object if it doesn't exist or isn't an object
-      if (!current[segment] || typeof current[segment] !== "object" || current[segment] === null) {
-        current[segment] = {};
-      }
-
-      // Move to the next level
-      current = current[segment] as PropertyMap;
-    }
-
-    // Set the value at the final path segment
-    current[segments[segments.length - 1]] = value;
-  }
-
-  /**
-   * Get a property value from the specified path
+   * Get a property value by key
    *
    * @template T - The expected type of the property value
-   * @param path - The property path (string with dot notation or array of segments)
-   * @param defaultValue - Optional default value to return if the property doesn't exist
-   * @return The value at the path, the default value, or undefined if not found
-   * @throws Error if any segment along the path doesn't exist
+   * @param key - The key of the property to retrieve
+   * @param defaultValue - The default value to return if the property doesn't exist
+   * @throws Error if the key is empty or contains invalid characters
+   * @return The property value, or the default value if the property doesn't exist
    */
-  getProperty<T = PropertyValue>(path: PropertyPath, defaultValue?: T): T {
-    const segments = this.normalizePath(path);
-
-    if (segments.length === 0) {
-      throw new Error("Property path cannot be empty");
-    }
-
-    try {
-      let current: PropertyValue = this.properties;
-
-      for (let i = 0; i < segments.length; i++) {
-        const segment = segments[i];
-
-        if (current === null || current === undefined) {
-          // Return default value if provided when property doesn't exist
-          return defaultValue as T;
-        }
-
-        if (typeof current !== "object") {
-          // Return default value if provided when trying to access property of non-object
-          return defaultValue as T;
-        }
-
-        if (i === segments.length - 1) {
-          // Last segment, return the value or default value if it doesn't exist
-          const value = (current as Record<string, PropertyValue>)[segment];
-          return (value !== undefined ? value : defaultValue) as T;
-        }
-
-        // Move to the next segment
-        current = (current as Record<string, PropertyValue>)[segment];
-      }
-
-      // Should never reach here, but return default value just in case
-      return defaultValue as T;
-    } catch {
-      // Return default value on any error
-      return defaultValue as T;
-    }
+  getProperty<T = unknown>(key: string, defaultValue?: T): T | undefined {
+    // Delegate to WorldProperties instance
+    return this.worldProperties.get(key, defaultValue);
   }
 
   /**
-   * Check if a property exists at the specified path
+   * Check if a property exists with the specified key
    *
-   * @param path - Path to the property (string with dot notation or array of segments)
+   * @param key - The key of the property to check
+   * @throws Error if the key is empty or contains invalid characters
    * @return True if the property exists, false otherwise
    */
-  hasProperty(path: PropertyPath): boolean {
-    const segments = this.normalizePath(path);
-
-    if (segments.length === 0) {
-      throw new Error("Property path cannot be empty");
-    }
-
-    try {
-      this.getProperty(path);
-      return true;
-    } catch {
-      // If property doesn't exist, getProperty will throw an error
-      return false;
-    }
+  hasProperty(key: string): boolean {
+    // Delegate to WorldProperties instance
+    return this.worldProperties.has(key);
   }
 
   /**
-   * Delete a property at the specified path
+   * Delete a property with the specified key
    *
-   * @param path - The path of the property to delete
+   * @param key - The key of the property to delete
+   * @throws Error if the key is empty or contains invalid characters
    * @throws Error if the property doesn't exist
    */
-  deleteProperty(path: PropertyPath): void {
-    const segments = this.normalizePath(path);
-
-    if (segments.length === 0) {
-      throw new Error("Property path cannot be empty");
+  deleteProperty(key: string): void {
+    // Check if property exists before attempting deletion
+    if (!this.hasProperty(key)) {
+      throw new Error(`Property not found: ${key}`);
     }
 
-    let current: PropertyMap = this.properties;
-
-    // Navigate to the parent of the property to remove
-    for (let i = 0; i < segments.length - 1; i++) {
-      const segment = segments[i];
-
-      // Check if the path exists
-      if (!current[segment] || typeof current[segment] !== "object" || current[segment] === null) {
-        throw new Error(`Property not found at path: ${segments.slice(0, i + 1).join(".")}`);
-      }
-
-      // Move to the next level
-      current = current[segment] as PropertyMap;
-    }
-
-    const lastSegment = segments[segments.length - 1];
-
-    // Check if the property exists before removing
-    if (!(lastSegment in current)) {
-      throw new Error(`Property not found at path: ${segments.join(".")}`);
-    }
-
-    // Remove the property using Reflect.deleteProperty instead of delete operator
-    Reflect.deleteProperty(current, lastSegment);
+    // Delegate to WorldProperties instance
+    this.worldProperties.delete(key);
   }
 
   /**
-   * Check if a string contains configuration references
+   * Resolve a configuration reference
    *
-   * @param input - The input string to check
-   * @return True if the string contains configuration references, false otherwise
-   */
-  containsConfigReferences(input: string): boolean {
-    // Use a regex that matches the pattern but doesn't validate the format
-    // The actual validation will happen in resolveConfigValue
-    return /config:[a-zA-Z0-9_$.]+/g.test(input);
-  }
-
-  /**
-   * Check if a string contains property references
-   *
-   * @param input - The input string to check
-   * @return True if the string contains property references, false otherwise
-   */
-  containsPropertyReferences(input: string): boolean {
-    // Use a regex that matches the pattern but doesn't validate the format
-    // The actual validation will happen in resolvePropertyValue
-    return /property:[a-zA-Z0-9_$]+/g.test(input);
-  }
-
-  /**
-   * Resolve configuration references in a string
-   *
-   * @param input - The input string that may contain configuration references
-   * @return The string with all configuration references replaced with their values
-   * @throws Error if a referenced configuration value is not found
+   * @param input - The input string that may be a configuration reference
+   * @return The configuration value if input is a configuration reference, or the original string if not
+   * @throws Error if input is a configuration reference but the configuration value is not found
    */
   async resolveConfigValue(input: string): Promise<string> {
-    // Import the isConfigReference function to validate references
-    // Using a more comprehensive regex to find potential config references
-    let match;
-    let result = input;
-    const matches = [];
+    // Define the pattern to find configuration references
+    const configPattern = /config:([a-zA-Z0-9_$]+(?:\.[a-zA-Z0-9_$]+)*)/g;
 
-    // First, find all matches and validate them
-    while ((match = /config:[a-zA-Z0-9_$.]+/g.exec(input)) !== null) {
-      const fullMatch = match[0];
+    // If the input is exactly a config reference, resolve it directly
+    if (input.startsWith("config:") && !input.includes(" ")) {
+      const exactPattern = /^config:([a-zA-Z0-9_$]+(?:\.[a-zA-Z0-9_$]+)*)$/;
+      const match = exactPattern.exec(input);
 
-      // Validate the reference format using the exact regex pattern
-      if (!/^config:([a-zA-Z0-9_$]+\.)*([a-zA-Z0-9_$]+)$/.test(fullMatch)) {
+      if (!match) {
         throw new Error(
-          `Invalid configuration reference format: ${fullMatch}. References must follow the pattern 'config:[segment](.[segment])*' where segment is [a-zA-Z0-9_$]+.`,
+          `Invalid configuration reference format: ${input}. References must follow the pattern 'config:[segment](.[segment])*' where segment is [a-zA-Z0-9_$]+.`,
         );
       }
 
-      const path = fullMatch.substring(7); // Remove "config:" prefix
-
-      matches.push({
-        fullMatch,
-        path,
-      });
+      const configPath = match[1];
+      return this.getConfigValue(configPath);
     }
 
-    // Then, process each match sequentially
-    for (const { fullMatch, path } of matches) {
-      // If a configuration root key is set, use it as prefix
-      let fullPath = path;
-      if (this.hasProperty("config.rootKey")) {
-        const rootKey = this.getProperty("config.rootKey") as string;
-        fullPath = `${rootKey}.${path}`;
+    // For strings with embedded config references, process each match
+    const matches = input.match(configPattern);
+    if (matches && matches.length > 0) {
+      let result = input;
+
+      // Process each config reference sequentially
+      for (const match of matches) {
+        const pathMatch = /config:([a-zA-Z0-9_$]+(?:\.[a-zA-Z0-9_$]+)*)/.exec(match);
+        if (pathMatch) {
+          const configPath = pathMatch[1];
+          // Get the configuration value and replace the reference
+          const value = await this.getConfigValue(configPath);
+          // Replace the config reference with its value
+          result = result.replace(match, value);
+        }
       }
 
-      try {
-        const value = await this.configProvider.getValue(fullPath);
-
-        if (value !== undefined) {
-          result = result.replace(fullMatch, String(value));
-          continue;
-        }
-
-        // Try without the root key as fallback
-        if (fullPath !== path) {
-          const fallbackValue = await this.configProvider.getValue(path);
-          if (fallbackValue !== undefined) {
-            result = result.replace(fullMatch, String(fallbackValue));
-            continue;
-          }
-        }
-
-        throw new Error(`Configuration value not found: ${fullPath}`);
-      } catch (error) {
-        throw new Error(
-          `Error resolving configuration reference ${fullMatch}: ${error instanceof Error ? error.message : String(error)}`,
-        );
-      }
+      return result;
     }
 
-    return result;
+    // If no config references found, return the original input
+    return input;
+  }
+
+  /**
+   * Helper method to get a configuration value
+   *
+   * @param configPath - Path to the configuration value
+   * @returns The configuration value as a string
+   * @throws Error if the configuration value is not found
+   */
+  private async getConfigValue(configPath: string): Promise<string> {
+    try {
+      const value = await this.configProvider.getValue(configPath);
+
+      if (value !== undefined) {
+        return String(value);
+      }
+
+      throw new Error(`Configuration value not found: ${configPath}`);
+    } catch (error: unknown) {
+      if (
+        error instanceof Error &&
+        error.message.includes("Invalid configuration reference format")
+      ) {
+        // Re-throw validation errors directly
+        throw error;
+      }
+      const errorMessage = error instanceof Error ? error.message : String(error);
+      throw new Error(`Failed to resolve configuration reference: ${errorMessage}`);
+    }
+  }
+
+  /**
+   * Check if a string is a property reference
+   *
+   * @param input - The input string to check
+   * @return True if the string is a property reference, false otherwise
+   */
+  isPropertyReference(input: string): boolean {
+    return this.worldProperties.isPropertyReference(input);
+  }
+
+  /**
+   * Get the WorldProperties instance
+   *
+   * @return The WorldProperties instance used by this world
+   */
+  getWorldProperties(): WorldProperties {
+    return this.worldProperties;
   }
 
   /**
    * Resolve property references in a string
    *
-   * @param input - The input string that may contain property references
-   * @return The string with all property references replaced with their values
-   * @throws Error if a referenced property value is not found
+   * @param input - The input string that may be a property reference
+   * @return The property value if input is a property reference, or the original string if not
+   * @throws Error if input is a property reference but the property is not found
    */
   resolvePropertyValue(input: string): string {
-    // Using a more comprehensive regex to find potential property references
-    let match;
-    let result = input;
-    const matches = [];
-
-    // First, find all matches and validate them
-    while ((match = /property:[a-zA-Z0-9_$]+/g.exec(input)) !== null) {
-      const fullMatch = match[0];
-
-      // Validate the reference format using the exact regex pattern
-      if (!/^property:[a-zA-Z0-9_$]+$/.test(fullMatch)) {
-        throw new Error(
-          `Invalid property reference format: ${fullMatch}. References must follow the pattern 'property:[key]' where key is [a-zA-Z0-9_$]+.`,
-        );
-      }
-
-      const path = fullMatch.substring(9); // Remove "property:" prefix
-
-      matches.push({
-        fullMatch,
-        path,
-      });
-    }
-
-    // Then, process each match
-    for (const { fullMatch, path } of matches) {
-      if (!this.hasProperty(path)) {
-        throw new Error(`Property not found: ${path}`);
-      }
-
-      result = result.replace(fullMatch, String(this.getProperty(path)));
-    }
-
-    return result;
+    // Delegate to WorldProperties instance
+    return this.worldProperties.resolvePropertyValue(input);
   }
 
   /**
@@ -1256,12 +1135,12 @@ export class SmokeWorldImpl extends World implements SmokeWorld {
     let result = param;
 
     // First resolve configuration references
-    if (this.containsConfigReferences(result)) {
+    if (/config:[a-zA-Z0-9_$.]+/g.test(result)) {
       result = await this.resolveConfigValue(result);
     }
 
-    // Then resolve property references
-    if (this.containsPropertyReferences(result)) {
+    // Then resolve property references using WorldProperties.isPropertyReference
+    if (this.isPropertyReference(result)) {
       result = this.resolvePropertyValue(result);
     }
 
