@@ -16,7 +16,11 @@
  */
 
 import { loadConfiguration, runCucumber } from "@cucumber/cucumber/api";
+import { BaseLogger } from "./lib/logger";
 import { type ConfigObject, Configuration, ConfigurationFactory } from "./support/config";
+
+// Create a logger instance for this module
+const logger = new BaseLogger({ name: "smoker:main" });
 
 /**
  * AWS Lambda Event Type
@@ -70,7 +74,7 @@ export async function main(
   event: LambdaEvent = {},
 ): Promise<{ success: boolean; statusCode: number }> {
   try {
-    console.log(`Starting Smoker tests with event:`, JSON.stringify(event, null, 2));
+    logger.info(`Starting Smoker tests with event: ${JSON.stringify(event, null, 2)}`);
 
     // Apply environment variables from event if provided
     if (event.environment) {
@@ -94,11 +98,11 @@ export async function main(
 
     // Run cucumber tests
     const { success } = await runCucumber(runConfiguration);
-    console.log(`Tests completed with ${success ? "SUCCESS" : "FAILURE"}`);
+    logger.info(`Tests completed with ${success ? "SUCCESS" : "FAILURE"}`);
 
     return { success, statusCode: success ? 200 : 400 };
   } catch (error) {
-    console.error("Test execution failed:", error);
+    logger.error(error instanceof Error ? error : String(error), "Test execution failed");
     return { success: false, statusCode: 500 };
   }
 }
@@ -142,14 +146,14 @@ export interface LambdaContext {
  * @return Promise resolving to a formatted Lambda response
  */
 export async function handler(event: LambdaEvent, context: LambdaContext): Promise<LambdaResponse> {
-  console.log(
-    "Lambda execution context:",
-    JSON.stringify({
+  logger.info(
+    {
       functionName: context.functionName,
       functionVersion: context.functionVersion,
       awsRequestId: context.awsRequestId,
       remainingTime: context.getRemainingTimeInMillis(),
-    }),
+    },
+    "Lambda execution context",
   );
 
   try {
@@ -163,7 +167,7 @@ export async function handler(event: LambdaEvent, context: LambdaContext): Promi
       }),
     };
   } catch (error) {
-    console.error("Lambda handler error:", error);
+    logger.error(error instanceof Error ? error : String(error), "Lambda handler error");
     return {
       statusCode: 500,
       body: JSON.stringify({
@@ -197,7 +201,7 @@ async function loadTestConfigurations(event: LambdaEvent): Promise<void> {
 
     // Add configuration files if provided
     if (event.configFiles && Array.isArray(event.configFiles)) {
-      console.log(`Loading configuration from ${event.configFiles.length} files`);
+      logger.info(`Loading configuration from ${event.configFiles.length} files`);
       event.configFiles.forEach((filePath) => {
         factory.addFile(filePath);
       });
@@ -205,7 +209,7 @@ async function loadTestConfigurations(event: LambdaEvent): Promise<void> {
 
     // Add configuration objects if provided
     if (event.configObjects && Array.isArray(event.configObjects)) {
-      console.log(`Loading ${event.configObjects.length} configuration objects`);
+      logger.info(`Loading ${event.configObjects.length} configuration objects`);
       event.configObjects.forEach((configObject) => {
         factory.addObject(configObject);
       });
@@ -213,7 +217,7 @@ async function loadTestConfigurations(event: LambdaEvent): Promise<void> {
 
     // Add single configuration object if provided
     if (event.config) {
-      console.log("Loading configuration from event.config");
+      logger.info("Loading configuration from event.config");
       factory.addObject(event.config);
     }
 
@@ -221,7 +225,10 @@ async function loadTestConfigurations(event: LambdaEvent): Promise<void> {
     const config = await factory.build();
     Configuration.initializeGlobalInstance(config);
   } catch (error) {
-    console.error("Error loading test configurations:", error);
+    logger.error(
+      error instanceof Error ? error : String(error),
+      "Error loading test configurations",
+    );
     throw new Error(
       `Failed to load test configurations: ${error instanceof Error ? error.message : String(error)}`,
     );
@@ -235,7 +242,7 @@ if (require.main === module) {
       process.exit(success ? 0 : 1);
     })
     .catch((error) => {
-      console.error("Test execution failed:", error);
+      logger.error(error instanceof Error ? error : String(error), "Test execution failed");
       process.exit(1);
     });
 }

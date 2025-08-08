@@ -15,6 +15,7 @@
 import { S3Client } from "@aws-sdk/client-s3";
 import { existsSync, readFileSync } from "node:fs";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { BaseLogger } from "../../../src/lib/logger";
 import { S3ClientWrapper, parseS3Url } from "../../../src/support/aws";
 import {
   type ConfigurationSource,
@@ -76,15 +77,19 @@ const mockExistsSync = vi.mocked(existsSync);
 const mockReadFileSync = vi.mocked(readFileSync);
 
 describe("ConfigurationSource", () => {
-  let consoleWarnSpy: ReturnType<typeof vi.spyOn>;
-  let consoleErrorSpy: ReturnType<typeof vi.spyOn>;
+  let loggerWarnSpy: ReturnType<typeof vi.spyOn>;
+  let loggerErrorSpy: ReturnType<typeof vi.spyOn>;
 
   beforeEach(() => {
     vi.clearAllMocks();
 
-    // Mock console methods to prevent test output clutter
-    consoleWarnSpy = vi.spyOn(console, "warn").mockImplementation(() => undefined);
-    consoleErrorSpy = vi.spyOn(console, "error").mockImplementation(() => undefined);
+    // Mock logger methods to prevent test output clutter
+    loggerWarnSpy = vi.spyOn(BaseLogger.prototype, "warn").mockImplementation(() => {
+      // suppress
+    });
+    loggerErrorSpy = vi.spyOn(BaseLogger.prototype, "error").mockImplementation(() => {
+      // suppress
+    });
 
     // Reset mock implementations
     mockExistsSync.mockReset();
@@ -92,9 +97,9 @@ describe("ConfigurationSource", () => {
   });
 
   afterEach(() => {
-    // Restore console methods
-    consoleWarnSpy.mockRestore();
-    consoleErrorSpy.mockRestore();
+    // Restore logger methods
+    loggerWarnSpy.mockRestore();
+    loggerErrorSpy.mockRestore();
   });
 
   describe("FileConfigurationSource", () => {
@@ -144,7 +149,7 @@ describe("ConfigurationSource", () => {
         expect(existsSync).toHaveBeenCalledWith(TEST_FIXTURES.VALID_FILE);
         expect(readFileSync).not.toHaveBeenCalled();
         expect(result).toEqual(TEST_FIXTURES.CONFIG_EMPTY);
-        expect(consoleWarnSpy).toHaveBeenCalledWith(
+        expect(loggerWarnSpy).toHaveBeenCalledWith(
           `Configuration file not found: ${TEST_FIXTURES.VALID_FILE}`,
         );
       });
@@ -156,9 +161,9 @@ describe("ConfigurationSource", () => {
         const result = await fileSource.load();
 
         expect(result).toEqual(TEST_FIXTURES.CONFIG_EMPTY);
-        expect(consoleErrorSpy).toHaveBeenCalledWith(
-          `Error loading configuration from ${TEST_FIXTURES.VALID_FILE}:`,
+        expect(loggerErrorSpy).toHaveBeenCalledWith(
           expect.any(SyntaxError),
+          `Error loading configuration from ${TEST_FIXTURES.VALID_FILE}`,
         );
       });
 
@@ -171,9 +176,9 @@ describe("ConfigurationSource", () => {
         const result = await fileSource.load();
 
         expect(result).toEqual(TEST_FIXTURES.CONFIG_EMPTY);
-        expect(consoleErrorSpy).toHaveBeenCalledWith(
-          `Error loading configuration from ${TEST_FIXTURES.VALID_FILE}:`,
+        expect(loggerErrorSpy).toHaveBeenCalledWith(
           fsError,
+          `Error loading configuration from ${TEST_FIXTURES.VALID_FILE}`,
         );
       });
 
@@ -184,9 +189,9 @@ describe("ConfigurationSource", () => {
         const result = await fileSource.load();
 
         expect(result).toEqual(TEST_FIXTURES.CONFIG_EMPTY);
-        expect(consoleErrorSpy).toHaveBeenCalledWith(
-          `Error loading configuration from ${TEST_FIXTURES.VALID_FILE}:`,
+        expect(loggerErrorSpy).toHaveBeenCalledWith(
           expect.any(SyntaxError),
+          `Error loading configuration from ${TEST_FIXTURES.VALID_FILE}`,
         );
       });
     });
@@ -283,7 +288,7 @@ describe("ConfigurationSource", () => {
 
         expect(parseS3Url).toHaveBeenCalledWith(TEST_FIXTURES.INVALID_S3_URL);
         expect(result).toEqual(TEST_FIXTURES.CONFIG_EMPTY);
-        expect(consoleErrorSpy).toHaveBeenCalledWith(
+        expect(loggerErrorSpy).toHaveBeenCalledWith(
           `Invalid S3 URL format: ${TEST_FIXTURES.INVALID_S3_URL}`,
         );
       });
@@ -299,9 +304,9 @@ describe("ConfigurationSource", () => {
         const result = await s3Source.load();
 
         expect(result).toEqual(TEST_FIXTURES.CONFIG_EMPTY);
-        expect(consoleErrorSpy).toHaveBeenCalledWith(
-          `Error loading configuration from S3 ${TEST_FIXTURES.S3_URL}:`,
+        expect(loggerErrorSpy).toHaveBeenCalledWith(
           s3Error,
+          `Error loading configuration from S3 ${TEST_FIXTURES.S3_URL}`,
         );
       });
 
@@ -317,9 +322,9 @@ describe("ConfigurationSource", () => {
         const result = await s3Source.load();
 
         expect(result).toEqual(TEST_FIXTURES.CONFIG_EMPTY);
-        expect(consoleErrorSpy).toHaveBeenCalledWith(
-          `Error loading configuration from S3 ${TEST_FIXTURES.S3_URL}:`,
+        expect(loggerErrorSpy).toHaveBeenCalledWith(
           resolverError,
+          `Error loading configuration from S3 ${TEST_FIXTURES.S3_URL}`,
         );
       });
 
@@ -332,9 +337,9 @@ describe("ConfigurationSource", () => {
         const result = await s3Source.load();
 
         expect(result).toEqual(TEST_FIXTURES.CONFIG_EMPTY);
-        expect(consoleErrorSpy).toHaveBeenCalledWith(
-          `Error in S3ConfigurationSource.load for ${TEST_FIXTURES.S3_URL}:`,
+        expect(loggerErrorSpy).toHaveBeenCalledWith(
           generalError,
+          `Error in S3ConfigurationSource.load for ${TEST_FIXTURES.S3_URL}`,
         );
       });
 

@@ -16,7 +16,11 @@ import mqtt, {
   type IClientSubscribeOptions,
   type MqttClient as MqttClientLib,
 } from "mqtt";
+import { BaseLogger } from "../../lib/logger";
 import { BaseServiceClient, type ServiceClient } from "../core";
+
+// Create a logger instance for this module
+const logger = new BaseLogger({ name: "smoker:mqtt" });
 
 /**
  * Interface for MQTT service client
@@ -173,17 +177,17 @@ export class MqttClient extends BaseServiceClient implements MqttServiceClient {
 
         // Handle error event
         this.client.on("error", (error) => {
-          console.error(`MQTT client error for ${this.clientId}: ${error.message}`);
+          logger.error(`MQTT client error for ${this.clientId}: ${error.message}`);
         });
 
         // Handle close event
         this.client.on("close", () => {
-          console.warn(`MQTT connection closed for client ${this.clientId}`);
+          logger.warn(`MQTT connection closed for client ${this.clientId}`);
         });
 
         // Handle offline event
         this.client.on("offline", () => {
-          console.warn(`MQTT client ${this.clientId} is offline`);
+          logger.warn(`MQTT client ${this.clientId} is offline`);
         });
 
         // Set up message handling
@@ -444,7 +448,7 @@ export class MqttClient extends BaseServiceClient implements MqttServiceClient {
         ]);
       } catch (error) {
         // Log warning but don't fail - this is cleanup code
-        console.warn(
+        logger.warn(
           `Error disconnecting MQTT client: ${error instanceof Error ? error.message : String(error)}`,
         );
       } finally {

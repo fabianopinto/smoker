@@ -18,6 +18,7 @@
 
 import { resolve } from "node:path";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { BaseLogger } from "../../../src/lib/logger";
 import { ConfigurationFactory } from "../../../src/support/config/config-factory";
 import { deepMerge } from "../../../src/support/config/config-merger";
 import {
@@ -334,6 +335,10 @@ describe("ConfigurationFactory", () => {
     it("should build configuration from single source when one source is added", async () => {
       configurationFactory.addObject(TEST_FIXTURES.BASIC_CONFIG);
 
+      const loggerInfoSpy = vi.spyOn(BaseLogger.prototype, "info").mockImplementation(() => {
+        // Suppress logger output in tests
+      });
+
       const result = await configurationFactory.build();
 
       expect(ObjectConfigurationSource).toHaveBeenCalledTimes(1);
@@ -344,8 +349,10 @@ describe("ConfigurationFactory", () => {
       expect(Configuration).toHaveBeenCalledWith(TEST_FIXTURES.BASIC_CONFIG);
       expect(mockConfiguration.initializeGlobalInstance).toHaveBeenCalledTimes(1);
       expect(mockConfiguration.initializeGlobalInstance).toHaveBeenCalledWith(result);
-      expect(console.log).toHaveBeenCalledTimes(1);
-      expect(console.log).toHaveBeenCalledWith("Configuration built successfully");
+      expect(loggerInfoSpy).toHaveBeenCalledTimes(1);
+      expect(loggerInfoSpy).toHaveBeenCalledWith("Configuration built successfully");
+
+      loggerInfoSpy.mockRestore();
     });
 
     it("should merge configurations when multiple sources are added", async () => {
@@ -417,19 +424,27 @@ describe("ConfigurationFactory", () => {
     });
 
     it("should handle source loading errors gracefully", async () => {
-      const errorSource = createMockSource();
-      errorSource.load.mockRejectedValue(new Error("Source loading failed"));
+      const errorSource = {
+        load: vi.fn().mockRejectedValue(new Error("Source loading failed")),
+      };
       configurationFactory.addSource(errorSource as unknown as ConfigurationSource);
       configurationFactory.addObject(TEST_FIXTURES.BASIC_CONFIG);
 
+      const loggerErrorSpy = vi.spyOn(BaseLogger.prototype, "error").mockImplementation(() => {
+        // Suppress logger output in tests
+      });
+
       await configurationFactory.build();
 
-      expect(console.error).toHaveBeenCalledWith(
-        "Error loading configuration from source: Object",
+      // logger.error(errorObjOrString, message)
+      expect(loggerErrorSpy).toHaveBeenCalledWith(
         expect.any(Error),
+        "Error loading configuration from source: Object",
       );
       expect(ObjectConfigurationSource).toHaveBeenCalledWith(TEST_FIXTURES.BASIC_CONFIG); // Other sources still loaded
       expect(deepMerge).toHaveBeenCalledWith({}, TEST_FIXTURES.BASIC_CONFIG); // Valid config was merged
+
+      loggerErrorSpy.mockRestore();
     });
 
     it("should handle null/undefined source configurations", async () => {

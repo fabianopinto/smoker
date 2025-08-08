@@ -18,6 +18,7 @@
  */
 
 import { resolve } from "node:path";
+import { BaseLogger } from "../../lib/logger";
 import { deepMerge } from "./config-merger";
 import {
   type ConfigurationSource,
@@ -31,6 +32,9 @@ import {
   type ConfigValue,
   type SmokeConfig,
 } from "./configuration";
+
+// Create a logger instance for this module
+const logger = new BaseLogger({ name: "smoker:config-factory" });
 
 /**
  * Factory for building Configuration objects
@@ -218,11 +222,14 @@ export class ConfigurationFactory {
           mergedConfig = deepMerge(mergedConfig, sourceConfig as Record<string, ConfigValue>);
         }
       } catch (error) {
-        console.error(`Error loading configuration from source: ${source.constructor.name}`, error);
+        logger.error(
+          error instanceof Error ? error : String(error),
+          `Error loading configuration from source: ${source.constructor.name}`,
+        );
       }
     }
 
-    console.log("Configuration built successfully");
+    logger.info("Configuration built successfully");
     const config = new Configuration(mergedConfig as SmokeConfig);
 
     // Set as global configuration by default unless explicitly disabled

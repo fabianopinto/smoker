@@ -17,6 +17,7 @@
 import mqtt from "mqtt";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { MqttClient } from "../../../src/clients/messaging/mqtt";
+import { BaseLogger } from "../../../src/lib/logger";
 
 /**
  * Mocks for MQTT client
@@ -423,7 +424,9 @@ describe("MqttClient", () => {
     });
 
     it("should handle error events after initialization", async () => {
-      const consoleErrorSpy = vi.spyOn(console, "error").mockImplementation(vi.fn());
+      const loggerErrorSpy = vi.spyOn(BaseLogger.prototype, "error").mockImplementation(() => {
+        // Suppress logger output in tests
+      });
       const testError = new Error("Test MQTT error");
 
       // Set up mock to capture event handlers
@@ -446,16 +449,18 @@ describe("MqttClient", () => {
         errorHandler(testError);
       }
 
-      // Verify console.error was called with correct message (line 176)
-      expect(consoleErrorSpy).toHaveBeenCalledWith(
+      // Verify logger.error was called with correct message (see src/clients/messaging/mqtt.ts:180)
+      expect(loggerErrorSpy).toHaveBeenCalledWith(
         `MQTT client error for ${TEST_FIXTURES.CLIENT_ID}: ${testError.message}`,
       );
 
-      consoleErrorSpy.mockRestore();
+      loggerErrorSpy.mockRestore();
     });
 
     it("should handle close events after initialization", async () => {
-      const consoleWarnSpy = vi.spyOn(console, "warn").mockImplementation(vi.fn());
+      const loggerWarnSpy = vi.spyOn(BaseLogger.prototype, "warn").mockImplementation(() => {
+        // Suppress logger output in tests
+      });
 
       // Set up mock to capture event handlers
       const eventHandlers = new Map<string, () => void>();
@@ -477,16 +482,18 @@ describe("MqttClient", () => {
         closeHandler();
       }
 
-      // Verify console.warn was called with correct message (line 181)
-      expect(consoleWarnSpy).toHaveBeenCalledWith(
+      // Verify logger.warn was called with correct message (see src/clients/messaging/mqtt.ts:185)
+      expect(loggerWarnSpy).toHaveBeenCalledWith(
         `MQTT connection closed for client ${TEST_FIXTURES.CLIENT_ID}`,
       );
 
-      consoleWarnSpy.mockRestore();
+      loggerWarnSpy.mockRestore();
     });
 
     it("should handle offline events after initialization", async () => {
-      const consoleWarnSpy = vi.spyOn(console, "warn").mockImplementation(vi.fn());
+      const loggerWarnSpy = vi.spyOn(BaseLogger.prototype, "warn").mockImplementation(() => {
+        // Suppress logger output in tests
+      });
 
       // Set up mock to capture event handlers
       const eventHandlers = new Map<string, () => void>();
@@ -508,12 +515,12 @@ describe("MqttClient", () => {
         offlineHandler();
       }
 
-      // Verify console.warn was called with correct message (line 186)
-      expect(consoleWarnSpy).toHaveBeenCalledWith(
+      // Verify logger.warn was called with correct message (see src/clients/messaging/mqtt.ts:190)
+      expect(loggerWarnSpy).toHaveBeenCalledWith(
         `MQTT client ${TEST_FIXTURES.CLIENT_ID} is offline`,
       );
 
-      consoleWarnSpy.mockRestore();
+      loggerWarnSpy.mockRestore();
     });
 
     it("should handle message events and call registered callbacks", async () => {
@@ -1306,18 +1313,18 @@ describe("MqttClient", () => {
     });
 
     it("should handle cleanup errors gracefully", async () => {
-      const consoleWarnSpy = vi.spyOn(console, "warn").mockImplementation(vi.fn());
+      const loggerWarnSpy = vi.spyOn(BaseLogger.prototype, "warn").mockImplementation(() => {
+        // Suppress logger output in tests
+      });
       // Simplifying mock implementation to avoid unused parameter warnings
       getMockClient().end.mockImplementation(() => {
         throw new Error("Cleanup failed");
       });
 
       await expect(mqttClient.cleanupClient()).resolves.not.toThrow();
-      expect(consoleWarnSpy).toHaveBeenCalledWith(
-        "Error disconnecting MQTT client: Cleanup failed",
-      );
+      expect(loggerWarnSpy).toHaveBeenCalledWith("Error disconnecting MQTT client: Cleanup failed");
 
-      consoleWarnSpy.mockRestore();
+      loggerWarnSpy.mockRestore();
     });
 
     it("should handle cleanup when client is already null", async () => {
@@ -1520,18 +1527,20 @@ describe("MqttClient", () => {
       });
       await mqttClient.init();
 
-      const consoleWarnSpy = vi.spyOn(console, "warn").mockImplementation(vi.fn());
+      const loggerWarnSpy = vi.spyOn(BaseLogger.prototype, "warn").mockImplementation(() => {
+        // Suppress logger output in tests
+      });
       getMockClient().end.mockImplementation(() => {
         // Using string literal instead of Error object to test error instanceof Error condition
         throw "String cleanup error";
       });
 
       await expect(mqttClient.cleanupClient()).resolves.not.toThrow();
-      expect(consoleWarnSpy).toHaveBeenCalledWith(
+      expect(loggerWarnSpy).toHaveBeenCalledWith(
         "Error disconnecting MQTT client: String cleanup error",
       );
 
-      consoleWarnSpy.mockRestore();
+      loggerWarnSpy.mockRestore();
     });
   });
 });

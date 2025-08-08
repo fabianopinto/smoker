@@ -15,8 +15,12 @@
  * helper functions for common configuration operations.
  */
 
+import { BaseLogger } from "../../lib/logger";
 import { S3ClientWrapper, SSMClientWrapper } from "../aws";
 import { ConfigurationFactory } from "./config-factory";
+
+// Create a logger instance for this module
+const logger = new BaseLogger({ name: "smoker:configuration" });
 
 /**
  * Configuration provider interface for accessing configuration values
@@ -159,7 +163,7 @@ export class Configuration {
    */
   public static initializeGlobalInstance(config: Configuration): void {
     if (Configuration.instance !== null) {
-      console.warn("Global configuration is already initialized, overwriting");
+      logger.warn("Global configuration is already initialized, overwriting");
     }
     Configuration.instance = config;
   }
@@ -218,7 +222,7 @@ export class Configuration {
   ): Promise<T | undefined> {
     // Validate keyPath format
     if (!this.isValidKeyPath(keyPath)) {
-      console.error(`Invalid key path format: ${keyPath}. Must match [a-zA-Z0-9_$.]+`);
+      logger.error(`Invalid key path format: ${keyPath}. Must match [a-zA-Z0-9_$.]+`);
       return defaultValue;
     }
 
@@ -283,7 +287,10 @@ export class Configuration {
       const ssmClient = new SSMClientWrapper();
       return (await ssmClient.getParameter(parameterName)) as unknown as T;
     } catch (error) {
-      console.error(`Error resolving SSM parameter reference ${reference}:`, error);
+      logger.error(
+        error instanceof Error ? error : String(error),
+        `Error resolving SSM parameter reference ${reference}`,
+      );
       return defaultValue;
     }
   }
@@ -312,7 +319,10 @@ export class Configuration {
       // For non-JSON files, ensure we're returning a string
       return String(content) as unknown as T;
     } catch (error) {
-      console.error(`Error resolving S3 reference ${reference}:`, error);
+      logger.error(
+        error instanceof Error ? error : String(error),
+        `Error resolving S3 reference ${reference}`,
+      );
       return defaultValue;
     }
   }

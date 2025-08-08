@@ -11,7 +11,11 @@
  */
 
 import { type Consumer, Kafka, type KafkaConfig, logLevel, type Producer } from "kafkajs";
+import { BaseLogger } from "../../lib/logger";
 import { BaseServiceClient, type ServiceClient } from "../core";
+
+// Create a logger instance for this module
+const logger = new BaseLogger({ name: "smoker:kafka" });
 
 /**
  * Interface for Kafka record metadata
@@ -272,7 +276,7 @@ export class KafkaClient extends BaseServiceClient implements KafkaServiceClient
         await this.producer.disconnect();
       }
     } catch (error) {
-      console.warn(
+      logger.warn(
         `Error disconnecting Kafka client: ${error instanceof Error ? error.message : String(error)}`,
       );
     } finally {
@@ -511,7 +515,7 @@ export class KafkaClient extends BaseServiceClient implements KafkaServiceClient
           });
         })
         .catch((error) => {
-          console.error(`Error in waitForMessage: ${error}`);
+          logger.error(`Error in waitForMessage: ${error}`);
           resolve(null);
         });
     });
@@ -622,7 +626,7 @@ export class KafkaClient extends BaseServiceClient implements KafkaServiceClient
         await this.producer.disconnect();
       }
     } catch (error) {
-      console.warn(`Error disconnecting Kafka client: ${this.formatErrorMessage(error)}`);
+      logger.warn(`Error disconnecting Kafka client: ${this.formatErrorMessage(error)}`);
     } finally {
       this.consumer = null;
       this.producer = null;

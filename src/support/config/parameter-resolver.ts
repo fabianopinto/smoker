@@ -15,8 +15,12 @@
 
 import { S3Client } from "@aws-sdk/client-s3";
 import { SSMClient } from "@aws-sdk/client-ssm";
+import { BaseLogger } from "../../lib/logger";
 import { S3ClientWrapper, SSMClientWrapper } from "../aws";
 import type { ConfigObject, ConfigValue } from "./configuration";
+
+// Create a logger instance for this module
+const logger = new BaseLogger({ name: "smoker:parameter-resolver" });
 
 /**
  * Parameter Resolver class
@@ -134,7 +138,10 @@ export class ParameterResolver {
               throw error;
             }
 
-            console.error(`Error resolving S3 JSON reference ${value}:`, error);
+            logger.error(
+              `Error resolving S3 JSON reference ${value}:`,
+              error instanceof Error ? error : String(error),
+            );
             // Return the original reference on non-circular reference errors
             return value;
           } finally {

@@ -15,6 +15,7 @@
  */
 
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { BaseLogger } from "../../../src/lib/logger";
 import { S3ClientWrapper, SSMClientWrapper } from "../../../src/support/aws/aws-clients";
 import { ConfigurationFactory } from "../../../src/support/config/config-factory";
 import {
@@ -239,7 +240,9 @@ describe("Configuration", () => {
         });
 
         it("should overwrite existing global instance with warning", () => {
-          const consoleSpy = vi.spyOn(console, "warn").mockImplementation(() => undefined);
+          const loggerWarnSpy = vi.spyOn(BaseLogger.prototype, "warn").mockImplementation(() => {
+            // Suppress logger output in tests
+          });
           const oldConfig = createTestConfiguration();
           const newConfig = createTestConfiguration({ test: "new" });
           Configuration.initializeGlobalInstance(oldConfig);
@@ -248,9 +251,10 @@ describe("Configuration", () => {
 
           const instance = Configuration.getInstance();
           expect(instance).toBe(newConfig);
-          expect(consoleSpy).toHaveBeenCalledWith(
+          expect(loggerWarnSpy).toHaveBeenCalledWith(
             "Global configuration is already initialized, overwriting",
           );
+          loggerWarnSpy.mockRestore();
         });
       });
     });
@@ -346,38 +350,48 @@ describe("Configuration", () => {
 
         it("should return undefined and log error for invalid key paths", async () => {
           const config = createTestConfiguration();
-          const consoleSpy = vi.spyOn(console, "error");
+          const loggerErrorSpy = vi.spyOn(BaseLogger.prototype, "error").mockImplementation(() => {
+            // Suppress logger output in tests
+          });
 
           await expect(config.getValue("app-name")).resolves.toBeUndefined();
-          expect(consoleSpy).toHaveBeenCalledWith(
+          expect(loggerErrorSpy).toHaveBeenCalledWith(
             "Invalid key path format: app-name. Must match [a-zA-Z0-9_$.]+",
           );
 
           await expect(config.getValue("app.name-invalid")).resolves.toBeUndefined();
-          expect(consoleSpy).toHaveBeenCalledWith(
+          expect(loggerErrorSpy).toHaveBeenCalledWith(
             "Invalid key path format: app.name-invalid. Must match [a-zA-Z0-9_$.]+",
           );
 
           await expect(config.getValue("app..name")).resolves.toBeUndefined();
-          expect(consoleSpy).toHaveBeenCalledWith(
+          expect(loggerErrorSpy).toHaveBeenCalledWith(
             "Invalid key path format: app..name. Must match [a-zA-Z0-9_$.]+",
           );
 
           await expect(config.getValue("")).resolves.toBeUndefined();
-          expect(consoleSpy).toHaveBeenCalledWith(
+          expect(loggerErrorSpy).toHaveBeenCalledWith(
             "Invalid key path format: . Must match [a-zA-Z0-9_$.]+",
           );
+
+          loggerErrorSpy.mockRestore();
         });
 
         it("should return default value for invalid key paths when provided", async () => {
           const defaultValue = "fallback-value";
 
+          const loggerErrorSpy = vi.spyOn(BaseLogger.prototype, "error").mockImplementation(() => {
+            // Suppress logger output in tests
+          });
+
           const result = await createTestConfiguration().getValue("invalid-key", defaultValue);
 
           expect(result).toBe(defaultValue);
-          expect(console.error).toHaveBeenCalledWith(
+          expect(loggerErrorSpy).toHaveBeenCalledWith(
             "Invalid key path format: invalid-key. Must match [a-zA-Z0-9_$.]+",
           );
+
+          loggerErrorSpy.mockRestore();
         });
       });
 
@@ -401,10 +415,19 @@ describe("Configuration", () => {
           expect(
             await createTestConfiguration().getValue("database.credentials.password", defaultValue),
           ).toBe(defaultValue);
-          expect(console.error).toHaveBeenCalledWith(
-            "Error resolving SSM parameter reference ssm://db/password:",
+          const loggerErrorSpy = vi.spyOn(BaseLogger.prototype, "error").mockImplementation(() => {
+            // Suppress logger output in tests
+          });
+
+          // Trigger again to assert logger call deterministically
+          await createTestConfiguration().getValue("database.credentials.password", defaultValue);
+
+          expect(loggerErrorSpy).toHaveBeenCalledWith(
             expect.any(Error),
+            "Error resolving SSM parameter reference ssm://db/password",
           );
+
+          loggerErrorSpy.mockRestore();
         });
 
         it("should handle SSM reference without default value on error", async () => {
@@ -446,10 +469,20 @@ describe("Configuration", () => {
           expect(await createTestConfiguration().getValue("features.config", defaultValue)).toEqual(
             defaultValue,
           );
-          expect(console.error).toHaveBeenCalledWith(
-            "Error resolving S3 reference s3://bucket/config.json:",
+
+          const loggerErrorSpy = vi.spyOn(BaseLogger.prototype, "error").mockImplementation(() => {
+            // Suppress logger output in tests
+          });
+
+          // Trigger again to assert logger call deterministically
+          await createTestConfiguration().getValue("features.config", defaultValue);
+
+          expect(loggerErrorSpy).toHaveBeenCalledWith(
             expect.any(Error),
+            "Error resolving S3 reference s3://bucket/config.json",
           );
+
+          loggerErrorSpy.mockRestore();
         });
 
         it("should handle S3 reference without default value on error", async () => {

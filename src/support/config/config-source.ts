@@ -17,9 +17,13 @@
 
 import { S3Client } from "@aws-sdk/client-s3";
 import { existsSync, readFileSync } from "node:fs";
+import { BaseLogger } from "../../lib/logger";
 import { S3ClientWrapper, parseS3Url } from "../aws";
 import type { ConfigObject } from "./configuration";
 import { ParameterResolver } from "./parameter-resolver";
+
+// Create a logger instance for this module
+const logger = new BaseLogger({ name: "smoker:config-source" });
 
 /**
  * ConfigurationSource interface
@@ -79,14 +83,17 @@ export class FileConfigurationSource implements ConfigurationSource {
   async load(): Promise<ConfigObject> {
     try {
       if (!existsSync(this.filePath)) {
-        console.warn(`Configuration file not found: ${this.filePath}`);
+        logger.warn(`Configuration file not found: ${this.filePath}`);
         return {};
       }
 
       const content = readFileSync(this.filePath, "utf8");
       return JSON.parse(content) as ConfigObject;
     } catch (error) {
-      console.error(`Error loading configuration from ${this.filePath}:`, error);
+      logger.error(
+        error instanceof Error ? error : String(error),
+        `Error loading configuration from ${this.filePath}`,
+      );
       return {};
     }
   }
@@ -133,7 +140,7 @@ export class S3ConfigurationSource implements ConfigurationSource {
       const parsed = parseS3Url(this.s3Url);
 
       if (!parsed) {
-        console.error(`Invalid S3 URL format: ${this.s3Url}`);
+        logger.error(`Invalid S3 URL format: ${this.s3Url}`);
         return {};
       }
 
@@ -147,11 +154,17 @@ export class S3ConfigurationSource implements ConfigurationSource {
         // Resolve any parameter references in the configuration
         return await this.resolver.resolveConfig(configObject);
       } catch (error) {
-        console.error(`Error loading configuration from S3 ${this.s3Url}:`, error);
+        logger.error(
+          error instanceof Error ? error : String(error),
+          `Error loading configuration from S3 ${this.s3Url}`,
+        );
         return {};
       }
     } catch (error) {
-      console.error(`Error in S3ConfigurationSource.load for ${this.s3Url}:`, error);
+      logger.error(
+        error instanceof Error ? error : String(error),
+        `Error in S3ConfigurationSource.load for ${this.s3Url}`,
+      );
       return {};
     }
   }

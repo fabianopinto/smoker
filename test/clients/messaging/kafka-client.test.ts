@@ -23,6 +23,7 @@ import {
 } from "kafkajs";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { KafkaClient } from "../../../src/clients/messaging/kafka";
+import { BaseLogger } from "../../../src/lib/logger";
 
 /**
  * Mock Kafka library for unit testing
@@ -723,18 +724,18 @@ describe("KafkaClient", () => {
 
       vi.mocked(getMockKafka().consumer).mockReturnValue(mockTempConsumer as unknown as Consumer);
 
-      // Mock console.error to avoid noise in test output
-      const consoleSpy = vi.spyOn(console, "error").mockImplementation(() => {
-        // Intentionally empty - suppressing console output in tests
+      // Spy on the logger used by KafkaClient to avoid noisy output and assert call
+      const loggerSpy = vi.spyOn(BaseLogger.prototype, "error").mockImplementation(() => {
+        // Intentionally empty - suppressing logger output in tests
       });
 
       const matcher = (msg: { value: string }) => msg.value === "any-message";
       const result = await kafkaClient.waitForMessage(matcher, 1000);
 
       expect(result).toBeNull();
-      expect(consoleSpy).toHaveBeenCalledWith("Error in waitForMessage: Error: Connection failed");
+      expect(loggerSpy).toHaveBeenCalledWith("Error in waitForMessage: Error: Connection failed");
 
-      consoleSpy.mockRestore();
+      loggerSpy.mockRestore();
     });
 
     it("should skip messages without value in waitForMessage", async () => {

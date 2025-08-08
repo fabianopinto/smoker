@@ -18,6 +18,7 @@
 import { S3Client } from "@aws-sdk/client-s3";
 import { SSMClient } from "@aws-sdk/client-ssm";
 import { beforeEach, describe, expect, it, vi } from "vitest";
+import { BaseLogger } from "../../../src/lib/logger";
 import { S3ClientWrapper, SSMClientWrapper } from "../../../src/support/aws";
 import type { ConfigObject, ConfigValue } from "../../../src/support/config/configuration";
 import { ParameterResolver } from "../../../src/support/config/parameter-resolver";
@@ -131,12 +132,11 @@ describe("ParameterResolver", () => {
   let parameterResolver: ParameterResolver;
   let mockS3Client: MockS3Wrapper;
   let mockSSMClient: MockSSMWrapper;
-  let consoleErrorSpy: ReturnType<typeof vi.spyOn>;
 
   beforeEach(() => {
     // Clear all mocks before each test
     vi.clearAllMocks();
-    consoleErrorSpy = vi.spyOn(console, "error").mockImplementation(() => undefined);
+    // No console spies needed; tests assert against BaseLogger where applicable
 
     // Create new mock instances for each test
     mockS3Client = {
@@ -399,13 +399,20 @@ describe("ParameterResolver", () => {
         mockSSMClient.isS3JsonReference.mockReturnValue(true);
         mockS3Client.getContentFromUrl.mockRejectedValue(s3Error);
 
+        const loggerErrorSpy = vi.spyOn(BaseLogger.prototype, "error").mockImplementation(() => {
+          // Suppress logger output in tests
+        });
+
         const result = await parameterResolver.resolveValue(TEST_FIXTURES.S3_FEATURES);
 
         expect(result).toBe(TEST_FIXTURES.S3_FEATURES); // Returns original reference on error
-        expect(consoleErrorSpy).toHaveBeenCalledWith(
+        // ParameterResolver logs as logger.error(message, error)
+        expect(loggerErrorSpy).toHaveBeenCalledWith(
           `Error resolving S3 JSON reference ${TEST_FIXTURES.S3_FEATURES}:`,
           s3Error,
         );
+
+        loggerErrorSpy.mockRestore();
       });
 
       it("should recursively resolve S3 JSON content with nested references", async () => {
