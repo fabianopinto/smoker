@@ -17,6 +17,7 @@ import {
   ReceiveMessageCommand,
   SendMessageCommand,
 } from "@aws-sdk/client-sqs";
+import { ERR_VALIDATION, SmokerError } from "../../errors";
 import { BaseServiceClient, type ServiceClient } from "../core";
 
 /**
@@ -65,7 +66,7 @@ export interface SqsServiceClient extends ServiceClient {
    * @param messageBody - Message content
    * @param delaySeconds - Delay delivery in seconds (default: 0)
    * @return Message ID
-   * @throws Error if sending fails
+   * @throws {SmokerError} if sending fails
    */
   sendMessage(messageBody: string, delaySeconds?: number): Promise<string>;
 
@@ -75,7 +76,7 @@ export interface SqsServiceClient extends ServiceClient {
    * @param maxMessages - Maximum number of messages to retrieve (default: 1)
    * @param waitTimeSeconds - Time to wait for messages (default: 0)
    * @return Array of received messages
-   * @throws Error if receiving fails
+   * @throws {SmokerError} if receiving fails
    */
   receiveMessages(maxMessages?: number, waitTimeSeconds?: number): Promise<SqsMessage[]>;
 
@@ -83,14 +84,14 @@ export interface SqsServiceClient extends ServiceClient {
    * Delete a message from the SQS queue
    *
    * @param receiptHandle - Receipt handle of the message to delete
-   * @throws Error if deletion fails
+   * @throws {SmokerError} if deletion fails
    */
   deleteMessage(receiptHandle: string): Promise<void>;
 
   /**
    * Purge all messages from the SQS queue
    *
-   * @throws Error if purge operation fails
+   * @throws {SmokerError} if purge operation fails
    */
   purgeQueue(): Promise<void>;
 }
@@ -133,7 +134,7 @@ export class SqsClient extends BaseServiceClient implements SqsServiceClient {
   /**
    * Initialize the client with AWS configuration
    *
-   * @throws Error if queueUrl is not provided or client creation fails
+   * @throws {SmokerError} if queueUrl is not provided or client creation fails
    */
   protected async initializeClient(): Promise<void> {
     try {
@@ -141,7 +142,12 @@ export class SqsClient extends BaseServiceClient implements SqsServiceClient {
       this.queueUrl = this.getConfig<string>("queueUrl", "");
 
       if (!this.queueUrl) {
-        throw new Error("SQS queue URL is required");
+        throw new SmokerError("SQS queue URL is required", {
+          code: ERR_VALIDATION,
+          domain: "aws",
+          details: { component: "sqs" },
+          retryable: false,
+        });
       }
 
       this.client = new AwsSqsClient({
@@ -153,8 +159,20 @@ export class SqsClient extends BaseServiceClient implements SqsServiceClient {
         endpoint: this.getConfig<string>("endpoint", "") || undefined,
       });
     } catch (error) {
-      throw new Error(
-        `Failed to initialize SQS client: ${error instanceof Error ? error.message : String(error)}`,
+      throw new SmokerError(
+        `Failed to initialize SQS client: ${
+          error instanceof Error ? error.message : String(error)
+        }`,
+        {
+          code: ERR_VALIDATION,
+          domain: "aws",
+          details: {
+            component: "sqs",
+            reason: error instanceof Error ? error.message : String(error),
+          },
+          retryable: true,
+          cause: error,
+        },
       );
     }
   }
@@ -165,7 +183,7 @@ export class SqsClient extends BaseServiceClient implements SqsServiceClient {
    * @param messageBody - Message content
    * @param delaySeconds - Delay delivery in seconds (default: 0)
    * @return Message ID
-   * @throws Error if sending fails or client is not initialized
+   * @throws {SmokerError} if sending fails or client is not initialized
    */
   async sendMessage(messageBody: string, delaySeconds = 0): Promise<string> {
     this.ensureInitialized();
@@ -173,7 +191,12 @@ export class SqsClient extends BaseServiceClient implements SqsServiceClient {
 
     // Allow empty message bodies (empty string is valid) - only check for null/undefined
     if (messageBody === null || messageBody === undefined) {
-      throw new Error("SQS sendMessage requires message content");
+      throw new SmokerError("SQS sendMessage requires message content", {
+        code: ERR_VALIDATION,
+        domain: "aws",
+        details: { component: "sqs", queueUrl: this.queueUrl },
+        retryable: false,
+      });
     }
 
     try {
@@ -187,8 +210,21 @@ export class SqsClient extends BaseServiceClient implements SqsServiceClient {
 
       return response.MessageId || `message-id-${Date.now()}`;
     } catch (error) {
-      throw new Error(
-        `Failed to send message to queue ${this.queueUrl}: ${error instanceof Error ? error.message : String(error)}`,
+      throw new SmokerError(
+        `Failed to send message to queue ${this.queueUrl}: ${
+          error instanceof Error ? error.message : String(error)
+        }`,
+        {
+          code: ERR_VALIDATION,
+          domain: "aws",
+          details: {
+            component: "sqs",
+            queueUrl: this.queueUrl,
+            reason: error instanceof Error ? error.message : String(error),
+          },
+          retryable: true,
+          cause: error,
+        },
       );
     }
   }
@@ -199,7 +235,7 @@ export class SqsClient extends BaseServiceClient implements SqsServiceClient {
    * @param maxMessages - Maximum number of messages to retrieve (default: 1)
    * @param waitTimeSeconds - Time to wait for messages (default: 0)
    * @return Array of received messages
-   * @throws Error if receiving fails or client is not initialized
+   * @throws {SmokerError} if receiving fails or client is not initialized
    */
   async receiveMessages(maxMessages = 1, waitTimeSeconds = 0): Promise<SqsMessage[]> {
     this.ensureInitialized();
@@ -225,8 +261,21 @@ export class SqsClient extends BaseServiceClient implements SqsServiceClient {
         attributes: message.MessageAttributes || {},
       }));
     } catch (error) {
-      throw new Error(
-        `Failed to receive messages from queue ${this.queueUrl}: ${error instanceof Error ? error.message : String(error)}`,
+      throw new SmokerError(
+        `Failed to receive messages from queue ${this.queueUrl}: ${
+          error instanceof Error ? error.message : String(error)
+        }`,
+        {
+          code: ERR_VALIDATION,
+          domain: "aws",
+          details: {
+            component: "sqs",
+            queueUrl: this.queueUrl,
+            reason: error instanceof Error ? error.message : String(error),
+          },
+          retryable: true,
+          cause: error,
+        },
       );
     }
   }
@@ -235,14 +284,19 @@ export class SqsClient extends BaseServiceClient implements SqsServiceClient {
    * Delete a message from the SQS queue
    *
    * @param receiptHandle - Receipt handle of the message to delete
-   * @throws Error if deletion fails or client is not initialized
+   * @throws {SmokerError} if deletion fails or client is not initialized
    */
   async deleteMessage(receiptHandle: string): Promise<void> {
     this.ensureInitialized();
     this.assertNotNull(this.client);
 
     if (!receiptHandle) {
-      throw new Error("SQS deleteMessage requires a receipt handle");
+      throw new SmokerError("SQS deleteMessage requires a receipt handle", {
+        code: ERR_VALIDATION,
+        domain: "aws",
+        details: { component: "sqs", queueUrl: this.queueUrl },
+        retryable: false,
+      });
     }
 
     try {
@@ -253,8 +307,21 @@ export class SqsClient extends BaseServiceClient implements SqsServiceClient {
 
       await this.client.send(command);
     } catch (error) {
-      throw new Error(
-        `Failed to delete message from queue ${this.queueUrl}: ${error instanceof Error ? error.message : String(error)}`,
+      throw new SmokerError(
+        `Failed to delete message from queue ${this.queueUrl}: ${
+          error instanceof Error ? error.message : String(error)
+        }`,
+        {
+          code: ERR_VALIDATION,
+          domain: "aws",
+          details: {
+            component: "sqs",
+            queueUrl: this.queueUrl,
+            reason: error instanceof Error ? error.message : String(error),
+          },
+          retryable: true,
+          cause: error,
+        },
       );
     }
   }
@@ -262,7 +329,7 @@ export class SqsClient extends BaseServiceClient implements SqsServiceClient {
   /**
    * Purge all messages from the SQS queue
    *
-   * @throws Error if purge operation fails or client is not initialized
+   * @throws {SmokerError} if purge operation fails or client is not initialized
    */
   async purgeQueue(): Promise<void> {
     this.ensureInitialized();
@@ -275,8 +342,21 @@ export class SqsClient extends BaseServiceClient implements SqsServiceClient {
 
       await this.client.send(command);
     } catch (error) {
-      throw new Error(
-        `Failed to purge queue ${this.queueUrl}: ${error instanceof Error ? error.message : String(error)}`,
+      throw new SmokerError(
+        `Failed to purge queue ${this.queueUrl}: ${
+          error instanceof Error ? error.message : String(error)
+        }`,
+        {
+          code: ERR_VALIDATION,
+          domain: "aws",
+          details: {
+            component: "sqs",
+            queueUrl: this.queueUrl,
+            reason: error instanceof Error ? error.message : String(error),
+          },
+          retryable: true,
+          cause: error,
+        },
       );
     }
   }

@@ -13,6 +13,7 @@
 
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { S3Client } from "../../../src/clients/aws/aws-s3";
+import { ERR_S3_READ, ERR_VALIDATION, SmokerError } from "../../../src/errors";
 
 /**
  * Mocks the AWS SDK S3Client module
@@ -87,10 +88,14 @@ describe("S3Client Error Handling", () => {
    * Tests for client initialization error handling
    */
   describe("initialization", () => {
-    it("should throw error when bucket is missing", async () => {
+    it("should throw structured error when bucket is missing", async () => {
       const clientWithoutBucket = new S3Client("test-client");
-      await expect(clientWithoutBucket.init()).rejects.toThrow(
-        TEST_FIXTURES.ERROR_MISSING_BUCKET_MSG,
+      await expect(clientWithoutBucket.init()).rejects.toSatisfy(
+        (err) =>
+          SmokerError.isSmokerError(err) &&
+          err.code === ERR_VALIDATION &&
+          err.domain === "aws" &&
+          err.details?.component === "s3",
       );
     });
 
@@ -99,7 +104,13 @@ describe("S3Client Error Handling", () => {
       shouldThrowNonError = false;
       shouldThrowInCommand = true; // This will make the S3Client throw an error
 
-      await expect(client.init()).rejects.toThrow(TEST_FIXTURES.ERROR_AWS_CREDENTIALS);
+      await expect(client.init()).rejects.toSatisfy(
+        (err) =>
+          SmokerError.isSmokerError(err) &&
+          err.code === ERR_S3_READ &&
+          err.domain === "aws" &&
+          err.details?.component === "s3",
+      );
       expect(client.isInitialized()).toBe(false);
     });
 
@@ -108,7 +119,13 @@ describe("S3Client Error Handling", () => {
       shouldThrowNonError = true;
       nonErrorValue = "Custom error string";
 
-      await expect(client.init()).rejects.toThrow("Custom error string");
+      await expect(client.init()).rejects.toSatisfy(
+        (err) =>
+          SmokerError.isSmokerError(err) &&
+          err.code === ERR_S3_READ &&
+          err.domain === "aws" &&
+          err.details?.component === "s3",
+      );
       expect(client.isInitialized()).toBe(false);
     });
 
@@ -128,19 +145,23 @@ describe("S3Client Error Handling", () => {
         // bucket is deliberately missing to trigger validation error
       });
 
-      // Initialization should fail with the proper error message
-      await expect(client.init()).rejects.toThrow(TEST_FIXTURES.ERROR_MISSING_BUCKET_MSG);
+      // Initialization should fail with a structured SmokerError
+      await expect(client.init()).rejects.toMatchObject({
+        code: ERR_VALIDATION,
+        domain: "aws",
+        details: expect.objectContaining({ component: "s3" }),
+      });
 
       // Verify the client is not initialized
       expect(client.isInitialized()).toBe(false);
 
-      // Restore the mocking for subsequent tests
-      vi.resetModules();
+      // Keep mocking for subsequent tests
     });
 
     it("should handle errors thrown from AWS S3Client constructor", async () => {
       // Set up the mock to throw an error during client creation
       shouldThrowNonError = false;
+      shouldThrowInCommand = true;
 
       // Create S3Client with valid config
       const client = new S3Client(TEST_FIXTURES.CLIENT_ID, {
@@ -148,8 +169,14 @@ describe("S3Client Error Handling", () => {
         region: TEST_FIXTURES.REGION,
       });
 
-      // Test the initialization which should properly wrap the error message
-      await expect(client.init()).rejects.toThrow(TEST_FIXTURES.ERROR_AWS_CREDENTIALS);
+      // Initialization should fail with structured SmokerError
+      await expect(client.init()).rejects.toSatisfy(
+        (err) =>
+          SmokerError.isSmokerError(err) &&
+          err.code === ERR_S3_READ &&
+          err.domain === "aws" &&
+          err.details?.component === "s3",
+      );
 
       // Verify the client is not initialized
       expect(client.isInitialized()).toBe(false);
@@ -167,7 +194,13 @@ describe("S3Client Error Handling", () => {
       });
 
       // Test the initialization which should properly handle non-Error values
-      await expect(client.init()).rejects.toThrow(TEST_FIXTURES.ERROR_NETWORK_DISCONNECTED);
+      await expect(client.init()).rejects.toSatisfy(
+        (err) =>
+          SmokerError.isSmokerError(err) &&
+          err.code === ERR_S3_READ &&
+          err.domain === "aws" &&
+          err.details?.component === "s3",
+      );
 
       // Verify the client is not initialized
       expect(client.isInitialized()).toBe(false);
@@ -199,8 +232,8 @@ describe("S3Client Error Handling", () => {
       nonErrorValue = error;
       shouldThrowInCommand = true;
 
-      await expect(client.read("test-file.txt")).rejects.toThrow(
-        `Failed to read object test-file.txt from bucket ${TEST_FIXTURES.BUCKET}: ${error.message}`,
+      await expect(client.read("test-file.txt")).rejects.toSatisfy(
+        (err) => SmokerError.isSmokerError(err) && err.code === ERR_S3_READ,
       );
     });
 
@@ -208,8 +241,8 @@ describe("S3Client Error Handling", () => {
       nonErrorValue = "Custom read error";
       shouldThrowInCommand = true;
 
-      await expect(client.read("test-file.txt")).rejects.toThrow(
-        `Failed to read object test-file.txt from bucket ${TEST_FIXTURES.BUCKET}: ${nonErrorValue}`,
+      await expect(client.read("test-file.txt")).rejects.toSatisfy(
+        (err) => SmokerError.isSmokerError(err) && err.code === ERR_S3_READ,
       );
     });
 
@@ -218,8 +251,8 @@ describe("S3Client Error Handling", () => {
       nonErrorValue = error;
       shouldThrowInCommand = true;
 
-      await expect(client.write("test-file.txt", "test content")).rejects.toThrow(
-        `Failed to write object test-file.txt to bucket ${TEST_FIXTURES.BUCKET}: ${error.message}`,
+      await expect(client.write("test-file.txt", "test content")).rejects.toSatisfy(
+        (err) => SmokerError.isSmokerError(err) && err.code === ERR_S3_READ,
       );
     });
 
@@ -228,8 +261,8 @@ describe("S3Client Error Handling", () => {
       nonErrorValue = error;
       shouldThrowInCommand = true;
 
-      await expect(client.delete("test-file.txt")).rejects.toThrow(
-        `Failed to delete object test-file.txt from bucket ${TEST_FIXTURES.BUCKET}: ${error.message}`,
+      await expect(client.delete("test-file.txt")).rejects.toSatisfy(
+        (err) => SmokerError.isSmokerError(err) && err.code === ERR_S3_READ,
       );
     });
   });

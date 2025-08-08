@@ -14,6 +14,7 @@
 
 import { describe, expect, it, vi } from "vitest";
 import { CloudWatchClient } from "../../../src/clients/aws/aws-cloudwatch";
+import { ERR_VALIDATION, SmokerError } from "../../../src/errors";
 
 /**
  * Mocks the AWS SDK CloudWatchLogsClient module
@@ -99,9 +100,13 @@ describe("CloudWatchClient Error Handling", () => {
         logGroupName: TEST_FIXTURES.LOG_GROUP_NAME,
       });
 
-      // Assert that initialization error is properly wrapped with context
-      await expect(clientWithFailingInit.init()).rejects.toThrow(
-        TEST_FIXTURES.ERROR_INITIALIZATION,
+      // Assert that initialization error is structured SmokerError
+      await expect(clientWithFailingInit.init()).rejects.toSatisfy(
+        (err) =>
+          SmokerError.isSmokerError(err) &&
+          err.code === ERR_VALIDATION &&
+          err.domain === "aws" &&
+          err.details?.component === "cloudwatch",
       );
     });
 
@@ -114,8 +119,14 @@ describe("CloudWatchClient Error Handling", () => {
         logGroupName: TEST_FIXTURES.LOG_GROUP_NAME,
       });
 
-      // Assert that initialization error is properly wrapped with context
-      await expect(client.init()).rejects.toThrow(TEST_FIXTURES.ERROR_STRING_INITIALIZATION);
+      // Assert that initialization error is structured SmokerError
+      await expect(client.init()).rejects.toSatisfy(
+        (err) =>
+          SmokerError.isSmokerError(err) &&
+          err.code === ERR_VALIDATION &&
+          err.domain === "aws" &&
+          err.details?.component === "cloudwatch",
+      );
 
       // Reset the flag
       shouldThrowNonError = false;
@@ -130,8 +141,14 @@ describe("CloudWatchClient Error Handling", () => {
         logGroupName: TEST_FIXTURES.LOG_GROUP_NAME,
       });
 
-      // This will fail because the mocked constructor throws
-      await expect(client.init()).rejects.toThrow(TEST_FIXTURES.ERROR_INITIALIZATION);
+      // This will fail because the mocked constructor throws; assert structured error
+      await expect(client.init()).rejects.toSatisfy(
+        (err) =>
+          SmokerError.isSmokerError(err) &&
+          err.code === ERR_VALIDATION &&
+          err.domain === "aws" &&
+          err.details?.component === "cloudwatch",
+      );
     });
 
     it("should handle listLogStreams error with non-Error object", async () => {
@@ -143,8 +160,14 @@ describe("CloudWatchClient Error Handling", () => {
         logGroupName: TEST_FIXTURES.LOG_GROUP_NAME,
       });
 
-      // This will fail because the mocked constructor throws a string
-      await expect(client.init()).rejects.toThrow(TEST_FIXTURES.ERROR_STRING_INITIALIZATION);
+      // This will fail because the mocked constructor throws a string; assert structured error
+      await expect(client.init()).rejects.toSatisfy(
+        (err) =>
+          SmokerError.isSmokerError(err) &&
+          err.code === ERR_VALIDATION &&
+          err.domain === "aws" &&
+          err.details?.component === "cloudwatch",
+      );
 
       // Reset the flag
       shouldThrowNonError = false;
@@ -176,9 +199,15 @@ describe("CloudWatchClient Error Handling", () => {
       shouldThrowInCommand = true;
       nonErrorValue = false;
 
-      // This should throw due to non-Error in the command
-      await expect(client.searchLogStream(TEST_FIXTURES.LOG_STREAM_NAME, "ERROR")).rejects.toThrow(
-        "Failed to search log stream: false",
+      // This should throw due to non-Error in the command; assert structured error
+      await expect(
+        client.searchLogStream(TEST_FIXTURES.LOG_STREAM_NAME, "ERROR"),
+      ).rejects.toSatisfy(
+        (err) =>
+          SmokerError.isSmokerError(err) &&
+          err.code === ERR_VALIDATION &&
+          err.domain === "aws" &&
+          err.details?.component === "cloudwatch",
       );
 
       // Reset flag
@@ -212,9 +241,13 @@ describe("CloudWatchClient Error Handling", () => {
       clientInternal.initialized = true;
       clientInternal.client = { send: createMockSendFunction() };
 
-      // This should throw due to non-Error in the command
-      await expect(client.getLogEvents(TEST_FIXTURES.LOG_STREAM_NAME)).rejects.toThrow(
-        `Failed to get log events from ${TEST_FIXTURES.LOG_STREAM_NAME}: false`,
+      // This should throw due to non-Error in the command; assert structured error
+      await expect(client.getLogEvents(TEST_FIXTURES.LOG_STREAM_NAME)).rejects.toSatisfy(
+        (err) =>
+          SmokerError.isSmokerError(err) &&
+          err.code === ERR_VALIDATION &&
+          err.domain === "aws" &&
+          err.details?.component === "cloudwatch",
       );
 
       // Reset flag
@@ -250,9 +283,13 @@ describe("CloudWatchClient Error Handling", () => {
       // Make sure logGroupName is set correctly for the error message
       clientInternal.logGroupName = TEST_FIXTURES.LOG_GROUP_NAME;
 
-      // This should throw due to non-Error in the command
-      await expect(client.listLogStreams()).rejects.toThrow(
-        `Failed to list log streams in group ${TEST_FIXTURES.LOG_GROUP_NAME}: 404`,
+      // This should throw due to non-Error in the command; assert structured error
+      await expect(client.listLogStreams()).rejects.toSatisfy(
+        (err) =>
+          SmokerError.isSmokerError(err) &&
+          err.code === ERR_VALIDATION &&
+          err.domain === "aws" &&
+          err.details?.component === "cloudwatch",
       );
 
       // Reset flag
@@ -283,10 +320,16 @@ describe("CloudWatchClient Error Handling", () => {
         throw nonErrorValue;
       });
 
-      // This will directly throw the primitive from searchLogStream
+      // This will directly throw the primitive from searchLogStream; assert structured error
       await expect(
         client.waitForPattern(TEST_FIXTURES.LOG_STREAM_NAME, "ERROR", 100),
-      ).rejects.toThrow(`Error while waiting for pattern in logs: ${String(nonErrorValue)}`);
+      ).rejects.toSatisfy(
+        (err) =>
+          SmokerError.isSmokerError(err) &&
+          err.code === ERR_VALIDATION &&
+          err.domain === "aws" &&
+          err.details?.component === "cloudwatch",
+      );
 
       // Restore the original method
       client.searchLogStream = originalSearchLogStream;

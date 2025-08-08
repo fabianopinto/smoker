@@ -12,6 +12,7 @@ import {
   GetObjectCommand,
   PutObjectCommand,
 } from "@aws-sdk/client-s3";
+import { ERR_S3_READ, ERR_VALIDATION, SmokerError } from "../../errors";
 import { BaseServiceClient, type ServiceClient } from "../core";
 
 /**
@@ -36,7 +37,7 @@ export interface S3ServiceClient extends ServiceClient {
    *
    * @param key - The object key (path within the bucket)
    * @return Promise resolving to the object content as a string
-   * @throws Error if object does not exist or cannot be read
+   * @throws {SmokerError} if object does not exist or cannot be read
    *
    * @example
    * // Read a text file from S3
@@ -50,7 +51,7 @@ export interface S3ServiceClient extends ServiceClient {
    * @template T - The expected type of the parsed JSON
    * @param key - The object key (path within the bucket)
    * @return Promise resolving to the parsed JSON object
-   * @throws Error if object does not exist, cannot be read, or is invalid JSON
+   * @throws {SmokerError} if object does not exist, cannot be read, or is invalid JSON
    *
    * @example
    * // Read and parse a JSON configuration file
@@ -65,7 +66,7 @@ export interface S3ServiceClient extends ServiceClient {
    * @param key - The object key (path within the bucket)
    * @param content - The string content to write
    * @return Promise that resolves when the write operation completes
-   * @throws Error if writing fails
+   * @throws {SmokerError} if writing fails
    *
    * @example
    * // Write a text file to S3
@@ -78,7 +79,7 @@ export interface S3ServiceClient extends ServiceClient {
    *
    * @param key - The object key (path within the bucket)
    * @param data - The data object to serialize as JSON
-   * @throws Error if serialization or writing fails
+   * @throws {SmokerError} if serialization or writing fails
    */
   writeJson(key: string, data: unknown): Promise<void>;
 
@@ -86,7 +87,7 @@ export interface S3ServiceClient extends ServiceClient {
    * Delete an object from S3
    *
    * @param key - The object key (path within the bucket)
-   * @throws Error if deletion fails
+   * @throws {SmokerError} if deletion fails
    */
   delete(key: string): Promise<void>;
 }
@@ -129,7 +130,7 @@ export class S3Client extends BaseServiceClient implements S3ServiceClient {
   /**
    * Initialize the S3 client with AWS configuration
    *
-   * @throws Error if bucket name is not provided or client creation fails
+   * @throws {SmokerError} if bucket name is not provided or client creation fails
    */
   protected async initializeClient(): Promise<void> {
     // Get configuration with defaults
@@ -137,25 +138,49 @@ export class S3Client extends BaseServiceClient implements S3ServiceClient {
     this.bucket = this.getConfig<string>("bucket", "");
 
     if (!this.bucket) {
-      throw new Error("S3 client requires a 'bucket' name to be provided in configuration");
+      throw new SmokerError("S3 client requires a 'bucket' name", {
+        code: ERR_VALIDATION,
+        domain: "aws",
+        details: { component: "s3" },
+        retryable: false,
+      });
     }
 
-    // Create AWS S3 client
-    const awsClient = new AwsS3Client({
-      region,
-      credentials: {
-        accessKeyId: this.getConfig<string>("accessKeyId", ""),
-        secretAccessKey: this.getConfig<string>("secretAccessKey", ""),
-      },
-      endpoint: this.getConfig<string>("endpoint", "") || undefined,
-    });
+    try {
+      // Create AWS S3 client
+      const awsClient = new AwsS3Client({
+        region,
+        credentials: {
+          accessKeyId: this.getConfig<string>("accessKeyId", ""),
+          secretAccessKey: this.getConfig<string>("secretAccessKey", ""),
+        },
+        endpoint: this.getConfig<string>("endpoint", "") || undefined,
+      });
 
-    // Assign to this.client after creation to ensure undefined is properly detected
-    this.client = awsClient;
+      // Assign to this.client after creation to ensure undefined is properly detected
+      this.client = awsClient;
+    } catch (error) {
+      throw new SmokerError("Failed to initialize S3 client", {
+        code: ERR_S3_READ,
+        domain: "aws",
+        details: {
+          component: "s3",
+          bucket: this.bucket,
+          reason: error instanceof Error ? error.message : String(error),
+        },
+        retryable: true,
+        cause: error,
+      });
+    }
 
     // Critical null check - must throw error if client is null
     if (!this.client) {
-      throw new Error(`Failed to create S3 client for bucket ${this.bucket}`);
+      throw new SmokerError("Failed to create S3 client", {
+        code: ERR_S3_READ,
+        domain: "aws",
+        details: { component: "s3", bucket: this.bucket },
+        retryable: false,
+      });
     }
   }
 
@@ -164,14 +189,19 @@ export class S3Client extends BaseServiceClient implements S3ServiceClient {
    *
    * @param key - The object key (path within the bucket)
    * @return Promise resolving to the object content as a string
-   * @throws Error if object does not exist or cannot be read
+   * @throws {SmokerError} if object does not exist or cannot be read
    */
   async read(key: string): Promise<string> {
     this.ensureInitialized();
     this.assertNotNull(this.client);
 
     if (!key) {
-      throw new Error("S3 read operation requires a key");
+      throw new SmokerError("S3 read operation requires a key", {
+        code: ERR_VALIDATION,
+        domain: "aws",
+        details: { component: "s3", bucket: this.bucket },
+        retryable: false,
+      });
     }
 
     try {
@@ -183,15 +213,29 @@ export class S3Client extends BaseServiceClient implements S3ServiceClient {
       const response = await this.client.send(command);
 
       if (!response.Body) {
-        throw new Error(`Object ${key} in bucket ${this.bucket} has no content`);
+        throw new SmokerError("S3 object has no content", {
+          code: ERR_S3_READ,
+          domain: "aws",
+          details: { component: "s3", bucket: this.bucket, key },
+          retryable: true,
+        });
       }
 
       // Convert the readable stream to a string
       return await this.streamToString(response.Body as NodeJS.ReadableStream);
     } catch (error) {
-      throw new Error(
-        `Failed to read object ${key} from bucket ${this.bucket}: ${error instanceof Error ? error.message : String(error)}`,
-      );
+      throw new SmokerError("Failed to read S3 object", {
+        code: ERR_S3_READ,
+        domain: "aws",
+        details: {
+          component: "s3",
+          bucket: this.bucket,
+          key,
+          reason: error instanceof Error ? error.message : String(error),
+        },
+        retryable: true,
+        cause: error,
+      });
     }
   }
 
@@ -216,21 +260,46 @@ export class S3Client extends BaseServiceClient implements S3ServiceClient {
    * @template T - The expected type of the parsed JSON
    * @param key - The object key (path within the bucket)
    * @return Promise resolving to the parsed JSON object
-   * @throws Error if object does not exist, cannot be read, or is invalid JSON
+   * @throws {SmokerError} if object does not exist, cannot be read, or is invalid JSON
    */
   async readJson<T>(key: string): Promise<T> {
     try {
       const content = await this.read(key);
-      return JSON.parse(content) as T;
+      try {
+        return JSON.parse(content) as T;
+      } catch (error) {
+        // Wrap only JSON parsing errors
+        throw new SmokerError("Failed to parse JSON from S3 object", {
+          code: ERR_S3_READ,
+          domain: "aws",
+          details: {
+            component: "s3",
+            bucket: this.bucket,
+            key,
+            reason: error instanceof Error ? error.message : String(error),
+          },
+          retryable: false,
+          cause: error,
+        });
+      }
     } catch (error) {
-      // If it's already our custom error from read(), just propagate it
-      if (error instanceof Error && error.message.startsWith("Failed to read object")) {
+      // Propagate any existing SmokerError from read() (including validation)
+      if (SmokerError.isSmokerError(error)) {
         throw error;
       }
-      // Otherwise wrap JSON parsing errors with more context
-      throw new Error(
-        `Failed to parse JSON from object ${key}: ${error instanceof Error ? error.message : String(error)}`,
-      );
+      // Fallback (unexpected errors during read)
+      throw new SmokerError("Failed to read S3 object", {
+        code: ERR_S3_READ,
+        domain: "aws",
+        details: {
+          component: "s3",
+          bucket: this.bucket,
+          key,
+          reason: error instanceof Error ? error.message : String(error),
+        },
+        retryable: true,
+        cause: error,
+      });
     }
   }
 
@@ -239,14 +308,19 @@ export class S3Client extends BaseServiceClient implements S3ServiceClient {
    *
    * @param key - The object key (path within the bucket)
    * @param content - The string content to write
-   * @throws Error if writing fails or parameters are invalid
+   * @throws {SmokerError} if writing fails or parameters are invalid
    */
   async write(key: string, content: string): Promise<void> {
     this.ensureInitialized();
     this.assertNotNull(this.client);
 
     if (!key) {
-      throw new Error("S3 write operation requires a key");
+      throw new SmokerError("S3 write operation requires a key", {
+        code: ERR_VALIDATION,
+        domain: "aws",
+        details: { component: "s3", bucket: this.bucket },
+        retryable: false,
+      });
     }
 
     try {
@@ -259,8 +333,22 @@ export class S3Client extends BaseServiceClient implements S3ServiceClient {
 
       await this.client.send(command);
     } catch (error) {
-      throw new Error(
-        `Failed to write object ${key} to bucket ${this.bucket}: ${error instanceof Error ? error.message : String(error)}`,
+      throw new SmokerError(
+        `Failed to write object ${key} to bucket ${this.bucket}: ${
+          error instanceof Error ? error.message : String(error)
+        }`,
+        {
+          code: ERR_S3_READ,
+          domain: "aws",
+          details: {
+            component: "s3",
+            bucket: this.bucket,
+            key,
+            reason: error instanceof Error ? error.message : String(error),
+          },
+          retryable: true,
+          cause: error,
+        },
       );
     }
   }
@@ -270,14 +358,19 @@ export class S3Client extends BaseServiceClient implements S3ServiceClient {
    *
    * @param key - The object key (path within the bucket)
    * @param data - The data object to serialize as JSON
-   * @throws Error if serialization or writing fails
+   * @throws {SmokerError} if serialization or writing fails
    */
   async writeJson(key: string, data: unknown): Promise<void> {
     this.ensureInitialized();
     this.assertNotNull(this.client);
 
     if (!key) {
-      throw new Error("S3 writeJson operation requires a key");
+      throw new SmokerError("S3 writeJson operation requires a key", {
+        code: ERR_VALIDATION,
+        domain: "aws",
+        details: { component: "s3", bucket: this.bucket },
+        retryable: false,
+      });
     }
 
     try {
@@ -294,8 +387,22 @@ export class S3Client extends BaseServiceClient implements S3ServiceClient {
 
       await this.client.send(command);
     } catch (error) {
-      throw new Error(
-        `Failed to write JSON object ${key} to bucket ${this.bucket}: ${error instanceof Error ? error.message : String(error)}`,
+      throw new SmokerError(
+        `Failed to write JSON object ${key} to bucket ${this.bucket}: ${
+          error instanceof Error ? error.message : String(error)
+        }`,
+        {
+          code: ERR_S3_READ,
+          domain: "aws",
+          details: {
+            component: "s3",
+            bucket: this.bucket,
+            key,
+            reason: error instanceof Error ? error.message : String(error),
+          },
+          retryable: true,
+          cause: error,
+        },
       );
     }
   }
@@ -304,14 +411,19 @@ export class S3Client extends BaseServiceClient implements S3ServiceClient {
    * Delete an object from S3
    *
    * @param key - The object key (path within the bucket)
-   * @throws Error if deletion fails or key is invalid
+   * @throws {SmokerError} if deletion fails or key is invalid
    */
   async delete(key: string): Promise<void> {
     this.ensureInitialized();
     this.assertNotNull(this.client);
 
     if (!key) {
-      throw new Error("S3 delete operation requires a key");
+      throw new SmokerError("S3 delete operation requires a key", {
+        code: ERR_VALIDATION,
+        domain: "aws",
+        details: { component: "s3", bucket: this.bucket },
+        retryable: false,
+      });
     }
 
     try {
@@ -322,8 +434,22 @@ export class S3Client extends BaseServiceClient implements S3ServiceClient {
 
       await this.client.send(command);
     } catch (error) {
-      throw new Error(
-        `Failed to delete object ${key} from bucket ${this.bucket}: ${error instanceof Error ? error.message : String(error)}`,
+      throw new SmokerError(
+        `Failed to delete object ${key} from bucket ${this.bucket}: ${
+          error instanceof Error ? error.message : String(error)
+        }`,
+        {
+          code: ERR_S3_READ,
+          domain: "aws",
+          details: {
+            component: "s3",
+            bucket: this.bucket,
+            key,
+            reason: error instanceof Error ? error.message : String(error),
+          },
+          retryable: true,
+          cause: error,
+        },
       );
     }
   }

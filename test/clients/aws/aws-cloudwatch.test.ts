@@ -25,6 +25,7 @@ import {
 import { mockClient } from "aws-sdk-client-mock";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { CloudWatchClient } from "../../../src/clients/aws/aws-cloudwatch";
+import { ERR_VALIDATION, SmokerError } from "../../../src/errors";
 
 /**
  * Test fixtures for consistent testing across all test cases
@@ -238,7 +239,13 @@ describe("CloudWatchClient", () => {
 
       await expect(
         client.searchLogStream(TEST_FIXTURES.STREAM_NAME, TEST_FIXTURES.PATTERN),
-      ).rejects.toThrow(`Failed to search log stream: ${TEST_FIXTURES.ERROR_AWS_API_ERROR}`);
+      ).rejects.toSatisfy(
+        (err) =>
+          SmokerError.isSmokerError(err) &&
+          err.code === ERR_VALIDATION &&
+          err.domain === "aws" &&
+          err.details?.component === "cloudwatch",
+      );
     });
 
     it("should handle non-Error thrown objects in searchLogStream", async () => {
@@ -247,7 +254,13 @@ describe("CloudWatchClient", () => {
 
       await expect(
         client.searchLogStream(TEST_FIXTURES.STREAM_NAME, TEST_FIXTURES.PATTERN),
-      ).rejects.toThrow(`Failed to search log stream: ${TEST_FIXTURES.ERROR_NON_ERROR_STRING}`);
+      ).rejects.toSatisfy(
+        (err) =>
+          SmokerError.isSmokerError(err) &&
+          err.code === ERR_VALIDATION &&
+          err.domain === "aws" &&
+          err.details?.component === "cloudwatch",
+      );
     });
   });
 
@@ -350,8 +363,12 @@ describe("CloudWatchClient", () => {
         region: TEST_FIXTURES.REGION,
       });
 
-      await expect(uninitializedClient.getLogEvents(TEST_FIXTURES.STREAM_NAME)).rejects.toThrow(
-        `${TEST_FIXTURES.CLIENT_ID} is not initialized. Call init() first.`,
+      await expect(uninitializedClient.getLogEvents(TEST_FIXTURES.STREAM_NAME)).rejects.toSatisfy(
+        (err) =>
+          SmokerError.isSmokerError(err) &&
+          err.code === ERR_VALIDATION &&
+          err.domain === "clients" &&
+          err.details?.component === "core",
       );
     });
 
@@ -360,8 +377,12 @@ describe("CloudWatchClient", () => {
         .on(GetLogEventsCommand)
         .rejects(new Error(TEST_FIXTURES.ERROR_AWS_API_ERROR));
 
-      await expect(client.getLogEvents(TEST_FIXTURES.STREAM_NAME)).rejects.toThrow(
-        `Failed to get log events from ${TEST_FIXTURES.STREAM_NAME}: ${TEST_FIXTURES.ERROR_AWS_API_ERROR}`,
+      await expect(client.getLogEvents(TEST_FIXTURES.STREAM_NAME)).rejects.toSatisfy(
+        (err) =>
+          SmokerError.isSmokerError(err) &&
+          err.code === ERR_VALIDATION &&
+          err.domain === "aws" &&
+          err.details?.component === "cloudwatch",
       );
     });
   });
@@ -482,8 +503,12 @@ describe("CloudWatchClient", () => {
         region: TEST_FIXTURES.REGION,
       });
 
-      await expect(uninitializedClient.listLogStreams()).rejects.toThrow(
-        `${TEST_FIXTURES.CLIENT_ID} is not initialized. Call init() first.`,
+      await expect(uninitializedClient.listLogStreams()).rejects.toSatisfy(
+        (err) =>
+          SmokerError.isSmokerError(err) &&
+          err.code === ERR_VALIDATION &&
+          err.domain === "clients" &&
+          err.details?.component === "core",
       );
     });
 
@@ -492,8 +517,12 @@ describe("CloudWatchClient", () => {
         .on(DescribeLogGroupsCommand)
         .rejects(new Error(TEST_FIXTURES.ERROR_AWS_API_ERROR));
 
-      await expect(client.listLogStreams()).rejects.toThrow(
-        `Failed to list log streams in group ${TEST_FIXTURES.LOG_GROUP_NAME}: ${TEST_FIXTURES.ERROR_AWS_API_ERROR}`,
+      await expect(client.listLogStreams()).rejects.toSatisfy(
+        (err) =>
+          SmokerError.isSmokerError(err) &&
+          err.code === ERR_VALIDATION &&
+          err.domain === "aws" &&
+          err.details?.component === "cloudwatch",
       );
     });
   });
@@ -546,8 +575,12 @@ describe("CloudWatchClient", () => {
         region: TEST_FIXTURES.REGION,
       });
 
-      await expect(uninitializedClient.waitForPattern("stream", "pattern")).rejects.toThrow(
-        `${TEST_FIXTURES.CLIENT_ID} is not initialized. Call init() first.`,
+      await expect(uninitializedClient.waitForPattern("stream", "pattern")).rejects.toSatisfy(
+        (err) =>
+          SmokerError.isSmokerError(err) &&
+          err.code === ERR_VALIDATION &&
+          err.domain === "clients" &&
+          err.details?.component === "core",
       );
     });
 
@@ -557,12 +590,14 @@ describe("CloudWatchClient", () => {
         .on(FilterLogEventsCommand)
         .rejects(new Error(TEST_FIXTURES.ERROR_SEARCH_FAILED));
 
-      // The error is first caught in searchLogStream and then rethrown with a prefix
-      // So the final error message includes "Failed to search log stream:" before our error message
       await expect(
         client.waitForPattern(TEST_FIXTURES.STREAM_NAME, "pattern", 100),
-      ).rejects.toThrow(
-        `Error while waiting for pattern in logs: Failed to search log stream: ${TEST_FIXTURES.ERROR_SEARCH_FAILED}`,
+      ).rejects.toSatisfy(
+        (err) =>
+          SmokerError.isSmokerError(err) &&
+          err.code === ERR_VALIDATION &&
+          err.domain === "aws" &&
+          err.details?.component === "cloudwatch",
       );
     });
   });

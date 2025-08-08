@@ -7,6 +7,7 @@
  * multiple client types through a unified interface.
  */
 
+import { ERR_VALIDATION, SmokerError } from "../../errors";
 import { ClientType, type ServiceClient } from "../core";
 import { ClientRegistry } from "./client-registry";
 
@@ -69,7 +70,7 @@ export class ClientFactory {
    * @param clientType - The client type (enum or string)
    * @param id - Optional client identifier
    * @return The created and configured service client instance
-   * @throws Error if client type is unknown or configuration is invalid
+   * @throws {SmokerError} if client type is unknown or configuration is invalid
    *
    * @example
    * // Create a default REST client
@@ -101,7 +102,7 @@ export class ClientFactory {
    * @param clientId - The client identifier
    * @param config - The client configuration
    * @return The created service client instance
-   * @throws Error if client type is unknown or not supported
+   * @throws {SmokerError} if client type is unknown or not supported
    * @private
    */
   private createClientInstance(
@@ -127,7 +128,12 @@ export class ClientFactory {
       case ClientType.KAFKA:
         return new KafkaClient(clientId, config);
       default:
-        throw new Error(`Unknown client type: ${type}`);
+        throw new SmokerError("Unknown client type", {
+          code: ERR_VALIDATION,
+          domain: "clients",
+          details: { component: "registry", type: String(type) },
+          retryable: false,
+        });
     }
   }
 
@@ -141,7 +147,7 @@ export class ClientFactory {
    * @param clientType - The client type (enum or string)
    * @param id - Optional client identifier
    * @return Promise that resolves to the initialized client
-   * @throws Error if client creation or initialization fails
+   * @throws {SmokerError} if client creation or initialization fails
    *
    * @example
    * // Create and initialize an S3 client
@@ -154,8 +160,27 @@ export class ClientFactory {
    * }
    */
   async createAndInitialize(clientType: ClientType | string, id?: string): Promise<ServiceClient> {
-    const client = this.createClient(clientType, id);
-    await client.init();
-    return client;
+    try {
+      const client = this.createClient(clientType, id);
+      await client.init();
+      return client;
+    } catch (error) {
+      // Propagate original errors (including SmokerError and standard Error) without wrapping
+      if (error instanceof Error) {
+        throw error;
+      }
+      throw new SmokerError(`Failed to create and initialize client: ${String(error)}`, {
+        code: ERR_VALIDATION,
+        domain: "clients",
+        details: {
+          component: "registry",
+          type: String(clientType),
+          id,
+          reason: error instanceof Error ? error.message : String(error),
+        },
+        retryable: true,
+        cause: error,
+      });
+    }
   }
 }

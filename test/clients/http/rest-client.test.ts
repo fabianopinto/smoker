@@ -15,6 +15,7 @@
 import axios, { type AxiosInstance, type AxiosResponse } from "axios";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { RestClient } from "../../../src/clients/http";
+import { ERR_VALIDATION, SmokerError } from "../../../src/errors";
 
 /**
  * Mock axios
@@ -231,11 +232,15 @@ describe("RestClient", () => {
         );
       });
 
-      it("should throw error when client not initialized", async () => {
+      it("should throw structured error when client not initialized", async () => {
         restClient = new RestClient();
 
-        await expect(restClient.get(TEST_FIXTURES.USERS_PATH)).rejects.toThrow(
-          TEST_FIXTURES.ERROR_NOT_INITIALIZED,
+        await expect(restClient.get(TEST_FIXTURES.USERS_PATH)).rejects.toSatisfy(
+          (err) =>
+            SmokerError.isSmokerError(err) &&
+            err.code === ERR_VALIDATION &&
+            err.domain === "clients" &&
+            err.details?.component === "core",
         );
       });
     });

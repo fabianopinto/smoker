@@ -16,6 +16,7 @@ import {
   FilterLogEventsCommand,
   GetLogEventsCommand,
 } from "@aws-sdk/client-cloudwatch-logs";
+import { ERR_VALIDATION, SmokerError } from "../../errors";
 import { BaseServiceClient, type ServiceClient } from "../core";
 
 /**
@@ -66,7 +67,7 @@ export interface CloudWatchServiceClient extends ServiceClient {
    * @param startTime - Optional start time in milliseconds since epoch
    * @param endTime - Optional end time in milliseconds since epoch
    * @return Promise resolving to an array of matching log messages
-   * @throws Error if the log stream doesn't exist or search fails
+   * @throws {SmokerError} if the log stream doesn't exist or search fails
    *
    * @example
    * // Search for error messages in the last hour
@@ -98,7 +99,7 @@ export interface CloudWatchServiceClient extends ServiceClient {
    * @param endTime - Optional end time in milliseconds since epoch
    * @param limit - Optional maximum number of events to return
    * @return Promise resolving to an array of log events
-   * @throws Error if the log stream doesn't exist or retrieval fails
+   * @throws {SmokerError} if the log stream doesn't exist or retrieval fails
    *
    * @example
    * // Get the most recent 10 log events
@@ -185,14 +186,19 @@ export class CloudWatchClient extends BaseServiceClient implements CloudWatchSer
   /**
    * Initialize the client with AWS CloudWatch Logs SDK
    *
-   * @throws Error if logGroupName is not provided in configuration
+   * @throws {SmokerError} if logGroupName is not provided in configuration
    */
   protected async initializeClient(): Promise<void> {
     const region = this.getConfig<string>("region", "us-east-1");
     this.logGroupName = this.getConfig<string>("logGroupName", "");
 
     if (!this.logGroupName) {
-      throw new Error(`CloudWatch log group name is required`);
+      throw new SmokerError("CloudWatch log group name is required", {
+        code: ERR_VALIDATION,
+        domain: "aws",
+        details: { component: "cloudwatch" },
+        retryable: false,
+      });
     }
 
     try {
@@ -205,9 +211,16 @@ export class CloudWatchClient extends BaseServiceClient implements CloudWatchSer
         endpoint: this.getConfig<string>("endpoint", "") || undefined,
       });
     } catch (error) {
-      throw new Error(
-        `Failed to initialize CloudWatch client: ${error instanceof Error ? error.message : String(error)}`,
-      );
+      throw new SmokerError("Failed to initialize CloudWatch client", {
+        code: ERR_VALIDATION,
+        domain: "aws",
+        details: {
+          component: "cloudwatch",
+          reason: error instanceof Error ? error.message : String(error),
+        },
+        retryable: true,
+        cause: error,
+      });
     }
   }
 
@@ -219,7 +232,7 @@ export class CloudWatchClient extends BaseServiceClient implements CloudWatchSer
    * @param startTime - Optional start time in milliseconds since epoch
    * @param endTime - Optional end time in milliseconds since epoch
    * @return Array of matching log messages
-   * @throws Error if client is not initialized or if AWS API call fails
+   * @throws {SmokerError} if client is not initialized or if AWS API call fails
    */
   async searchLogStream(
     logStreamName: string,
@@ -247,9 +260,17 @@ export class CloudWatchClient extends BaseServiceClient implements CloudWatchSer
 
       return response.events.map((event) => event.message || "");
     } catch (error) {
-      throw new Error(
-        `Failed to search log stream: ${error instanceof Error ? error.message : String(error)}`,
-      );
+      throw new SmokerError("Failed to search CloudWatch log stream", {
+        code: ERR_VALIDATION,
+        domain: "aws",
+        details: {
+          component: "cloudwatch",
+          logGroupName: this.logGroupName,
+          reason: error instanceof Error ? error.message : String(error),
+        },
+        retryable: true,
+        cause: error,
+      });
     }
   }
 
@@ -261,7 +282,7 @@ export class CloudWatchClient extends BaseServiceClient implements CloudWatchSer
    * @param endTime - Optional end time in milliseconds since epoch
    * @param limit - Optional maximum number of events to return
    * @return Array of log events with timestamp, message, and stream name
-   * @throws Error if client is not initialized or if AWS API call fails
+   * @throws {SmokerError} if client is not initialized or if AWS API call fails
    */
   async getLogEvents(
     logStreamName: string,
@@ -293,9 +314,18 @@ export class CloudWatchClient extends BaseServiceClient implements CloudWatchSer
         logStreamName,
       }));
     } catch (error) {
-      throw new Error(
-        `Failed to get log events from ${logStreamName}: ${error instanceof Error ? error.message : String(error)}`,
-      );
+      throw new SmokerError("Failed to get CloudWatch log events", {
+        code: ERR_VALIDATION,
+        domain: "aws",
+        details: {
+          component: "cloudwatch",
+          logGroupName: this.logGroupName,
+          logStreamName,
+          reason: error instanceof Error ? error.message : String(error),
+        },
+        retryable: true,
+        cause: error,
+      });
     }
   }
 
@@ -303,7 +333,7 @@ export class CloudWatchClient extends BaseServiceClient implements CloudWatchSer
    * List log streams in the configured log group
    *
    * @return Array of log stream names
-   * @throws Error if client is not initialized or if AWS API call fails
+   * @throws {SmokerError} if client is not initialized or if AWS API call fails
    */
   async listLogStreams(): Promise<string[]> {
     this.ensureInitialized();
@@ -325,9 +355,17 @@ export class CloudWatchClient extends BaseServiceClient implements CloudWatchSer
         .filter((group) => group.logGroupName)
         .map((group) => group.logGroupName || "");
     } catch (error) {
-      throw new Error(
-        `Failed to list log streams in group ${this.logGroupName}: ${error instanceof Error ? error.message : String(error)}`,
-      );
+      throw new SmokerError("Failed to list CloudWatch log streams", {
+        code: ERR_VALIDATION,
+        domain: "aws",
+        details: {
+          component: "cloudwatch",
+          logGroupName: this.logGroupName,
+          reason: error instanceof Error ? error.message : String(error),
+        },
+        retryable: true,
+        cause: error,
+      });
     }
   }
 
@@ -339,7 +377,7 @@ export class CloudWatchClient extends BaseServiceClient implements CloudWatchSer
    * @param pattern - The pattern to search for
    * @param timeoutMs - Optional timeout in milliseconds (default: 30000)
    * @return True if pattern was found within timeout, false otherwise
-   * @throws Error if client is not initialized or if search fails
+   * @throws {SmokerError} if client is not initialized or if search fails
    */
   async waitForPattern(
     logStreamName: string,
@@ -368,9 +406,17 @@ export class CloudWatchClient extends BaseServiceClient implements CloudWatchSer
       // Pattern not found within timeout
       return false;
     } catch (error) {
-      throw new Error(
-        `Error while waiting for pattern in logs: ${error instanceof Error ? error.message : String(error)}`,
-      );
+      throw new SmokerError("Failed while waiting for pattern in CloudWatch logs", {
+        code: ERR_VALIDATION,
+        domain: "aws",
+        details: {
+          component: "cloudwatch",
+          logGroupName: this.logGroupName,
+          reason: error instanceof Error ? error.message : String(error),
+        },
+        retryable: true,
+        cause: error,
+      });
     }
   }
 }

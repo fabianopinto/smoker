@@ -15,6 +15,7 @@
  * helper functions for common configuration operations.
  */
 
+import { ERR_CONFIG_MISSING, SmokerError } from "../../errors";
 import { BaseLogger } from "../../lib/logger";
 import { S3ClientWrapper, SSMClientWrapper } from "../aws";
 import { ConfigurationFactory } from "./config-factory";
@@ -108,7 +109,7 @@ export class Configuration {
    * must be explicitly initialized before use with initializeGlobalInstance.
    *
    * @return The global configuration instance
-   * @throws Error if the configuration has not been initialized
+   * @throws {SmokerError} if the configuration has not been initialized
    *
    * @example
    * // Get the global configuration and access a value
@@ -117,7 +118,12 @@ export class Configuration {
    */
   public static getInstance(): Configuration {
     if (Configuration.instance === null) {
-      throw new Error("Global configuration is not initialized");
+      throw new SmokerError("Global configuration is not initialized", {
+        code: ERR_CONFIG_MISSING,
+        domain: "config",
+        details: { component: "configuration", source: "Configuration.getInstance" },
+        retryable: false,
+      });
     }
     return Configuration.instance;
   }

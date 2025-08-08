@@ -18,6 +18,7 @@ import { afterAll, afterEach, beforeEach, describe, expect, it, vi } from "vites
 import { ClientType } from "../../../src/clients/core";
 import { ClientFactory } from "../../../src/clients/registry/client-factory";
 import { type ClientConfig, ClientRegistry } from "../../../src/clients/registry/client-registry";
+import { ERR_VALIDATION, SmokerError } from "../../../src/errors";
 
 /**
  * Import client modules for mocking after setting up mocks
@@ -357,12 +358,21 @@ describe("ClientFactory", () => {
       },
     );
 
-    it("should throw an error for unknown client types", () => {
+    it("should throw a structured error for unknown client types", () => {
       mockRegistry.getConfig = vi.fn().mockReturnValue({});
 
-      expect(() => clientFactory.createClient(TEST_FIXTURES.ID_UNKNOWN_TYPE as ClientType)).toThrow(
-        `Unknown client type: ${TEST_FIXTURES.ID_UNKNOWN_TYPE}`,
-      );
+      try {
+        clientFactory.createClient(TEST_FIXTURES.ID_UNKNOWN_TYPE as ClientType);
+        throw new Error("expected createClient to throw");
+      } catch (err) {
+        expect(SmokerError.isSmokerError(err)).toBe(true);
+        if (SmokerError.isSmokerError(err)) {
+          expect(err.code).toBe(ERR_VALIDATION);
+          expect(err.domain).toBe("clients");
+          expect(err.details?.component).toBe("registry");
+          expect(err.details?.type).toBe(TEST_FIXTURES.ID_UNKNOWN_TYPE);
+        }
+      }
     });
   });
 

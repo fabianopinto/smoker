@@ -24,6 +24,7 @@ import { mockClient } from "aws-sdk-client-mock";
 import { Readable } from "stream";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { S3Client } from "../../../src/clients/aws/aws-s3";
+import { ERR_S3_READ, ERR_VALIDATION, SmokerError } from "../../../src/errors";
 
 /**
  * Test fixtures for consistent testing across all test cases
@@ -98,12 +99,18 @@ describe("S3Client", () => {
       expect(client.isInitialized()).toBe(true);
     });
 
-    it("should throw error when bucket is missing", async () => {
+    it("should throw structured error when bucket is missing", async () => {
       const clientWithoutBucket = new S3Client(TEST_FIXTURES.CLIENT_ID, {
         region: TEST_FIXTURES.REGION,
       });
 
-      await expect(clientWithoutBucket.init()).rejects.toThrow(TEST_FIXTURES.ERROR_MISSING_BUCKET);
+      await expect(clientWithoutBucket.init()).rejects.toSatisfy(
+        (err) =>
+          SmokerError.isSmokerError(err) &&
+          err.code === ERR_VALIDATION &&
+          err.domain === "aws" &&
+          err.details?.component === "s3",
+      );
     });
 
     it("should set client name correctly", async () => {
@@ -183,11 +190,38 @@ describe("S3Client", () => {
       });
     });
 
-    it("should throw error when object does not exist in S3", async () => {
+    it("should throw validation error when key is empty in read", async () => {
+      await expect(client.read("")).rejects.toThrow("S3 read operation requires a key");
+    });
+
+    it("should handle stream error during read with structured error", async () => {
+      // Mock a minimal stream-like object and cast to any to satisfy the AWS SDK type for tests
+      const erroringStream = {
+        on: vi.fn((event: string, callback: (arg?: unknown) => void) => {
+          if (event === "error") {
+            setTimeout(() => callback(new Error("stream failure")), 0);
+          }
+        }),
+      };
+      s3Mock.on(GetObjectCommand).resolves({
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        Body: erroringStream as any,
+      });
+
+      await expect(client.read(TEST_FIXTURES.TEXT_FILE_PATH)).rejects.toSatisfy(
+        (err) => SmokerError.isSmokerError(err) && err.code === ERR_S3_READ,
+      );
+    });
+
+    it("should throw structured error when object does not exist in S3", async () => {
       s3Mock.on(GetObjectCommand).rejects(new Error(TEST_FIXTURES.ERROR_NO_SUCH_KEY));
 
-      await expect(client.read(TEST_FIXTURES.NON_EXISTENT_FILE_PATH)).rejects.toThrow(
-        `Failed to read object ${TEST_FIXTURES.NON_EXISTENT_FILE_PATH} from bucket ${TEST_FIXTURES.BUCKET}: ${TEST_FIXTURES.ERROR_NO_SUCH_KEY}`,
+      await expect(client.read(TEST_FIXTURES.NON_EXISTENT_FILE_PATH)).rejects.toSatisfy(
+        (err) =>
+          SmokerError.isSmokerError(err) &&
+          err.code === ERR_S3_READ &&
+          err.domain === "aws" &&
+          err.details?.component === "s3",
       );
     });
 
@@ -202,11 +236,15 @@ describe("S3Client", () => {
       );
     });
 
-    it("should handle missing Body in response", async () => {
+    it("should handle missing Body in response with structured error", async () => {
       s3Mock.on(GetObjectCommand).resolves({});
 
-      await expect(client.read(TEST_FIXTURES.TEXT_FILE_PATH)).rejects.toThrow(
-        `Object ${TEST_FIXTURES.TEXT_FILE_PATH} in bucket ${TEST_FIXTURES.BUCKET} has no content`,
+      await expect(client.read(TEST_FIXTURES.TEXT_FILE_PATH)).rejects.toSatisfy(
+        (err) =>
+          SmokerError.isSmokerError(err) &&
+          err.code === ERR_S3_READ &&
+          err.domain === "aws" &&
+          err.details?.component === "s3",
       );
     });
   });
@@ -250,26 +288,32 @@ describe("S3Client", () => {
       expect(result).toEqual({});
     });
 
-    it("should throw error when JSON content is invalid", async () => {
+    it("should throw structured error when JSON content is invalid", async () => {
       mockStream = Readable.from([TEST_FIXTURES.INVALID_JSON]);
       s3Mock.on(GetObjectCommand).resolves({
         // eslint-disable-next-line @typescript-eslint/no-explicit-any
         Body: mockStream as any,
       });
 
-      await expect(client.readJson(TEST_FIXTURES.JSON_FILE_PATH)).rejects.toThrow(
-        `Failed to parse JSON from object ${TEST_FIXTURES.JSON_FILE_PATH}: Expected property name or '}' in JSON at position 2 (line 1 column 3)`,
-      );
+      await expect(client.readJson(TEST_FIXTURES.JSON_FILE_PATH)).rejects.toMatchObject({
+        code: ERR_S3_READ,
+        domain: "aws",
+        details: expect.objectContaining({ component: "s3" }),
+      });
     });
 
-    it("should throw error when client is not initialized", async () => {
+    it("should throw structured error when client is not initialized", async () => {
       const uninitializedClient = new S3Client(TEST_FIXTURES.UNINITIALIZED_CLIENT, {
         bucket: TEST_FIXTURES.BUCKET,
         region: TEST_FIXTURES.REGION,
       });
 
-      await expect(uninitializedClient.readJson(TEST_FIXTURES.JSON_FILE_PATH)).rejects.toThrow(
-        TEST_FIXTURES.ERROR_NOT_INITIALIZED(TEST_FIXTURES.UNINITIALIZED_CLIENT),
+      await expect(uninitializedClient.readJson(TEST_FIXTURES.JSON_FILE_PATH)).rejects.toSatisfy(
+        (err) =>
+          SmokerError.isSmokerError(err) &&
+          err.code === ERR_VALIDATION &&
+          err.domain === "clients" &&
+          err.details?.component === "core",
       );
     });
   });
@@ -383,6 +427,22 @@ describe("S3Client", () => {
         `Failed to write JSON object ${TEST_FIXTURES.JSON_FILE_PATH} to bucket ${TEST_FIXTURES.BUCKET}: ${TEST_FIXTURES.ERROR_ACCESS_DENIED}`,
       );
     });
+
+    it("should throw validation error when key is empty in writeJson", async () => {
+      await expect(client.writeJson("", TEST_FIXTURES.JSON_CONTENT)).rejects.toThrow(
+        "S3 writeJson operation requires a key",
+      );
+    });
+
+    it("should handle JSON serialization errors (circular structure)", async () => {
+      // Create circular object
+      const circular: Record<string, unknown> = {} as Record<string, unknown> & { self?: unknown };
+      (circular as Record<string, unknown> & { self?: unknown }).self = circular;
+
+      await expect(client.writeJson(TEST_FIXTURES.JSON_FILE_PATH, circular)).rejects.toThrow(
+        `Failed to write JSON object ${TEST_FIXTURES.JSON_FILE_PATH} to bucket ${TEST_FIXTURES.BUCKET}: Converting circular structure to JSON`,
+      );
+    });
   });
 
   /**
@@ -429,6 +489,10 @@ describe("S3Client", () => {
       s3Mock.on(DeleteObjectCommand).resolves({});
 
       await expect(client.delete(TEST_FIXTURES.NON_EXISTENT_FILE_PATH)).resolves.not.toThrow();
+    });
+
+    it("should throw validation error when key is empty in delete", async () => {
+      await expect(client.delete("")).rejects.toThrow("S3 delete operation requires a key");
     });
   });
 

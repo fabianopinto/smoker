@@ -16,6 +16,14 @@ import mqtt, {
   type IClientSubscribeOptions,
   type MqttClient as MqttClientLib,
 } from "mqtt";
+import {
+  ERR_MQTT_CONNECT,
+  ERR_MQTT_PUBLISH,
+  ERR_MQTT_SUBSCRIBE,
+  ERR_MQTT_UNSUBSCRIBE,
+  MqttConnectionError,
+  SmokerError,
+} from "../../errors";
 import { BaseLogger } from "../../lib/logger";
 import { BaseServiceClient, type ServiceClient } from "../core";
 
@@ -45,7 +53,7 @@ export interface MqttServiceClient extends ServiceClient {
    * @param topic - The topic to publish to
    * @param message - The message content as string or Buffer
    * @param options - Optional publishing options
-   * @throws Error if publishing fails or client is not initialized
+   * @throws {SmokerError} if publishing fails or client is not initialized
    */
   publish(topic: string, message: string | Buffer, options?: IClientPublishOptions): Promise<void>;
 
@@ -54,7 +62,7 @@ export interface MqttServiceClient extends ServiceClient {
    *
    * @param topic - The topic or array of topics to subscribe to
    * @param options - Optional subscription options
-   * @throws Error if subscription fails or client is not initialized
+   * @throws {SmokerError} if subscription fails or client is not initialized
    */
   subscribe(topic: string | string[], options?: IClientSubscribeOptions): Promise<void>;
 
@@ -62,7 +70,7 @@ export interface MqttServiceClient extends ServiceClient {
    * Unsubscribe from one or more MQTT topics
    *
    * @param topic - The topic or array of topics to unsubscribe from
-   * @throws Error if unsubscription fails or client is not initialized
+   * @throws {SmokerError} if unsubscription fails or client is not initialized
    */
   unsubscribe(topic: string | string[]): Promise<void>;
 
@@ -72,7 +80,7 @@ export interface MqttServiceClient extends ServiceClient {
    * @param topic - The topic to listen for messages on
    * @param timeoutMs - Optional timeout in milliseconds (default: 30000)
    * @return The message received as string, or null if timed out
-   * @throws Error if client is not initialized
+   * @throws {SmokerError} if client is not initialized
    */
   waitForMessage(topic: string, timeoutMs?: number): Promise<string | null>;
 }
@@ -116,14 +124,19 @@ export class MqttClient extends BaseServiceClient implements MqttServiceClient {
   /**
    * Initialize the MQTT client with the broker connection
    *
-   * @throws Error if the broker URL is not provided or connection fails
+   * @throws {SmokerError} if the broker URL is not provided or connection fails
    */
   protected async initializeClient(): Promise<void> {
     try {
       // Get configuration parameters with defaults
       this.brokerUrl = this.getConfig<string>("url", "mqtt://localhost:1883");
       if (!this.brokerUrl) {
-        throw new Error("MQTT client requires a broker URL");
+        throw new SmokerError("MQTT client requires a broker URL", {
+          code: ERR_MQTT_CONNECT,
+          domain: "messaging",
+          details: { component: "mqtt", url: this.brokerUrl },
+          retryable: false,
+        });
       }
 
       this.clientId = this.getConfig<string>(
@@ -201,18 +214,43 @@ export class MqttClient extends BaseServiceClient implements MqttServiceClient {
           }
         });
       } catch (error) {
-        throw new Error(
+        // Structured error log (keeps existing behavior unchanged)
+        const errObj = MqttConnectionError.connecting(this.clientId, this.brokerUrl);
+        logger.error(
+          errObj,
           `Failed to connect to MQTT broker at ${this.brokerUrl}: ${
             error instanceof Error ? error.message : String(error)
           }`,
         );
+        throw new SmokerError("Failed to connect to MQTT broker", {
+          code: ERR_MQTT_CONNECT,
+          domain: "messaging",
+          details: {
+            component: "mqtt",
+            url: this.brokerUrl,
+            clientId: this.clientId,
+            reason: error instanceof Error ? error.message : String(error),
+          },
+          retryable: true,
+          cause: error,
+        });
       }
     } catch (error) {
-      throw new Error(
+      // Structured error log (keeps existing behavior unchanged)
+      const errObj = MqttConnectionError.connecting(this.clientId || "", this.brokerUrl || "");
+      logger.error(
+        errObj,
         `Failed to initialize MQTT client: ${
           error instanceof Error ? error.message : String(error)
         }`,
       );
+      throw new SmokerError("Failed to initialize MQTT client", {
+        code: ERR_MQTT_CONNECT,
+        domain: "messaging",
+        details: { component: "mqtt", url: this.brokerUrl, clientId: this.clientId },
+        retryable: true,
+        cause: error,
+      });
     }
   }
 
@@ -223,7 +261,7 @@ export class MqttClient extends BaseServiceClient implements MqttServiceClient {
    * @param message - The message content as string or Buffer
    * @param options - Optional publishing options
    * @return Promise that resolves when the message is published
-   * @throws Error if publishing fails or client is not initialized
+   * @throws {SmokerError} if publishing fails or client is not initialized
    */
   async publish(
     topic: string,
@@ -234,7 +272,12 @@ export class MqttClient extends BaseServiceClient implements MqttServiceClient {
     this.assertNotNull(this.client);
 
     if (!topic) {
-      throw new Error("MQTT publish requires a topic");
+      throw new SmokerError("MQTT publish requires a topic", {
+        code: ERR_MQTT_PUBLISH,
+        domain: "messaging",
+        details: { component: "mqtt" },
+        retryable: false,
+      });
     }
 
     // TypeScript needs a local variable to recognize client is not null
@@ -247,7 +290,15 @@ export class MqttClient extends BaseServiceClient implements MqttServiceClient {
         client.publish(topic, message, options || {}, (error) => {
           if (error) {
             const errorMessage = error instanceof Error ? error.message : String(error);
-            reject(new Error(`Failed to publish message to ${topic}: ${errorMessage}`));
+            reject(
+              new SmokerError("Failed to publish MQTT message", {
+                code: ERR_MQTT_PUBLISH,
+                domain: "messaging",
+                details: { component: "mqtt", topic, reason: errorMessage },
+                retryable: true,
+                cause: error,
+              }),
+            );
           } else {
             resolve();
           }
@@ -259,7 +310,14 @@ export class MqttClient extends BaseServiceClient implements MqttServiceClient {
         // Get publish timeout from config or use default
         const publishTimeout = this.getConfig<number>("publishTimeout", 10000);
         setTimeout(() => {
-          reject(new Error(`Publish to ${topic} timeout after ${publishTimeout}ms`));
+          reject(
+            new SmokerError("MQTT publish timed out", {
+              code: ERR_MQTT_PUBLISH,
+              domain: "messaging",
+              details: { component: "mqtt", topic, timeoutMs: publishTimeout },
+              retryable: true,
+            }),
+          );
         }, publishTimeout);
       }),
     ]);
@@ -271,14 +329,19 @@ export class MqttClient extends BaseServiceClient implements MqttServiceClient {
    * @param topic - The topic or array of topics to subscribe to
    * @param options - Optional subscription options
    * @return Promise that resolves when subscription is complete
-   * @throws Error if subscription fails or client is not initialized
+   * @throws {SmokerError} if subscription fails or client is not initialized
    */
   async subscribe(topic: string | string[], options?: IClientSubscribeOptions): Promise<void> {
     this.ensureInitialized();
     this.assertNotNull(this.client);
 
     if (!topic || (Array.isArray(topic) && topic.length === 0)) {
-      throw new Error("MQTT subscribe requires at least one topic");
+      throw new SmokerError("MQTT subscribe requires at least one topic", {
+        code: ERR_MQTT_SUBSCRIBE,
+        domain: "messaging",
+        details: { component: "mqtt" },
+        retryable: false,
+      });
     }
 
     // TypeScript needs a local variable to recognize client is not null
@@ -292,11 +355,17 @@ export class MqttClient extends BaseServiceClient implements MqttServiceClient {
           if (error) {
             const errorMessage = error instanceof Error ? error.message : String(error);
             reject(
-              new Error(
-                `Failed to subscribe to ${
-                  Array.isArray(topic) ? topic.join(", ") : topic
-                }: ${errorMessage}`,
-              ),
+              new SmokerError("Failed to subscribe to MQTT topics", {
+                code: ERR_MQTT_SUBSCRIBE,
+                domain: "messaging",
+                details: {
+                  component: "mqtt",
+                  topics: Array.isArray(topic) ? topic : [topic],
+                  reason: errorMessage,
+                },
+                retryable: true,
+                cause: error,
+              }),
             );
           } else {
             resolve();
@@ -310,11 +379,16 @@ export class MqttClient extends BaseServiceClient implements MqttServiceClient {
         const subscribeTimeout = this.getConfig<number>("subscribeTimeout", 10000);
         setTimeout(() => {
           reject(
-            new Error(
-              `Subscribe to ${
-                Array.isArray(topic) ? topic.join(", ") : topic
-              } timeout after ${subscribeTimeout}ms`,
-            ),
+            new SmokerError("MQTT subscribe timed out", {
+              code: ERR_MQTT_SUBSCRIBE,
+              domain: "messaging",
+              details: {
+                component: "mqtt",
+                topics: Array.isArray(topic) ? topic : [topic],
+                timeoutMs: subscribeTimeout,
+              },
+              retryable: true,
+            }),
           );
         }, subscribeTimeout);
       }),
@@ -337,7 +411,19 @@ export class MqttClient extends BaseServiceClient implements MqttServiceClient {
       client.unsubscribe(topic, (error) => {
         if (error) {
           const errorMessage = error instanceof Error ? error.message : String(error);
-          reject(new Error(`Failed to unsubscribe from ${topic}: ${errorMessage}`));
+          reject(
+            new SmokerError("Failed to unsubscribe from MQTT topics", {
+              code: ERR_MQTT_UNSUBSCRIBE,
+              domain: "messaging",
+              details: {
+                component: "mqtt",
+                topics: Array.isArray(topic) ? topic : [topic],
+                reason: errorMessage,
+              },
+              retryable: true,
+              cause: error,
+            }),
+          );
         } else {
           resolve();
         }
@@ -351,13 +437,18 @@ export class MqttClient extends BaseServiceClient implements MqttServiceClient {
    * @param topic - The topic to listen for messages on
    * @param timeoutMs - Optional timeout in milliseconds (default: 30000)
    * @return Promise that resolves with the received message as string, or null if timed out
-   * @throws Error if client is not initialized or subscription fails
+   * @throws {SmokerError} if client is not initialized or subscription fails
    */
   async waitForMessage(topic: string, timeoutMs = 30000): Promise<string | null> {
     this.ensureInitialized();
 
     if (!topic) {
-      throw new Error("Topic is required for waitForMessage");
+      throw new SmokerError("Topic is required for waitForMessage", {
+        code: ERR_MQTT_SUBSCRIBE,
+        domain: "messaging",
+        details: { component: "mqtt" },
+        retryable: false,
+      });
     }
 
     try {
@@ -393,9 +484,17 @@ export class MqttClient extends BaseServiceClient implements MqttServiceClient {
         }, timeoutMs);
       });
     } catch (error) {
-      throw new Error(
-        `Error waiting for message on topic ${topic}: ${error instanceof Error ? error.message : String(error)}`,
-      );
+      throw new SmokerError("Error waiting for MQTT message", {
+        code: ERR_MQTT_SUBSCRIBE,
+        domain: "messaging",
+        details: {
+          component: "mqtt",
+          topic,
+          reason: error instanceof Error ? error.message : String(error),
+        },
+        retryable: true,
+        cause: error,
+      });
     }
   }
 

@@ -27,6 +27,7 @@ import { ClientType, type ServiceClient } from "../clients/core";
 import type { RestServiceClient } from "../clients/http";
 import type { KafkaServiceClient, MqttServiceClient } from "../clients/messaging";
 import { type ClientConfig, ClientFactory, ClientRegistry } from "../clients/registry";
+import { ERR_CONFIG_MISSING, ERR_CONFIG_PARSE, ERR_VALIDATION, SmokerError } from "../errors";
 import { Configuration, type ConfigurationProvider, type ConfigValue } from "../support/config";
 import { createWorldProperties, WorldProperties } from "./world-properties";
 
@@ -71,7 +72,7 @@ export interface SmokeWorld<T = unknown> extends IWorld<T> {
    *
    * @param id - Optional client identifier
    * @return The CloudWatch client instance
-   * @throws Error if the client does not exist
+   * @throws {SmokerError} if the client does not exist
    */
   getCloudWatch<T extends CloudWatchServiceClient = CloudWatchServiceClient>(id?: string): T;
 
@@ -80,7 +81,7 @@ export interface SmokeWorld<T = unknown> extends IWorld<T> {
    *
    * @param id - Optional client identifier
    * @return The Kafka client instance
-   * @throws Error if the client does not exist
+   * @throws {SmokerError} if the client does not exist
    */
   getKafka<T extends KafkaServiceClient = KafkaServiceClient>(id?: string): T;
 
@@ -89,7 +90,7 @@ export interface SmokeWorld<T = unknown> extends IWorld<T> {
    *
    * @param id - Optional client identifier
    * @return The Kinesis client instance
-   * @throws Error if the client does not exist
+   * @throws {SmokerError} if the client does not exist
    */
   getKinesis<T extends KinesisServiceClient = KinesisServiceClient>(id?: string): T;
 
@@ -98,7 +99,7 @@ export interface SmokeWorld<T = unknown> extends IWorld<T> {
    *
    * @param id - Optional client identifier
    * @return The MQTT client instance
-   * @throws Error if the client does not exist
+   * @throws {SmokerError} if the client does not exist
    */
   getMqtt<T extends MqttServiceClient = MqttServiceClient>(id?: string): T;
 
@@ -107,7 +108,7 @@ export interface SmokeWorld<T = unknown> extends IWorld<T> {
    *
    * @param id - Optional client identifier
    * @return The REST client instance
-   * @throws Error if the client does not exist
+   * @throws {SmokerError} if the client does not exist
    */
   getRest<T extends RestServiceClient = RestServiceClient>(id?: string): T;
 
@@ -116,7 +117,7 @@ export interface SmokeWorld<T = unknown> extends IWorld<T> {
    *
    * @param id - Optional client identifier
    * @return The S3 client instance
-   * @throws Error if the client does not exist
+   * @throws {SmokerError} if the client does not exist
    */
   getS3<T extends S3ServiceClient = S3ServiceClient>(id?: string): T;
 
@@ -125,7 +126,7 @@ export interface SmokeWorld<T = unknown> extends IWorld<T> {
    *
    * @param id - Optional client identifier
    * @return The SQS client instance
-   * @throws Error if the client does not exist
+   * @throws {SmokerError} if the client does not exist
    */
   getSqs<T extends SqsServiceClient = SqsServiceClient>(id?: string): T;
 
@@ -134,7 +135,7 @@ export interface SmokeWorld<T = unknown> extends IWorld<T> {
    *
    * @param id - Optional client identifier
    * @return The SSM client instance
-   * @throws Error if the client does not exist
+   * @throws {SmokerError} if the client does not exist
    */
   getSsm<T extends SsmServiceClient = SsmServiceClient>(id?: string): T;
 
@@ -218,7 +219,7 @@ export interface SmokeWorld<T = unknown> extends IWorld<T> {
    * @template T - The type of client to retrieve
    * @param name - The name of the client to retrieve
    * @return The client instance with the specified type
-   * @throws Error if no client is registered with the given name
+   * @throws {SmokerError} if no client is registered with the given name
    *
    * @example
    * // Get a previously registered client
@@ -265,7 +266,7 @@ export interface SmokeWorld<T = unknown> extends IWorld<T> {
    *
    * @param config - Optional configuration object for client initialization
    * @return Promise that resolves when all clients are initialized
-   * @throws Error if any client initialization fails
+   * @throws {SmokerError} if any client initialization fails
    *
    * @example
    * // Initialize all clients before starting tests
@@ -287,7 +288,7 @@ export interface SmokeWorld<T = unknown> extends IWorld<T> {
    * reinitialize all clients.
    *
    * @return Promise that resolves when all clients are reset
-   * @throws Error if any client reset fails
+   * @throws {SmokerError} if any client reset fails
    *
    * @example
    * // Reset clients between test scenarios
@@ -303,7 +304,7 @@ export interface SmokeWorld<T = unknown> extends IWorld<T> {
    * execution to ensure proper cleanup.
    *
    * @return Promise that resolves when all clients are destroyed
-   * @throws Error if any client destruction fails
+   * @throws {SmokerError} if any client destruction fails
    *
    * @example
    * // Clean up after tests are complete
@@ -341,7 +342,7 @@ export interface SmokeWorld<T = unknown> extends IWorld<T> {
    * Gets the most recently stored response for assertions or further processing.
    *
    * @return The last stored response
-   * @throws Error if no response has been stored
+   * @throws {SmokerError} if no response has been stored
    *
    * @example
    * // Retrieve and verify the last response
@@ -371,7 +372,7 @@ export interface SmokeWorld<T = unknown> extends IWorld<T> {
    * Gets the most recently stored string content for assertions or further processing.
    *
    * @return The last stored content string
-   * @throws Error if no content has been stored
+   * @throws {SmokerError} if no content has been stored
    *
    * @example
    * // Retrieve and verify the last content
@@ -404,7 +405,7 @@ export interface SmokeWorld<T = unknown> extends IWorld<T> {
    * Gets the most recently stored error for assertions or further processing.
    *
    * @return The last stored error
-   * @throws Error if no error has been stored
+   * @throws {SmokerError} if no error has been stored
    *
    * @example
    * // Retrieve and verify the last error
@@ -684,12 +685,17 @@ export class SmokeWorldImpl<T = unknown> extends CucumberWorld<T> implements Smo
    *
    * @param name - The client name
    * @return The client instance
-   * @throws Error if the client does not exist
+   * @throws {SmokerError} if the client does not exist
    */
   getClient<T extends ServiceClient = ServiceClient>(name: string): T {
     const client = this.clients.get(name);
     if (!client) {
-      throw new Error(`Client not found: ${name}`);
+      throw new SmokerError("Client not found", {
+        code: ERR_VALIDATION,
+        domain: "world",
+        details: { component: "world", clientName: name },
+        retryable: false,
+      });
     }
     return client as T;
   }
@@ -765,7 +771,7 @@ export class SmokeWorldImpl<T = unknown> extends CucumberWorld<T> implements Smo
    *
    * @param id - Optional client identifier
    * @return The CloudWatch client instance
-   * @throws Error if the client does not exist
+   * @throws {SmokerError} if the client does not exist
    */
   getCloudWatch<T extends CloudWatchServiceClient = CloudWatchServiceClient>(id?: string): T {
     return this.getClient<T>(id ? `cloudwatch:${id}` : "cloudwatch");
@@ -776,7 +782,7 @@ export class SmokeWorldImpl<T = unknown> extends CucumberWorld<T> implements Smo
    *
    * @param id - Optional client identifier
    * @return The Kafka client instance
-   * @throws Error if the client does not exist
+   * @throws {SmokerError} if the client does not exist
    */
   getKafka<T extends KafkaServiceClient = KafkaServiceClient>(id?: string): T {
     return this.getClient<T>(id ? `kafka:${id}` : "kafka");
@@ -787,7 +793,7 @@ export class SmokeWorldImpl<T = unknown> extends CucumberWorld<T> implements Smo
    *
    * @param id - Optional client identifier
    * @return The Kinesis client instance
-   * @throws Error if the client does not exist
+   * @throws {SmokerError} if the client does not exist
    */
   getKinesis<T extends KinesisServiceClient = KinesisServiceClient>(id?: string): T {
     return this.getClient<T>(id ? `kinesis:${id}` : "kinesis");
@@ -798,7 +804,7 @@ export class SmokeWorldImpl<T = unknown> extends CucumberWorld<T> implements Smo
    *
    * @param id - Optional client identifier
    * @return The MQTT client instance
-   * @throws Error if the client does not exist
+   * @throws {SmokerError} if the client does not exist
    */
   getMqtt<T extends MqttServiceClient = MqttServiceClient>(id?: string): T {
     return this.getClient<T>(id ? `mqtt:${id}` : "mqtt");
@@ -809,7 +815,7 @@ export class SmokeWorldImpl<T = unknown> extends CucumberWorld<T> implements Smo
    *
    * @param id - Optional client identifier
    * @return The REST client instance
-   * @throws Error if the client does not exist
+   * @throws {SmokerError} if the client does not exist
    */
   getRest<T extends RestServiceClient = RestServiceClient>(id?: string): T {
     return this.getClient<T>(id ? `rest:${id}` : "rest");
@@ -820,7 +826,7 @@ export class SmokeWorldImpl<T = unknown> extends CucumberWorld<T> implements Smo
    *
    * @param id - Optional client identifier
    * @return The S3 client instance
-   * @throws Error if the client does not exist
+   * @throws {SmokerError} if the client does not exist
    */
   getS3<T extends S3ServiceClient = S3ServiceClient>(id?: string): T {
     return this.getClient<T>(id ? `s3:${id}` : "s3");
@@ -831,7 +837,7 @@ export class SmokeWorldImpl<T = unknown> extends CucumberWorld<T> implements Smo
    *
    * @param id - Optional client identifier
    * @return The SQS client instance
-   * @throws Error if the client does not exist
+   * @throws {SmokerError} if the client does not exist
    */
   getSqs<T extends SqsServiceClient = SqsServiceClient>(id?: string): T {
     return this.getClient<T>(id ? `sqs:${id}` : "sqs");
@@ -842,7 +848,7 @@ export class SmokeWorldImpl<T = unknown> extends CucumberWorld<T> implements Smo
    *
    * @param id - Optional client identifier
    * @return The SSM client instance
-   * @throws Error if the client does not exist
+   * @throws {SmokerError} if the client does not exist
    */
   getSsm<T extends SsmServiceClient = SsmServiceClient>(id?: string): T {
     return this.getClient<T>(id ? `ssm:${id}` : "ssm");
@@ -903,11 +909,16 @@ export class SmokeWorldImpl<T = unknown> extends CucumberWorld<T> implements Smo
    * Get the last stored response
    *
    * @return The last stored response object
-   * @throws Error if no response has been attached
+   * @throws {SmokerError} if no response has been attached
    */
   getLastResponse(): unknown {
     if (this.lastResponse === null) {
-      throw new Error("No response has been attached");
+      throw new SmokerError("No response has been attached", {
+        code: ERR_VALIDATION,
+        domain: "world",
+        details: { component: "world" },
+        retryable: false,
+      });
     }
     return this.lastResponse;
   }
@@ -925,11 +936,16 @@ export class SmokeWorldImpl<T = unknown> extends CucumberWorld<T> implements Smo
    * Get the last stored content
    *
    * @return The last stored content string
-   * @throws Error if no content has been attached
+   * @throws {SmokerError} if no content has been attached
    */
   getLastContent(): string {
     if (!this.lastContent) {
-      throw new Error("No content has been attached");
+      throw new SmokerError("No content has been attached", {
+        code: ERR_VALIDATION,
+        domain: "world",
+        details: { component: "world" },
+        retryable: false,
+      });
     }
     return this.lastContent;
   }
@@ -947,11 +963,16 @@ export class SmokeWorldImpl<T = unknown> extends CucumberWorld<T> implements Smo
    * Get the last stored error
    *
    * @return The last stored error
-   * @throws Error if no error has been attached
+   * @throws {SmokerError} if no error has been attached
    */
   getLastError(): Error {
     if (!this.lastError) {
-      throw new Error("No error has been attached");
+      throw new SmokerError("No error has been attached", {
+        code: ERR_VALIDATION,
+        domain: "world",
+        details: { component: "world" },
+        retryable: false,
+      });
     }
     return this.lastError;
   }
@@ -964,7 +985,7 @@ export class SmokeWorldImpl<T = unknown> extends CucumberWorld<T> implements Smo
    *
    * @param key - The key to store the value under
    * @param value - The value to store (primitive, array, or plain object)
-   * @throws Error if the key is empty or contains invalid characters
+   * @throws {SmokerError} if the key is empty or contains invalid characters
    */
   setProperty(key: string, value: unknown): void {
     // Delegate to WorldProperties instance
@@ -977,7 +998,7 @@ export class SmokeWorldImpl<T = unknown> extends CucumberWorld<T> implements Smo
    * @template T - The expected type of the property value
    * @param key - The key of the property to retrieve
    * @param defaultValue - The default value to return if the property doesn't exist
-   * @throws Error if the key is empty or contains invalid characters
+   * @throws {SmokerError} if the key is empty or contains invalid characters
    * @return The property value, or the default value if the property doesn't exist
    */
   getProperty<T = unknown>(key: string, defaultValue?: T): T | undefined {
@@ -989,7 +1010,7 @@ export class SmokeWorldImpl<T = unknown> extends CucumberWorld<T> implements Smo
    * Check if a property exists with the specified key
    *
    * @param key - The key of the property to check
-   * @throws Error if the key is empty or contains invalid characters
+   * @throws {SmokerError} if the key is empty or contains invalid characters
    * @return True if the property exists, false otherwise
    */
   hasProperty(key: string): boolean {
@@ -1001,13 +1022,18 @@ export class SmokeWorldImpl<T = unknown> extends CucumberWorld<T> implements Smo
    * Delete a property with the specified key
    *
    * @param key - The key of the property to delete
-   * @throws Error if the key is empty or contains invalid characters
-   * @throws Error if the property doesn't exist
+   * @throws {SmokerError} if the key is empty or contains invalid characters
+   * @throws {SmokerError} if the property doesn't exist
    */
   deleteProperty(key: string): void {
     // Check if property exists before attempting deletion
     if (!this.hasProperty(key)) {
-      throw new Error(`Property not found: ${key}`);
+      throw new SmokerError(`Property not found: ${key}`, {
+        code: ERR_VALIDATION,
+        domain: "world",
+        details: { component: "world", key },
+        retryable: false,
+      });
     }
 
     // Delegate to WorldProperties instance
@@ -1019,7 +1045,7 @@ export class SmokeWorldImpl<T = unknown> extends CucumberWorld<T> implements Smo
    *
    * @param input - The input string that may be a configuration reference
    * @return The configuration value if input is a configuration reference, or the original string if not
-   * @throws Error if input is a configuration reference but the configuration value is not found
+   * @throws {SmokerError} if input is a configuration reference but the configuration value is not found
    */
   async resolveConfigValue(input: string): Promise<string> {
     // Define the pattern to find configuration references
@@ -1031,9 +1057,16 @@ export class SmokeWorldImpl<T = unknown> extends CucumberWorld<T> implements Smo
       const match = exactPattern.exec(input);
 
       if (!match) {
-        throw new Error(
-          `Invalid configuration reference format: ${input}. References must follow the pattern 'config:[segment](.[segment])*' where segment is [a-zA-Z0-9_$]+.`,
-        );
+        throw new SmokerError("Invalid configuration reference format", {
+          code: ERR_VALIDATION,
+          domain: "world",
+          details: {
+            component: "world",
+            input,
+            pattern: "config:[segment](.[segment])*, where segment matches [a-zA-Z0-9_$]+",
+          },
+          retryable: false,
+        });
       }
 
       const configPath = match[1];
@@ -1069,7 +1102,7 @@ export class SmokeWorldImpl<T = unknown> extends CucumberWorld<T> implements Smo
    *
    * @param configPath - Path to the configuration value
    * @returns The configuration value as a string
-   * @throws Error if the configuration value is not found
+   * @throws {SmokerError} if the configuration value is not found
    */
   private async getConfigValue(configPath: string): Promise<string> {
     try {
@@ -1079,17 +1112,25 @@ export class SmokeWorldImpl<T = unknown> extends CucumberWorld<T> implements Smo
         return String(value);
       }
 
-      throw new Error(`Configuration value not found: ${configPath}`);
+      throw new SmokerError("Configuration value not found", {
+        code: ERR_CONFIG_MISSING,
+        domain: "config",
+        details: { component: "configuration", path: configPath },
+        retryable: false,
+      });
     } catch (error: unknown) {
-      if (
-        error instanceof Error &&
-        error.message.includes("Invalid configuration reference format")
-      ) {
-        // Re-throw validation errors directly
+      if (SmokerError.isSmokerError(error)) {
+        // Re-throw structured errors directly (including ERR_CONFIG_MISSING)
         throw error;
       }
       const errorMessage = error instanceof Error ? error.message : String(error);
-      throw new Error(`Failed to resolve configuration reference: ${errorMessage}`);
+      throw new SmokerError("Failed to resolve configuration reference", {
+        code: ERR_CONFIG_PARSE,
+        domain: "config",
+        details: { component: "configuration", reason: errorMessage },
+        retryable: false,
+        cause: error,
+      });
     }
   }
 
@@ -1117,7 +1158,7 @@ export class SmokeWorldImpl<T = unknown> extends CucumberWorld<T> implements Smo
    *
    * @param input - The input string that may be a property reference
    * @return The property value if input is a property reference, or the original string if not
-   * @throws Error if input is a property reference but the property is not found
+   * @throws {SmokerError} if input is a property reference but the property is not found
    */
   resolvePropertyValue(input: string): string {
     // Delegate to WorldProperties instance
@@ -1129,7 +1170,7 @@ export class SmokeWorldImpl<T = unknown> extends CucumberWorld<T> implements Smo
    *
    * @param param - The parameter string that may contain configuration or property references
    * @return The parameter with all references resolved, or the original parameter if it contains no references
-   * @throws Error if a referenced configuration or property value is not found
+   * @throws {SmokerError} if a referenced configuration or property value is not found
    */
   async resolveStepParameter(param: string): Promise<string> {
     let result = param;
@@ -1156,7 +1197,7 @@ export class SmokeWorldImpl<T = unknown> extends CucumberWorld<T> implements Smo
    *
    * @param param - The parameter value to resolve
    * @return Promise that resolves to the resolved parameter value
-   * @throws Error if a referenced configuration or property value is not found
+   * @throws {SmokerError} if a referenced configuration or property value is not found
    */
   async resolveParam(param: unknown): Promise<unknown> {
     // If param is null or undefined, return it as is

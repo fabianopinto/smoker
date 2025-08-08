@@ -17,6 +17,7 @@ import {
   ListShardsCommand,
   PutRecordCommand,
 } from "@aws-sdk/client-kinesis";
+import { ERR_VALIDATION, SmokerError } from "../../errors";
 import { BaseServiceClient, type ServiceClient } from "../core";
 
 /**
@@ -63,7 +64,7 @@ export interface KinesisServiceClient extends ServiceClient {
    * @param data - The data to write as string or Buffer
    * @param partitionKey - The partition key to determine the shard
    * @return Promise resolving to the sequence number of the record
-   * @throws Error if writing fails or the stream doesn't exist
+   * @throws {SmokerError} if writing fails or the stream doesn't exist
    *
    * @example
    * // Write a JSON record to the stream
@@ -83,7 +84,7 @@ export interface KinesisServiceClient extends ServiceClient {
    * @param shardIterator - The shard iterator pointing to the position in the shard
    * @param limit - Maximum number of records to retrieve (default: 10)
    * @return Promise resolving to an array of Kinesis records
-   * @throws Error if reading fails or the shard iterator is invalid
+   * @throws {SmokerError} if reading fails or the shard iterator is invalid
    *
    * @example
    * // Get up to 20 records from a shard
@@ -105,7 +106,7 @@ export interface KinesisServiceClient extends ServiceClient {
    * @param iteratorType - The iterator type (default: LATEST)
    * @param sequence - Optional sequence number
    * @return Shard iterator
-   * @throws Error if iterator cannot be obtained
+   * @throws {SmokerError} if iterator cannot be obtained
    */
   getShardIterator(shardId: string, iteratorType?: string, sequence?: string): Promise<string>;
 
@@ -113,7 +114,7 @@ export interface KinesisServiceClient extends ServiceClient {
    * List shards in the Kinesis stream
    *
    * @return Array of shard IDs
-   * @throws Error if listing fails
+   * @throws {SmokerError} if listing fails
    */
   listShards(): Promise<string[]>;
 
@@ -123,7 +124,7 @@ export interface KinesisServiceClient extends ServiceClient {
    * @param partitionKey - The partition key to wait for
    * @param timeoutMs - Timeout in milliseconds (default: 30000)
    * @return Array of records that match the partition key
-   * @throws Error if waiting fails
+   * @throws {SmokerError} if waiting fails
    */
   waitForRecords(partitionKey: string, timeoutMs?: number): Promise<KinesisRecord[]>;
 }
@@ -166,7 +167,7 @@ export class KinesisClient extends BaseServiceClient implements KinesisServiceCl
   /**
    * Initialize the client with AWS configuration
    *
-   * @throws Error if streamName is not provided or client creation fails
+   * @throws {SmokerError} if streamName is not provided or client creation fails
    */
   protected async initializeClient(): Promise<void> {
     try {
@@ -174,7 +175,12 @@ export class KinesisClient extends BaseServiceClient implements KinesisServiceCl
       this.streamName = this.getConfig<string>("streamName", "");
 
       if (!this.streamName) {
-        throw new Error("Kinesis client requires a stream name");
+        throw new SmokerError("Kinesis client requires a stream name", {
+          code: ERR_VALIDATION,
+          domain: "aws",
+          details: { component: "kinesis" },
+          retryable: false,
+        });
       }
 
       this.client = new AwsKinesisClient({
@@ -186,8 +192,20 @@ export class KinesisClient extends BaseServiceClient implements KinesisServiceCl
         endpoint: this.getConfig<string>("endpoint", "") || undefined,
       });
     } catch (error) {
-      throw new Error(
-        `Failed to initialize Kinesis client: ${error instanceof Error ? error.message : String(error)}`,
+      throw new SmokerError(
+        `Failed to initialize Kinesis client: ${
+          error instanceof Error ? error.message : String(error)
+        }`,
+        {
+          code: ERR_VALIDATION,
+          domain: "aws",
+          details: {
+            component: "kinesis",
+            reason: error instanceof Error ? error.message : String(error),
+          },
+          retryable: true,
+          cause: error,
+        },
       );
     }
   }
@@ -198,18 +216,28 @@ export class KinesisClient extends BaseServiceClient implements KinesisServiceCl
    * @param data - The data to write as string or Buffer
    * @param partitionKey - The partition key
    * @return Sequence number of the record
-   * @throws Error if writing fails or client is not initialized
+   * @throws {SmokerError} if writing fails or client is not initialized
    */
   async putRecord(data: string | Buffer, partitionKey: string): Promise<string> {
     this.ensureInitialized();
     this.assertNotNull(this.client);
 
     if (!data) {
-      throw new Error("Kinesis putRecord requires data content");
+      throw new SmokerError("Kinesis putRecord requires data content", {
+        code: ERR_VALIDATION,
+        domain: "aws",
+        details: { component: "kinesis", streamName: this.streamName },
+        retryable: false,
+      });
     }
 
     if (!partitionKey) {
-      throw new Error("Kinesis putRecord requires a partition key");
+      throw new SmokerError("Kinesis putRecord requires a partition key", {
+        code: ERR_VALIDATION,
+        domain: "aws",
+        details: { component: "kinesis", streamName: this.streamName },
+        retryable: false,
+      });
     }
 
     try {
@@ -223,8 +251,21 @@ export class KinesisClient extends BaseServiceClient implements KinesisServiceCl
 
       return response.SequenceNumber || `sequence-${Date.now()}`;
     } catch (error) {
-      throw new Error(
-        `Failed to put record into stream ${this.streamName}: ${error instanceof Error ? error.message : String(error)}`,
+      throw new SmokerError(
+        `Failed to put record into stream ${this.streamName}: ${
+          error instanceof Error ? error.message : String(error)
+        }`,
+        {
+          code: ERR_VALIDATION,
+          domain: "aws",
+          details: {
+            component: "kinesis",
+            streamName: this.streamName,
+            reason: error instanceof Error ? error.message : String(error),
+          },
+          retryable: true,
+          cause: error,
+        },
       );
     }
   }
@@ -235,14 +276,19 @@ export class KinesisClient extends BaseServiceClient implements KinesisServiceCl
    * @param shardIterator - The shard iterator
    * @param limit - Maximum number of records to retrieve (default: 10)
    * @return Array of records
-   * @throws Error if retrieval fails or client is not initialized
+   * @throws {SmokerError} if retrieval fails or client is not initialized
    */
   async getRecords(shardIterator: string, limit = 10): Promise<KinesisRecord[]> {
     this.ensureInitialized();
     this.assertNotNull(this.client);
 
     if (!shardIterator) {
-      throw new Error("Kinesis getRecords requires a shard iterator");
+      throw new SmokerError("Kinesis getRecords requires a shard iterator", {
+        code: ERR_VALIDATION,
+        domain: "aws",
+        details: { component: "kinesis", streamName: this.streamName },
+        retryable: false,
+      });
     }
 
     try {
@@ -260,8 +306,21 @@ export class KinesisClient extends BaseServiceClient implements KinesisServiceCl
       // Format the records using the shared method
       return this.formatRecords(response.Records);
     } catch (error) {
-      throw new Error(
-        `Failed to get records from stream ${this.streamName}: ${error instanceof Error ? error.message : String(error)}`,
+      throw new SmokerError(
+        `Failed to get records from stream ${this.streamName}: ${
+          error instanceof Error ? error.message : String(error)
+        }`,
+        {
+          code: ERR_VALIDATION,
+          domain: "aws",
+          details: {
+            component: "kinesis",
+            streamName: this.streamName,
+            reason: error instanceof Error ? error.message : String(error),
+          },
+          retryable: true,
+          cause: error,
+        },
       );
     }
   }
@@ -273,7 +332,7 @@ export class KinesisClient extends BaseServiceClient implements KinesisServiceCl
    * @param iteratorType - The iterator type (default: LATEST)
    * @param sequence - Optional sequence number
    * @return Shard iterator
-   * @throws Error if iterator cannot be obtained or client is not initialized
+   * @throws {SmokerError} if iterator cannot be obtained or client is not initialized
    */
   async getShardIterator(
     shardId: string,
@@ -284,7 +343,12 @@ export class KinesisClient extends BaseServiceClient implements KinesisServiceCl
     this.assertNotNull(this.client);
 
     if (!shardId) {
-      throw new Error("Kinesis getShardIterator requires a shard ID");
+      throw new SmokerError("Kinesis getShardIterator requires a shard ID", {
+        code: ERR_VALIDATION,
+        domain: "aws",
+        details: { component: "kinesis", streamName: this.streamName },
+        retryable: false,
+      });
     }
 
     try {
@@ -312,13 +376,31 @@ export class KinesisClient extends BaseServiceClient implements KinesisServiceCl
       const response = await this.client.send(command);
 
       if (!response.ShardIterator) {
-        throw new Error(`Failed to get shard iterator for shard ${shardId}`);
+        throw new SmokerError("Failed to get Kinesis shard iterator", {
+          code: ERR_VALIDATION,
+          domain: "aws",
+          details: { component: "kinesis", streamName: this.streamName, shardId },
+          retryable: true,
+        });
       }
 
       return response.ShardIterator;
     } catch (error) {
-      throw new Error(
-        `Failed to get shard iterator for stream ${this.streamName}: ${error instanceof Error ? error.message : String(error)}`,
+      throw new SmokerError(
+        `Failed to get shard iterator for stream ${this.streamName}: ${
+          error instanceof Error ? error.message : String(error)
+        }`,
+        {
+          code: ERR_VALIDATION,
+          domain: "aws",
+          details: {
+            component: "kinesis",
+            streamName: this.streamName,
+            reason: error instanceof Error ? error.message : String(error),
+          },
+          retryable: true,
+          cause: error,
+        },
       );
     }
   }
@@ -327,7 +409,7 @@ export class KinesisClient extends BaseServiceClient implements KinesisServiceCl
    * List shards in the Kinesis stream
    *
    * @return Array of shard IDs
-   * @throws Error if listing fails or client is not initialized
+   * @throws {SmokerError} if listing fails or client is not initialized
    */
   async listShards(): Promise<string[]> {
     this.ensureInitialized();
@@ -346,20 +428,25 @@ export class KinesisClient extends BaseServiceClient implements KinesisServiceCl
 
       return response.Shards.map((shard) => shard.ShardId || "");
     } catch (error) {
-      throw new Error(
-        `Failed to list shards for stream ${this.streamName}: ${error instanceof Error ? error.message : String(error)}`,
+      throw new SmokerError(
+        `Failed to list shards for stream ${this.streamName}: ${
+          error instanceof Error ? error.message : String(error)
+        }`,
+        {
+          code: ERR_VALIDATION,
+          domain: "aws",
+          details: {
+            component: "kinesis",
+            streamName: this.streamName,
+            reason: error instanceof Error ? error.message : String(error),
+          },
+          retryable: true,
+          cause: error,
+        },
       );
     }
   }
 
-  /**
-   * Wait for records with a specific partition key
-   *
-   * @param partitionKey - The partition key to wait for
-   * @param timeoutMs - Timeout in milliseconds (default: 30000)
-   * @return Array of records that match the partition key
-   * @throws Error if waiting fails or client is not initialized
-   */
   /**
    * Format AWS Kinesis records into the application's record format
    *
@@ -435,7 +522,12 @@ export class KinesisClient extends BaseServiceClient implements KinesisServiceCl
     this.assertNotNull(this.client);
 
     if (!partitionKey) {
-      throw new Error("Kinesis waitForRecords requires a partition key");
+      throw new SmokerError("Kinesis waitForRecords requires a partition key", {
+        code: ERR_VALIDATION,
+        domain: "aws",
+        details: { component: "kinesis", streamName: this.streamName },
+        retryable: false,
+      });
     }
 
     try {
@@ -451,8 +543,21 @@ export class KinesisClient extends BaseServiceClient implements KinesisServiceCl
       const shardIterator = await this.getShardIterator(shards[0], "LATEST");
       return await this.pollForRecords(shardIterator, partitionKey, endTime);
     } catch (error) {
-      throw new Error(
-        `Error waiting for records in stream ${this.streamName}: ${error instanceof Error ? error.message : String(error)}`,
+      throw new SmokerError(
+        `Error waiting for records in stream ${this.streamName}: ${
+          error instanceof Error ? error.message : String(error)
+        }`,
+        {
+          code: ERR_VALIDATION,
+          domain: "aws",
+          details: {
+            component: "kinesis",
+            streamName: this.streamName,
+            reason: error instanceof Error ? error.message : String(error),
+          },
+          retryable: true,
+          cause: error,
+        },
       );
     }
   }

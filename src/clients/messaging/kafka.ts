@@ -11,6 +11,13 @@
  */
 
 import { type Consumer, Kafka, type KafkaConfig, logLevel, type Producer } from "kafkajs";
+import {
+  ERR_KAFKA_CONNECT,
+  ERR_KAFKA_CONSUMER,
+  ERR_KAFKA_PRODUCER,
+  KafkaConnectionError,
+  SmokerError,
+} from "../../errors";
 import { BaseLogger } from "../../lib/logger";
 import { BaseServiceClient, type ServiceClient } from "../core";
 
@@ -96,7 +103,7 @@ export interface KafkaServiceClient extends ServiceClient {
    * Connect to the Kafka broker
    *
    * @return Promise that resolves when connection is established
-   * @throws Error if connection fails
+   * @throws {SmokerError} if connection fails
    */
   connect(): Promise<void>;
 
@@ -114,7 +121,7 @@ export interface KafkaServiceClient extends ServiceClient {
    * @param message - The message content
    * @param key - Optional message key for partitioning
    * @return Promise that resolves with record metadata if successful
-   * @throws Error if message sending fails
+   * @throws {SmokerError} if message sending fails
    */
   sendMessage(topic: string, message: string, key?: string): Promise<KafkaRecordMetadata>;
 
@@ -124,7 +131,7 @@ export interface KafkaServiceClient extends ServiceClient {
    * @param topics - Topic or array of topics to subscribe to
    * @param groupId - Consumer group ID
    * @return Promise that resolves when subscription is complete
-   * @throws Error if subscription fails
+   * @throws {SmokerError} if subscription fails
    */
   subscribe(topics: string | string[], groupId: string): Promise<void>;
 
@@ -134,7 +141,7 @@ export interface KafkaServiceClient extends ServiceClient {
    * @param callback - Function to process received messages
    * @param timeoutMs - Optional timeout in milliseconds
    * @return Promise that resolves when consumption ends or times out
-   * @throws Error if message consumption fails
+   * @throws {SmokerError} if message consumption fails
    */
   consumeMessages(
     callback: (message: KafkaMessage) => Promise<void>,
@@ -147,7 +154,7 @@ export interface KafkaServiceClient extends ServiceClient {
    * @param matcher - Function to match the desired message
    * @param timeoutMs - Optional timeout in milliseconds (default: 30000)
    * @return Promise that resolves with matched message, or null if timeout
-   * @throws Error if waiting fails
+   * @throws {SmokerError} if waiting fails
    */
   waitForMessage(
     matcher: (message: KafkaMessage) => boolean,
@@ -197,7 +204,7 @@ export class KafkaClient extends BaseServiceClient implements KafkaServiceClient
   /**
    * Initialize the client
    *
-   * @throws Error if required configuration is missing or initialization fails
+   * @throws {SmokerError} if required configuration is missing or initialization fails
    */
   protected async initializeClient(): Promise<void> {
     this.brokers = this.getConfig<string[]>("brokers", []);
@@ -206,11 +213,21 @@ export class KafkaClient extends BaseServiceClient implements KafkaServiceClient
     this.groupId = this.getConfig<string>("groupId", "smoke-test-group");
 
     if (this.brokers.length === 0) {
-      throw new Error("Brokers must be provided");
+      throw new SmokerError("Kafka brokers must be provided", {
+        code: ERR_KAFKA_CONNECT,
+        domain: "messaging",
+        details: { component: "kafka" },
+        retryable: false,
+      });
     }
 
     if (this.topics.length === 0) {
-      throw new Error("Topics must be provided");
+      throw new SmokerError("Kafka topics must be provided", {
+        code: ERR_KAFKA_CONSUMER,
+        domain: "messaging",
+        details: { component: "kafka" },
+        retryable: false,
+      });
     }
 
     try {
@@ -244,8 +261,29 @@ export class KafkaClient extends BaseServiceClient implements KafkaServiceClient
         await this.consumer.subscribe({ topic });
       }
     } catch (error) {
-      throw new Error(
-        `Failed to initialize Kafka client: ${error instanceof Error ? error.message : String(error)}`,
+      // Structured error log (keeps existing behavior unchanged)
+      const errObj = KafkaConnectionError.connecting(this.brokers);
+      logger.error(
+        errObj,
+        `Failed to initialize Kafka client: ${
+          error instanceof Error ? error.message : String(error)
+        }`,
+      );
+      throw new SmokerError(
+        `Failed to initialize Kafka client: ${
+          error instanceof Error ? error.message : String(error)
+        }`,
+        {
+          code: ERR_KAFKA_CONNECT,
+          domain: "messaging",
+          details: {
+            component: "kafka",
+            brokers: this.brokers,
+            reason: error instanceof Error ? error.message : String(error),
+          },
+          retryable: true,
+          cause: error,
+        },
       );
     }
   }
@@ -293,14 +331,19 @@ export class KafkaClient extends BaseServiceClient implements KafkaServiceClient
    * @param message - The message content
    * @param key - Optional message key
    * @return Record metadata if successful
-   * @throws Error if sending fails or client is not initialized
+   * @throws {SmokerError} if sending fails or client is not initialized
    */
   async sendMessage(topic: string, message: string, key?: string): Promise<KafkaRecordMetadata> {
     this.ensureInitialized();
     this.assertNotNull(this.producer);
 
     if (!topic) {
-      throw new Error("Topic is required for sending a message");
+      throw new SmokerError("Kafka topic is required for sending a message", {
+        code: ERR_KAFKA_PRODUCER,
+        domain: "messaging",
+        details: { component: "kafka" },
+        retryable: false,
+      });
     }
 
     try {
@@ -325,12 +368,17 @@ export class KafkaClient extends BaseServiceClient implements KafkaServiceClient
         timestamp: Date.now(),
       };
     } catch (error) {
-      // Check for specific error messages that should be preserved
-      if (error instanceof Error && error.message === "Send failed") {
-        throw error;
-      } else {
-        throw new Error(`Failed to send message to topic ${topic}`);
-      }
+      throw new SmokerError("Failed to send Kafka message", {
+        code: ERR_KAFKA_PRODUCER,
+        domain: "messaging",
+        details: {
+          component: "kafka",
+          topic,
+          reason: error instanceof Error ? error.message : String(error),
+        },
+        retryable: true,
+        cause: error,
+      });
     }
   }
 
@@ -340,18 +388,25 @@ export class KafkaClient extends BaseServiceClient implements KafkaServiceClient
    * @param topics - Topic or topics to subscribe to
    * @param groupId - Consumer group ID
    * @return Promise that resolves when subscription is complete
-   * @throws Error if subscription fails or client is not initialized
+   * @throws {SmokerError} if subscription fails or client is not initialized
    */
   async subscribe(topics: string | string[], groupId: string): Promise<void> {
     this.ensureInitialized();
     this.assertNotNull(this.client);
 
+    // Normalize topics once for use across try/catch
+    const topicsArray = Array.isArray(topics) ? topics : [topics];
+
     try {
       // Create a new consumer with the given group ID
-      const topicsArray = Array.isArray(topics) ? topics : [topics];
 
       if (topicsArray.length === 0) {
-        throw new Error("At least one topic is required for subscription");
+        throw new SmokerError("At least one Kafka topic is required for subscription", {
+          code: ERR_KAFKA_CONSUMER,
+          domain: "messaging",
+          details: { component: "kafka" },
+          retryable: false,
+        });
       }
 
       // If the consumer is already initialized with a different group ID,
@@ -374,9 +429,17 @@ export class KafkaClient extends BaseServiceClient implements KafkaServiceClient
       this.topics = [...new Set([...this.topics, ...topicsArray])];
       this.groupId = groupId;
     } catch (error) {
-      throw new Error(
-        `Failed to subscribe to topics: ${error instanceof Error ? error.message : String(error)}`,
-      );
+      throw new SmokerError("Failed to subscribe to Kafka topics", {
+        code: ERR_KAFKA_CONSUMER,
+        domain: "messaging",
+        details: {
+          component: "kafka",
+          topics: topicsArray,
+          reason: error instanceof Error ? error.message : String(error),
+        },
+        retryable: true,
+        cause: error,
+      });
     }
   }
 
@@ -386,7 +449,7 @@ export class KafkaClient extends BaseServiceClient implements KafkaServiceClient
    * @param callback - Function to process received messages
    * @param timeoutMs - How long to consume messages in milliseconds
    * @return Promise that resolves when consumption ends
-   * @throws Error if consumption fails or client is not initialized
+   * @throws SmokerError if consumption fails or client is not initialized
    */
   async consumeMessages(
     callback: (message: KafkaMessage) => Promise<void>,
@@ -436,9 +499,16 @@ export class KafkaClient extends BaseServiceClient implements KafkaServiceClient
         await this.consumer.stop();
       }
     } catch (error) {
-      throw new Error(
-        `Error consuming messages: ${error instanceof Error ? error.message : String(error)}`,
-      );
+      throw new SmokerError("Failed to consume Kafka messages", {
+        code: ERR_KAFKA_CONSUMER,
+        domain: "messaging",
+        details: {
+          component: "kafka",
+          reason: error instanceof Error ? error.message : String(error),
+        },
+        retryable: true,
+        cause: error,
+      });
     }
   }
 
@@ -448,7 +518,7 @@ export class KafkaClient extends BaseServiceClient implements KafkaServiceClient
    * @param matcher - Function to match desired message
    * @param timeoutMs - Timeout in milliseconds (default: 30000)
    * @return The matched message or null if timeout
-   * @throws Error if waiting fails or client is not initialized
+   * @throws {SmokerError} if waiting fails or client is not initialized
    */
   async waitForMessage(
     matcher: (message: KafkaMessage) => boolean,

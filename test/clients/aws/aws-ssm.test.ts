@@ -90,6 +90,43 @@ describe("SsmClient", () => {
     it("should set client name correctly", () => {
       expect(client.getName()).toBe(TEST_FIXTURES.CLIENT_ID);
     });
+
+    it("should support case-insensitive type and include KeyId for SecureString with kmsKeyId", async () => {
+      const clientWithKms = new SsmClient(TEST_FIXTURES.CLIENT_ID, {
+        region: TEST_FIXTURES.REGION,
+        kmsKeyId: "kms-123",
+      });
+      await clientWithKms.init();
+      ssmMock.on(PutParameterCommand).resolves({});
+
+      await expect(
+        // pass lowercase "securestring" to hit case-insensitive mapping
+        clientWithKms.write(
+          TEST_FIXTURES.SECURE_PARAMETER_NAME,
+          TEST_FIXTURES.SECURE_PARAMETER_VALUE,
+          "securestring",
+        ),
+      ).resolves.not.toThrow();
+
+      expect(ssmMock).toHaveReceivedCommandWith(PutParameterCommand, {
+        Name: TEST_FIXTURES.SECURE_PARAMETER_NAME,
+        Value: TEST_FIXTURES.SECURE_PARAMETER_VALUE,
+        Type: ParameterType.SECURE_STRING,
+        Overwrite: true,
+        KeyId: "kms-123",
+      });
+    });
+
+    it("should handle non-Error objects during write", async () => {
+      await client.init();
+      ssmMock.on(PutParameterCommand).rejects("String write error");
+
+      await expect(
+        client.write(TEST_FIXTURES.PARAMETER_NAME, TEST_FIXTURES.PARAMETER_VALUE),
+      ).rejects.toThrow(
+        TEST_FIXTURES.ERROR_WRITE_ERROR(TEST_FIXTURES.PARAMETER_NAME, "String write error"),
+      );
+    });
   });
 
   /**
@@ -98,6 +135,10 @@ describe("SsmClient", () => {
   describe("read", () => {
     beforeEach(async () => {
       await client.init();
+    });
+
+    it("should throw validation error when parameter name is empty", async () => {
+      await expect(client.read("")).rejects.toThrow("SSM read operation requires a parameter name");
     });
 
     it("should read parameter successfully", async () => {
@@ -196,6 +237,14 @@ describe("SsmClient", () => {
         TEST_FIXTURES.ERROR_PARAMETER_NOT_FOUND(TEST_FIXTURES.PARAMETER_NAME),
       );
     });
+
+    it("should handle non-Error objects during read", async () => {
+      ssmMock.on(GetParameterCommand).rejects("String read error");
+
+      await expect(client.read(TEST_FIXTURES.PARAMETER_NAME)).rejects.toThrow(
+        TEST_FIXTURES.ERROR_READ_ERROR(TEST_FIXTURES.PARAMETER_NAME, "String read error"),
+      );
+    });
   });
 
   /**
@@ -204,6 +253,19 @@ describe("SsmClient", () => {
   describe("write", () => {
     beforeEach(async () => {
       await client.init();
+    });
+
+    it("should throw validation error when parameter name is empty", async () => {
+      await expect(client.write("", TEST_FIXTURES.PARAMETER_VALUE)).rejects.toThrow(
+        "SSM write operation requires a parameter name",
+      );
+    });
+
+    it("should throw validation error when parameter value is undefined", async () => {
+      await expect(
+        // @ts-expect-error testing undefined value branch
+        client.write(TEST_FIXTURES.PARAMETER_NAME, undefined),
+      ).rejects.toThrow("SSM write operation requires a parameter value");
     });
 
     it("should write parameter successfully with default options", async () => {
@@ -323,6 +385,12 @@ describe("SsmClient", () => {
   describe("delete", () => {
     beforeEach(async () => {
       await client.init();
+    });
+
+    it("should throw validation error when parameter name is empty", async () => {
+      await expect(client.delete("")).rejects.toThrow(
+        "SSM delete operation requires a parameter name",
+      );
     });
 
     it("should delete parameter successfully", async () => {
