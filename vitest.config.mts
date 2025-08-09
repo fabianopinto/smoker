@@ -32,7 +32,7 @@ export default defineConfig({
       // Files to include/exclude from coverage
       include: ["src/**/*"],
       exclude: [
-        "src/index.ts", // Entry point file
+        "src/main.ts", // Entry point file
         "**/*.d.ts", // Type declaration files
         "**/*.test.ts", // Test files
         "**/node_modules/**", // Dependencies

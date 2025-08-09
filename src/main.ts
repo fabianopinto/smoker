@@ -18,6 +18,7 @@
 import { loadConfiguration, runCucumber } from "@cucumber/cucumber/api";
 import { BaseLogger } from "./lib/logger";
 import { type ConfigObject, Configuration, ConfigurationFactory } from "./support/config";
+import { ERR_CONFIG_PARSE, SmokerError } from "./errors";
 
 // Create a logger instance for this module
 const logger = new BaseLogger({ name: "smoker:main" });
@@ -192,7 +193,7 @@ export async function handler(event: LambdaEvent, context: LambdaContext): Promi
  *
  * @param event - Lambda event object with configuration sources
  * @return Promise that resolves when configuration is loaded
- * @throws Error if configuration loading fails
+ * @throws {SmokerError} if configuration loading fails
  */
 async function loadTestConfigurations(event: LambdaEvent): Promise<void> {
   try {
@@ -229,9 +230,17 @@ async function loadTestConfigurations(event: LambdaEvent): Promise<void> {
       error instanceof Error ? error : String(error),
       "Error loading test configurations",
     );
-    throw new Error(
-      `Failed to load test configurations: ${error instanceof Error ? error.message : String(error)}`,
-    );
+    throw new SmokerError("Failed to load test configurations", {
+      code: ERR_CONFIG_PARSE,
+      domain: "config",
+      details: {
+        component: "configuration",
+        source: "main.loadTestConfigurations",
+        reason: error instanceof Error ? error.message : String(error),
+      },
+      retryable: false,
+      cause: error,
+    });
   }
 }
 

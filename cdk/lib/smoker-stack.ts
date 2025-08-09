@@ -60,7 +60,7 @@ export class SmokerStack extends cdk.Stack {
     // Create Lambda function
     this.lambdaFunction = new lambda.Function(this, "SmokerFunction", {
       runtime: lambda.Runtime.NODEJS_20_X,
-      handler: "dist/src/index.handler", // Use the Lambda handler wrapper
+      handler: "dist/src/main.handler", // Use the Lambda handler wrapper
       code: lambda.Code.fromAsset(path.join(__dirname, "../../"), {
         // Exclude unnecessary files to reduce package size
         exclude: [
