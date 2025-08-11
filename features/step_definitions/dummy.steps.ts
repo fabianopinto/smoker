@@ -1,6 +1,6 @@
-import { Given, When, Then } from "@cucumber/cucumber";
+import { Given, Then, When } from "@cucumber/cucumber";
+import { logger } from "../../src/lib";
 import { type SmokeWorld } from "../../src/world/world";
-import logger from "../../src/lib/logger";
 
 Given("a target named {string}", function (this: SmokeWorld, userTarget: string) {
   logger.info(`--${this.constructor.name}--a target named ${userTarget}==`);
