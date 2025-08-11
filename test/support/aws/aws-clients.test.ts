@@ -16,7 +16,6 @@
 import { GetObjectCommand, type GetObjectCommandOutput, S3Client } from "@aws-sdk/client-s3";
 import {
   GetParameterCommand,
-  type GetParameterCommandOutput,
   SSMClient,
 } from "@aws-sdk/client-ssm";
 import { mockClient } from "aws-sdk-client-mock";
@@ -133,16 +132,6 @@ describe("AWS Clients Module", () => {
   ): GetObjectCommandOutput {
     // Use type assertion for the Body property since we know it's valid in our test context
     return { Body: body as unknown as GetObjectCommandOutput["Body"], $metadata: {} };
-  }
-
-  /**
-   * Creates a mock AWS SSM response object
-   *
-   * @param value - The parameter value
-   * @returns Mock SSM response object
-   */
-  function createMockSSMResponse(value?: string): GetParameterCommandOutput {
-    return value ? { Parameter: { Value: value }, $metadata: {} } : { $metadata: {} };
   }
 
   /**
