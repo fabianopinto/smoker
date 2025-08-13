@@ -316,6 +316,31 @@ describe("S3Client", () => {
           err.details?.component === "core",
       );
     });
+
+    it("should wrap unexpected read errors into SmokerError (retryable) in readJson", async () => {
+      // Spy on instance read() to force a non-SmokerError rejection
+      const raw = new Error("unexpected");
+      const readSpy = vi.spyOn(
+        client as unknown as { read: (k: string) => Promise<string> },
+        "read",
+      );
+      readSpy.mockRejectedValueOnce(raw);
+
+      await expect(client.readJson(TEST_FIXTURES.JSON_FILE_PATH)).rejects.toSatisfy((err) => {
+        return (
+          SmokerError.isSmokerError(err) &&
+          err.code === ERR_S3_READ &&
+          err.domain === "aws" &&
+          err.retryable === true &&
+          typeof err.details?.reason === "string" &&
+          (err.details?.reason as string).includes("unexpected")
+        );
+      });
+
+      // Ensure original read was called once with key
+      expect(readSpy).toHaveBeenCalledTimes(1);
+      expect(readSpy).toHaveBeenCalledWith(TEST_FIXTURES.JSON_FILE_PATH);
+    });
   });
 
   /**
@@ -369,6 +394,42 @@ describe("S3Client", () => {
       ).rejects.toThrow(
         `Failed to write object ${TEST_FIXTURES.TEXT_FILE_PATH} to bucket ${TEST_FIXTURES.BUCKET}: ${TEST_FIXTURES.ERROR_ACCESS_DENIED}`,
       );
+    });
+
+    it("should handle non-Error thrown values during write (string reason)", async () => {
+      const reason = "string-failure";
+      // Force AWS SDK to reject with a string instead of Error
+      s3Mock.on(PutObjectCommand).rejects(reason);
+
+      await expect(
+        client.write(TEST_FIXTURES.TEXT_FILE_PATH, TEST_FIXTURES.TEXT_CONTENT),
+      ).rejects.toSatisfy((err) => {
+        if (!SmokerError.isSmokerError(err)) return false;
+        // Message should contain the string reason due to ternary branch
+        expect(err.message).toContain(reason);
+        expect(err.code).toBe(ERR_S3_READ);
+        expect(err.domain).toBe("aws");
+        expect(err.retryable).toBe(true);
+        expect(err.details).toMatchObject({
+          component: "s3",
+          bucket: TEST_FIXTURES.BUCKET,
+          key: TEST_FIXTURES.TEXT_FILE_PATH,
+          reason,
+        });
+        return true;
+      });
+    });
+
+    it("should throw validation error when key is empty in write", async () => {
+      await expect(client.write("", "content")).rejects.toSatisfy((err) => {
+        return (
+          SmokerError.isSmokerError(err) &&
+          err.code === ERR_VALIDATION &&
+          err.domain === "aws" &&
+          err.details?.component === "s3" &&
+          err.details?.bucket === TEST_FIXTURES.BUCKET
+        );
+      });
     });
   });
 

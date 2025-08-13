@@ -378,6 +378,40 @@ describe("ConfigurationFactory", () => {
       expect(Configuration).toHaveBeenCalledWith(expectedMergedConfig);
     });
 
+    it("should log non-Error errors using String(error) when a source throws non-Error", async () => {
+      // Create a custom failing source class so constructor.name is predictable
+      class FailingSource {
+        load() {
+          return Promise.reject("non-error failure");
+        }
+      }
+
+      // Spy on logger.error
+      const loggerErrorSpy = vi.spyOn(BaseLogger.prototype, "error").mockImplementation(() => {
+        // suppress output
+      });
+
+      // Add failing source and a valid object source so build succeeds overall
+      configurationFactory
+        .addSource(new FailingSource() as unknown as ConfigurationSource)
+        .addObject(TEST_FIXTURES.BASIC_CONFIG);
+
+      const result = await configurationFactory.build();
+
+      // logger.error should be called with a string (String(error)) and message containing constructor name
+      expect(loggerErrorSpy).toHaveBeenCalled();
+      const [firstArg, secondArg] = loggerErrorSpy.mock.calls[0] as [unknown, string];
+      expect(typeof firstArg).toBe("string");
+      expect(firstArg).toContain("non-error failure");
+      expect(secondArg).toContain("Error loading configuration from source: FailingSource");
+
+      // Configuration still created and returned; global initialized
+      expect(Configuration).toHaveBeenCalledTimes(1);
+      expect(mockConfiguration.initializeGlobalInstance).toHaveBeenCalledWith(result);
+
+      loggerErrorSpy.mockRestore();
+    });
+
     it("should handle mixed source types including file, S3, and object sources", async () => {
       const fileConfig = { file: true };
       const s3Config = { s3: true };

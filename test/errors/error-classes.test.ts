@@ -18,6 +18,7 @@ import {
   MqttDisconnectError,
   SmokerError,
 } from "../../src/errors";
+import type { SmokerErrorOptions } from "../../src/errors/smoker-error";
 
 describe("Error classes", () => {
   describe("SmokerError", () => {
@@ -55,6 +56,70 @@ describe("Error classes", () => {
       // type guard
       expect(SmokerError.isSmokerError(err)).toBe(true);
       expect(SmokerError.isSmokerError({})).toBe(false);
+    });
+
+    it("should default details to an empty object when not provided", () => {
+      const opts: SmokerErrorOptions = {
+        code: "ERR_TEST_NO_DETAILS",
+        domain: "test",
+        // no details provided on purpose
+      };
+      const err = new SmokerError("root message", opts);
+
+      expect(err).toBeInstanceOf(SmokerError);
+      expect(err.details).toEqual({});
+
+      const json = err.toJSON();
+      expect(json.details).toEqual({});
+    });
+
+    it("should serialize non-Error cause as-is in JSON", () => {
+      const cause = { reason: "plain-object" };
+      const err = new SmokerError("root message", {
+        code: "ERR_TEST_CAUSE_OBJECT",
+        domain: "test",
+        cause,
+      });
+
+      const json = err.toJSON();
+      expect(json.cause).toEqual(cause);
+    });
+
+    it("should prefer opts.message over constructor message in JSON output", () => {
+      const err = new SmokerError("ctor message", {
+        code: "ERR_TEST_MSG_OVERRIDE",
+        domain: "test",
+        message: "opts message",
+      });
+
+      const json = err.toJSON();
+      expect(json.message).toBe("opts message");
+    });
+
+    it("should include an ISO timestamp string in JSON", () => {
+      const err = new SmokerError("msg", { code: "E", domain: "test" });
+      const json = err.toJSON();
+      expect(typeof json.timestamp).toBe("string");
+      // Ensure it parses as a valid date
+      expect(Number.isNaN(Date.parse(json.timestamp as string))).toBe(false);
+    });
+
+    it("fromUnknown should create a SmokerError with provided opts", () => {
+      const e = SmokerError.fromUnknown("factory msg", {
+        code: "ERR_FACTORY",
+        domain: "factory",
+        details: { x: 1 },
+        retryable: true,
+        severity: "warn",
+      });
+
+      expect(e).toBeInstanceOf(SmokerError);
+      expect(e.message).toBe("factory msg");
+      expect(e.code).toBe("ERR_FACTORY");
+      expect(e.domain).toBe("factory");
+      expect(e.retryable).toBe(true);
+      expect(e.severity).toBe("warn");
+      expect(e.details).toEqual({ x: 1 });
     });
   });
 
