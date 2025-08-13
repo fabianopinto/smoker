@@ -11,6 +11,12 @@
  */
 
 import {
+  CloudWatchClient as AwsCloudWatchClient,
+  type Dimension,
+  PutMetricDataCommand,
+  type StandardUnit,
+} from "@aws-sdk/client-cloudwatch";
+import {
   CloudWatchLogsClient,
   DescribeLogGroupsCommand,
   FilterLogEventsCommand,
@@ -138,6 +144,16 @@ export interface CloudWatchServiceClient extends ServiceClient {
    * @return True if pattern was found within timeout, false otherwise
    */
   waitForPattern(logStreamName: string, pattern: string, timeoutMs?: number): Promise<boolean>;
+
+  /**
+   * Publish a single CloudWatch metric data point
+   */
+  publishMetric(metric: CloudWatchMetric): Promise<void>;
+
+  /**
+   * Publish multiple CloudWatch metric data points (handles chunking by 20)
+   */
+  publishMetrics(metrics: CloudWatchMetric[]): Promise<void>;
 }
 
 /**
@@ -158,6 +174,7 @@ export interface CloudWatchServiceClient extends ServiceClient {
  */
 export class CloudWatchClient extends BaseServiceClient implements CloudWatchServiceClient {
   private client: CloudWatchLogsClient | null = null;
+  private metricsClient: AwsCloudWatchClient | null = null;
   private logGroupName = "";
 
   /**
@@ -209,6 +226,16 @@ export class CloudWatchClient extends BaseServiceClient implements CloudWatchSer
           secretAccessKey: this.getConfig<string>("secretAccessKey", ""),
         },
         endpoint: this.getConfig<string>("endpoint", "") || undefined,
+      });
+
+      // Initialize metrics client (separate AWS service)
+      this.metricsClient = new AwsCloudWatchClient({
+        region,
+        credentials: {
+          accessKeyId: this.getConfig<string>("accessKeyId", ""),
+          secretAccessKey: this.getConfig<string>("secretAccessKey", ""),
+        },
+        endpoint: this.getConfig<string>("metricsEndpoint", "") || undefined,
       });
     } catch (error) {
       throw new SmokerError("Failed to initialize CloudWatch client", {
@@ -419,4 +446,89 @@ export class CloudWatchClient extends BaseServiceClient implements CloudWatchSer
       });
     }
   }
+
+  /**
+   * Publish a single CloudWatch metric data point
+   */
+  async publishMetric(metric: CloudWatchMetric): Promise<void> {
+    this.ensureInitialized();
+    this.assertNotNull(this.metricsClient);
+
+    const namespace = this.getConfig<string>("namespace", "Smoker/Generic");
+    const command = new PutMetricDataCommand({
+      Namespace: namespace,
+      MetricData: [toAwsMetric(metric)],
+    });
+
+    try {
+      await this.metricsClient.send(command);
+    } catch (error) {
+      throw new SmokerError("Failed to publish CloudWatch metric", {
+        code: ERR_VALIDATION,
+        domain: "aws",
+        details: {
+          component: "cloudwatch",
+          namespace,
+          reason: error instanceof Error ? error.message : String(error),
+        },
+        retryable: true,
+        cause: error,
+      });
+    }
+  }
+
+  /**
+   * Publish multiple CloudWatch metric data points (handles chunking by 20)
+   */
+  async publishMetrics(metrics: CloudWatchMetric[]): Promise<void> {
+    this.ensureInitialized();
+    this.assertNotNull(this.metricsClient);
+
+    if (!metrics || metrics.length === 0) return;
+
+    const namespace = this.getConfig<string>("namespace", "Smoker/Generic");
+    for (let i = 0; i < metrics.length; i += 20) {
+      const batch = metrics.slice(i, i + 20).map(toAwsMetric);
+      const command = new PutMetricDataCommand({ Namespace: namespace, MetricData: batch });
+      try {
+        await this.metricsClient.send(command);
+      } catch (error) {
+        throw new SmokerError("Failed to publish CloudWatch metrics batch", {
+          code: ERR_VALIDATION,
+          domain: "aws",
+          details: {
+            component: "cloudwatch",
+            namespace,
+            batchSize: batch.length,
+            reason: error instanceof Error ? error.message : String(error),
+          },
+          retryable: true,
+          cause: error,
+        });
+      }
+    }
+  }
+}
+
+/**
+ * Metric model used by the Smoker CloudWatch client
+ */
+export interface CloudWatchMetric {
+  MetricName: string;
+  Value: number;
+  Unit?: StandardUnit | string;
+  Dimensions?: { Name: string; Value: string }[];
+}
+
+function toAwsMetric(metric: CloudWatchMetric) {
+  const dims: Dimension[] | undefined = metric.Dimensions?.map((d) => ({
+    Name: d.Name,
+    Value: d.Value,
+  }));
+  return {
+    MetricName: metric.MetricName,
+    Value: metric.Value,
+    Unit: (metric.Unit as StandardUnit | undefined) ?? undefined,
+    Dimensions: dims,
+  };
 }
