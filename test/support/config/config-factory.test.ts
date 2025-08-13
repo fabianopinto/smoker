@@ -162,10 +162,6 @@ describe("ConfigurationFactory", () => {
     setupMockConfiguration();
     setupMockUtilities();
 
-    // Mock console methods
-    vi.spyOn(console, "log").mockImplementation(() => undefined);
-    vi.spyOn(console, "error").mockImplementation(() => undefined);
-
     // Create fresh factory instance
     configurationFactory = new ConfigurationFactory();
   });

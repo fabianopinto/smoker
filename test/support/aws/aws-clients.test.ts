@@ -14,10 +14,7 @@
  */
 
 import { GetObjectCommand, type GetObjectCommandOutput, S3Client } from "@aws-sdk/client-s3";
-import {
-  GetParameterCommand,
-  SSMClient,
-} from "@aws-sdk/client-ssm";
+import { GetParameterCommand, SSMClient } from "@aws-sdk/client-ssm";
 import { mockClient } from "aws-sdk-client-mock";
 import { Readable } from "node:stream";
 import { afterAll, afterEach, beforeEach, describe, expect, it, vi } from "vitest";

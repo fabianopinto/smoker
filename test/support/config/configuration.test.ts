@@ -142,10 +142,6 @@ describe("Configuration", () => {
     vi.mocked(ConfigurationFactory).mockImplementation(
       () => mockConfigFactory as unknown as ConfigurationFactory,
     );
-
-    // Mock console methods
-    vi.spyOn(console, "error").mockImplementation(() => undefined);
-    vi.spyOn(console, "warn").mockImplementation(() => undefined);
   });
 
   afterEach(() => {

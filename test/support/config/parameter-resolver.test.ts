@@ -136,7 +136,6 @@ describe("ParameterResolver", () => {
   beforeEach(() => {
     // Clear all mocks before each test
     vi.clearAllMocks();
-    // No console spies needed; tests assert against BaseLogger where applicable
 
     // Create new mock instances for each test
     mockS3Client = {
