@@ -207,10 +207,8 @@ export interface LoggerOptions {
  * Default logger options
  */
 const DEFAULT_OPTIONS: LoggerOptions = {
-  level: process.env.LOG_LEVEL || "info",
-  name: "smoker",
-  pretty: process.env.NODE_ENV !== "production",
-  base: { pid: process.pid },
+  // pretty default will be finalized at construction time based on NODE_ENV
+  pretty: true,
 };
 
 /**
@@ -253,7 +251,19 @@ export class BaseLogger implements Logger {
    * @param options - Configuration options for the logger
    */
   constructor(options?: LoggerOptions) {
-    const mergedOptions = { ...DEFAULT_OPTIONS, ...options };
+    // Resolve options at construction time to pick up environment changes
+    const level = options?.level ?? process.env.LOG_LEVEL ?? DEFAULT_OPTIONS.level ?? "info";
+    const pretty = options?.pretty ?? process.env.NODE_ENV !== "production";
+    const name = options?.name ?? DEFAULT_OPTIONS.name ?? "smoker";
+    const base = options?.base ?? DEFAULT_OPTIONS.base ?? { pid: process.pid };
+
+    const mergedOptions = {
+      level,
+      pretty,
+      name,
+      base,
+    };
+
     const transport = createTransport(mergedOptions);
 
     this.logger = pino({
@@ -376,3 +386,8 @@ export class BaseLogger implements Logger {
     }
   }
 }
+
+/**
+ * Default logger instance for convenience
+ */
+export const logger = new BaseLogger();
