@@ -13,7 +13,13 @@ This comprehensive guide provides documentation for all service clients availabl
 - [Custom Clients via Configuration](#custom-clients-via-configuration)
 - [Clients Programmatically](#clients-programmatically)
 - [Integration Examples](#integration-examples)
-- [Best Practices](#best-practices)
+ - [Best Practices](#best-practices)
+   - [Logging and Error Handling](#logging-and-error-handling)
+   - [Client Configuration](#client-configuration)
+   - [Error Handling](#error-handling)
+   - [Performance Optimization](#performance-optimization)
+   - [Security](#security)
+   - [Testing](#testing)
 
 ## Overview
 
@@ -86,6 +92,35 @@ await restClient.reset();
 
 // Clean up when done
 await restClient.destroy();
+```
+
+### Lifecycle Sequence
+
+```mermaid
+sequenceDiagram
+  autonumber
+  participant T as Test/World
+  participant F as ClientFactory
+  participant C as ServiceClient (REST/MQTT/...)
+  participant A as External Adapter
+
+  T->>F: createAndInitialize(type, id)
+  F->>C: new Client(id).initialize(config)
+  C->>A: connect/configure(...)
+  A-->>C: ready
+  C-->>T: initialized
+
+  T->>C: perform operation (e.g., get/produce/putObject)
+  C->>A: execute(...)
+  A-->>C: response/result
+  C-->>T: response/result
+
+  T->>C: reset()
+  C-->>T: state cleared
+
+  T->>C: destroy()
+  C->>A: disconnect/cleanup
+  C-->>T: destroyed
 ```
 
 ## Available Clients
@@ -769,6 +804,35 @@ Given(
 ```
 
 ## Best Practices
+
+### Logging and Error Handling
+
+- Use the shared logger from `src/lib/logger.ts` in client implementations and steps.
+  ```ts
+  import { logger } from "../src/lib/logger";
+  // Optionally include a logger name for easier filtering in logs
+  this.logger = logger.child({ name: "S3Client", client: "S3Client", id: this.id });
+  ```
+- Control verbosity with `LOG_LEVEL` (default `info`).
+- Prefer throwing `SmokerError` for operational errors with contextual fields:
+  ```ts
+  import { SmokerError } from "../src/errors/smoker-error";
+
+  async function getObjectSafe(key: string) {
+    try {
+      return await this.sdk.getObject(key);
+    } catch (e) {
+      throw new SmokerError("S3 getObject failed", {
+        code: "S3_GET_OBJECT",
+        domain: "s3",
+        details: { key },
+        cause: e as Error,
+        retryable: true,
+      });
+    }
+  }
+  ```
+- Mask secrets before logging using `ObfuscationUtils` (`src/lib/obfuscation-utils.ts`).
 
 ### Client Configuration
 

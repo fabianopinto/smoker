@@ -37,6 +37,21 @@ The framework is designed to validate that external systems are functioning corr
 - **Deployment Verification**: Confirming successful deployments in various environments
 - **Continuous Monitoring**: Running periodic health checks in production environments
 
+### Architecture Overview
+
+```mermaid
+graph LR
+  A[Feature Files] --> B[Step Definitions]
+  B --> C[World Object]
+  C --> D[Configuration System]
+  D --> F[Parameter Resolver]
+  C --> E[Service Clients]
+  E --> G[Client Registry]
+  E --> H[Library Code]
+  H --> E
+  D --> E
+```
+
 ## Main Features
 
 ### 🧪 **BDD Testing with Cucumber.js**
@@ -79,11 +94,13 @@ smoker/
 │   │   ├── messaging/             # Messaging clients (MQTT, Kafka)
 │   │   └── registry/              # Client registry and factory
 │   ├── lib/                       # Library code (utility functions)
+│   │   └── logger.ts              # Pino-based logger
 │   ├── support/                   # Support modules
 │   │   ├── aws/                   # AWS integration utilities
 │   │   └── config/                # Configuration system
+│   ├── errors/                    # Framework error classes
 │   ├── world/                     # Cucumber.js SmokeWorld implementation
-│   └── index.ts                   # Main entry point & AWS Lambda handler
+│   └── main.ts                    # Main entry point & AWS Lambda handler
 ├── features/                      # Cucumber.js feature files
 │   └── step_definitions/          # Step definition implementations
 ├── docs/                          # Documentation
@@ -145,7 +162,7 @@ smoker/
 
 2. **Run your test:**
    ```bash
-   npm start -- --paths "features/your-test.feature"
+   npm start -- --paths "dist/features/your-test.feature"
    ```
 
 ## Usage
@@ -188,31 +205,29 @@ npm start -- --config config/production.json
 **Environment Variables:**
 
 ```bash
-export SMOKER_CONFIG='{"api":{"baseUrl":"https://staging.api.com"}}'
-export SMOKER_LOG_LEVEL=debug
+export LOG_LEVEL=debug
 ```
 
 ## Available Scripts
 
-| Script          | Description                      | Usage                   |
-| --------------- | -------------------------------- | ----------------------- |
-| `build`         | Compile TypeScript to JavaScript | `npm run build`         |
-| `start`         | Run smoke tests                  | `npm start`             |
-| `test`          | Run framework unit tests         | `npm test`              |
-| `test:watch`    | Run unit tests in watch mode     | `npm run test:watch`    |
-| `test:coverage` | Run tests with coverage report   | `npm run test:coverage` |
-| `lint`          | Run ESLint code analysis         | `npm run lint`          |
-| `lint:fix`      | Fix auto-fixable lint issues     | `npm run lint:fix`      |
-| `format`        | Format code with Prettier        | `npm run format`        |
-| `format:check`  | Check code formatting            | `npm run format:check`  |
-| `clean`         | Remove build artifacts           | `npm run clean`         |
-| `package`       | Create deployment package        | `npm run package`       |
+| Script          | Description                              | Usage                        |
+| --------------- | ---------------------------------------- | ---------------------------- |
+| `build`         | Compile TypeScript to JavaScript         | `npm run build`              |
+| `start`         | Run smoke tests (after build)            | `npm start`                  |
+| `check`         | Type-check with TypeScript               | `npm run check`              |
+| `test`          | Run unit tests with Vitest               | `npm test`                   |
+| `test:watch`    | Run tests in watch mode                  | `npm run test:watch`         |
+| `test:coverage` | Run tests with coverage report           | `npm run test:coverage`      |
+| `lint`          | Run ESLint                               | `npm run lint`               |
+| `format`        | Format code with Prettier (src and test) | `npm run format`             |
+| `clean`         | Remove build artifacts                   | `npm run clean`              |
+| `cdk:*`         | CDK helper scripts (see cdk/)            | `npm run cdk:deploy` etc.    |
 
-### Development Scripts
+### Development Tips
 
 ```bash
-# Watch mode for development
-npm run build:watch
+# Type-check and build
+npm run check && npm run build
 
 # Run specific test suites
 npm test -- --testNamePattern="ConfigFactory"
@@ -221,7 +236,22 @@ npm test -- --testNamePattern="ConfigFactory"
 npm run test:coverage
 
 # Lint and format code
-npm run lint:fix && npm run format
+npm run lint && npm run format
+```
+
+### Testing
+
+Use Vitest in run mode (non-watch) and prefer running tests individually to avoid timeouts:
+
+```bash
+# All tests
+npx vitest run
+
+# Single file
+npx vitest run test/clients/aws/aws-cloudwatch-metrics.test.ts
+
+# By test name pattern
+npx vitest run --testNamePattern="RestClient"
 ```
 
 ## Troubleshooting
@@ -268,7 +298,7 @@ Enable debug logging for detailed troubleshooting:
 
 ```bash
 # Environment variable
-export SMOKER_LOG_LEVEL=debug
+export LOG_LEVEL=debug
 
 # Command line option
 npm start -- --logLevel debug
@@ -296,7 +326,7 @@ npm start -- --logLevel debug
 
 Copyright (c) 2025 Fabiano Pinto
 
-This project is licensed under the [MIT License](LICENSE). See the LICENSE file for details.
+This project is licensed under the [ISC License](LICENSE). See the LICENSE file for details.
 
 ### Third-Party Licenses
 

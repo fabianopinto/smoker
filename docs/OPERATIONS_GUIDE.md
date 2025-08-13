@@ -21,7 +21,7 @@ This comprehensive guide covers all operational aspects of the Smoker framework,
 
 Before running the Smoker framework locally, ensure you have:
 
-- **Node.js 18+** and npm installed
+- **Node.js 22+** and npm installed
 - **AWS CLI configured** (for AWS features)
 - **Appropriate permissions** for AWS services (if using AWS features)
 - **TypeScript knowledge** (recommended for custom development)
@@ -51,13 +51,10 @@ Configure your local environment with necessary variables:
 
 ```bash
 # Set log level
-export SMOKER_LOG_LEVEL=info
+export LOG_LEVEL=info
 
 # Set AWS region (if using AWS services)
 export AWS_DEFAULT_REGION=us-east-1
-
-# Set custom configuration
-export SMOKER_CONFIG='{"api":{"baseUrl":"https://localhost:3000"}}'
 ```
 
 ## Cucumber Options and Test Execution
@@ -346,7 +343,7 @@ Reference and parse JSON content from S3:
 ```json
 {
   "api": {
-    "endpoints": "s3+json://my-config-bucket/api-endpoints.json"
+    "endpoints": "s3://my-config-bucket/api-endpoints.json"
   }
 }
 ```
@@ -468,6 +465,32 @@ npm start -- --config config/staging.json --tags "@staging"
 
 ## Running Smoke Tests in AWS
 
+### AWS Execution Flow
+
+```mermaid
+sequenceDiagram
+  autonumber
+  participant U as CI/User
+  participant L as AWS Lambda (Smoker)
+  participant CFG as Config Resolver (SSM/S3/Env)
+  participant CUC as Cucumber Runner
+  participant REP as S3 (Reports)
+  participant CW as CloudWatch (Metrics)
+
+  U->>L: Invoke with event (tags, config, logLevel)
+  L->>CFG: Resolve configuration (file | s3 | env | programmatic)
+  CFG-->>L: Merged configuration
+  L->>CUC: Execute features with options (paths, tags, parallel)
+  CUC-->>L: Results (passed/failed, duration)
+  alt publish reports
+    L->>REP: Put results (json/html/junit)
+  end
+  alt publish metrics
+    L->>CW: Put metrics (TestsTotal, Passed, Failed, Duration)
+  end
+  L-->>U: Invocation response (summary, locations)
+```
+
 ### The Lambda Event Structure
 
 The AWS Lambda handler accepts events in the following structure:
@@ -510,15 +533,27 @@ interface LambdaEvent {
 
 ### The Lambda Environment Variables
 
-Configure the Lambda function with these environment variables:
+Only one environment variable is used by the Lambda function:
 
-| Variable                   | Description            | Example                   |
-| -------------------------- | ---------------------- | ------------------------- |
-| `SMOKER_LOG_LEVEL`         | Default logging level  | `info`                    |
-| `SMOKER_CONFIG`            | Default configuration  | `s3://bucket/config.json` |
-| `SMOKER_TIMEOUT`           | Default step timeout   | `30000`                   |
-| `SMOKER_REPORTS_BUCKET`    | Default reports bucket | `smoker-reports`          |
-| `SMOKER_METRICS_NAMESPACE` | CloudWatch namespace   | `SmokerTests`             |
+| Variable     | Description           | Example |
+| ------------ | --------------------- | ------- |
+| `LOG_LEVEL`  | Default logging level | `info`  |
+
+#### Logging
+
+Smoker uses a structured JSON logger (Pino). Control verbosity with the `LOG_LEVEL` environment variable. Typical values: `error`, `warn`, `info`, `debug`, `trace`.
+
+Examples:
+
+```bash
+# Local
+export LOG_LEVEL=debug
+
+# Lambda (Console)
+LOG_LEVEL=info
+```
+
+For application code, import and use the shared logger from `src/lib/logger.ts`.
 
 ### Basics of AWS Lambda CLI
 

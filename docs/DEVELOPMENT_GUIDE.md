@@ -9,6 +9,8 @@ This comprehensive guide provides information for developers working on the Smok
 - [Architecture Overview](#architecture-overview)
 - [Coding Standards](#coding-standards)
 - [Testing Guidelines](#testing-guidelines)
+- [Logger](#logger)
+- [Error Model (SmokerError)](#error-model-smokererror)
 - [Extending the Framework](#extending-the-framework)
 - [Contributing Guidelines](#contributing-guidelines)
 
@@ -38,23 +40,17 @@ The framework follows these fundamental design principles:
 
 ### Components Interactions
 
-```
-┌─────────────┐     ┌─────────────┐     ┌─────────────┐
-│   Feature   │     │    Step     │     │    World    │
-│    Files    │────▶│ Definitions │────▶│   Object    │
-└─────────────┘     └─────────────┘     └──────┬──────┘
-                                               │
-                                               ▼
-┌─────────────┐     ┌─────────────┐     ┌─────────────┐
-│   Library   │     │   Service   │     │Configuration│
-│    Code     │◀───▶│   Clients   │◀───▶│   System    │
-└─────────────┘     └──────┬──────┘     └──────┬──────┘
-                           │                   │
-                           ▼                   ▼
-                    ┌─────────────┐     ┌─────────────┐
-                    │   Client    │     │ Parameter   │
-                    │  Registry   │     │  Resolver   │
-                    └─────────────┘     └─────────────┘
+```mermaid
+graph LR
+  A[Feature Files] --> B[Step Definitions]
+  B --> C[World Object]
+  C --> D[Configuration System]
+  D --> F[Parameter Resolver]
+  C --> E[Service Clients]
+  E --> G[Client Registry]
+  E --> H[Library Code]
+  H --> E
+  D --> E
 ```
 
 **Component Responsibilities:**
@@ -286,7 +282,7 @@ async function resolveSSMParameter(name: string): Promise<string> {
 
 ### Test Structure
 
-Follow the established test file structure and style guidelines as documented in the [Test File Structure and Style Guidelines memory](../README.md#testing-guidelines).
+Follow the established test file structure and style guidelines as documented in the [Test File Structure and Style Guidelines](./TEST_DEVELOPMENT.md#testing-guidelines).
 
 **File Header:**
 
@@ -365,15 +361,12 @@ The framework provides comprehensive npm scripts for testing:
 ```json
 {
   "scripts": {
-    "build": "tsc && tsc-alias",
-    "build:watch": "tsc --watch",
-    "check": "tsc --noEmit",
-    "lint": "eslint src test --ext .ts",
-    "lint:fix": "eslint src test --ext .ts --fix",
+    "check": "tsc",
+    "lint": "eslint",
+    "format": "prettier --write src test",
     "test": "vitest run",
-    "test:watch": "vitest",
-    "test:coverage": "vitest run --coverage",
-    "test:ui": "vitest --ui"
+    "test:watch": "vitest watch",
+    "test:coverage": "vitest run --coverage"
   }
 }
 ```
@@ -387,7 +380,7 @@ npm run check
 
 # Lint and fix code
 npm run lint
-npm run lint:fix
+npm run format
 
 # Run tests
 npm test
@@ -399,6 +392,23 @@ npx vitest run src/clients/rest-client.test.ts
 
 # Run tests with specific pattern
 npx vitest run --testNamePattern="RestClient"
+```
+
+#### Mocking Standards
+
+For complete guidance see [Testing Guidelines](./TEST_DEVELOPMENT.md#testing-guidelines). In short:
+
+- Use `aws-sdk-client-mock` for AWS SDK v3 clients (S3, SSM, SQS, CloudWatch, etc.), with command-level mocks.
+- Reset mocks in `beforeEach`; avoid duplicate implementations and brittle casting.
+- Mock the exact import path used by production code (respect barrel exports vs deep imports).
+
+#### Running Tests
+
+- Prefer non-watch mode and run tests individually to avoid timeouts:
+
+```bash
+npx vitest run
+npx vitest run test/clients/aws/aws-cloudwatch-metrics.test.ts
 ```
 
 #### Test Coverage Requirements
@@ -418,6 +428,59 @@ npm run test:coverage
 # View coverage in browser
 open coverage/index.html
 ```
+
+## Logger
+
+Smoker uses a shared Pino-based JSON logger exposed from `src/lib/logger.ts`.
+
+- Import and use the shared instance:
+
+```ts
+import { logger } from "../src/lib/logger";
+
+logger.debug({ component: "ConfigFactory" }, "loading configuration");
+```
+
+- Control verbosity via `LOG_LEVEL` (default: `info`).
+- Prefer structured logs with objects; avoid logging secrets directly. Use `ObfuscationUtils` to mask sensitive values.
+- In classes, store a child logger if you need to add context:
+
+```ts
+this.logger = logger.child({ component: "RestClient", id: this.id });
+```
+
+## Error Model (SmokerError)
+
+All framework and utility errors should use `SmokerError` from `src/errors/smoker-error.ts` for consistency and richer context.
+
+- Key fields: `code`, `domain`, `details`, `severity`, `retryable`, `cause`, `timestamp`.
+- Wrap unknown errors using `SmokerError.fromUnknown(e, ctx)`.
+- Recommended pattern:
+
+```ts
+import { SmokerError } from "../src/errors/smoker-error";
+
+async function loadJson(path: string) {
+  try {
+    const text = await fs.readFile(path, "utf8");
+    return JSON.parse(text);
+  } catch (e) {
+    throw new SmokerError("Failed to load JSON", {
+      code: "CONFIG_LOAD",
+      domain: "config",
+      details: { path },
+      cause: e as Error,
+      retryable: false,
+    });
+  }
+}
+```
+
+Guidelines:
+
+- Define meaningful `code` and `domain` values for observability.
+- Include actionable `details` (non-sensitive) to speed up troubleshooting.
+- Mark `retryable` when transient.
 
 ## Extending the Framework
 
@@ -635,12 +698,11 @@ Then(
 3. **Development:**
 
    ```bash
-   # Build and test continuously
-   npm run build:watch &
+   # Test continuously
    npm run test:watch &
 
    # Lint and format
-   npm run lint:fix
+   npm run lint
    npm run format
    ```
 

@@ -14,7 +14,69 @@ This comprehensive guide explains how to create smoke test suites targeting spec
 - [Client Management](#client-management)
 - [Use of Cucumber Tags](#use-of-cucumber-tags)
 - [Library Components](#library-components)
+- [Logging and Error Handling](#logging-and-error-handling)
 - [Best Practices](#best-practices)
+
+## Testing Guidelines
+
+This section standardizes how to write unit and integration tests for the framework itself. It complements the development guidance and ensures consistency across the codebase.
+
+### Test File Structure and Style
+
+- File Header
+  - Include a comprehensive file-level JSDoc describing purpose, scope, and coverage areas.
+  - Keep headers and inline comments accurate and up to date.
+- Imports
+  - Single grouped block, alphabetically sorted, no empty lines or comments between imports.
+  - Prefer absolute imports and inline type imports.
+- Structure
+  - Nest describes: `describe("Class", () => { describe("method", () => { ... }) })`.
+  - Test names: `should [expected behavior] when [condition]`.
+  - Use `TEST_FIXTURES` constant at top of the main describe for test data; keep fixtures flat when possible, include error messages.
+- Setup/Cleanup
+  - Use `beforeEach` for fresh instances and to reset mocks; `afterEach` for cleanup.
+- Implementation
+  - Follow Arrange-Act-Assert without inline comments for sections.
+  - Keep cases focused and small; cover happy paths, errors, and edge cases.
+- Assertions
+  - Prefer specific assertions (e.g., vitest’s extended matchers if available) and assert both positive and negative cases.
+  - Verify error messages/types and side effects/state changes.
+  - For promises: `await expect(promise).resolves/rejects...`.
+- Mocks and Spies
+  - Use `vi.spyOn()` and `vi.fn()`; clear and reset between tests.
+
+### Mocking Standards
+
+- AWS SDK v3 Clients
+  - Use `aws-sdk-client-mock` (and `aws-sdk-client-mock-vitest` matchers) for clients like `S3Client`, `SSMClient`, etc.
+  - Mock at command level (e.g., `GetObjectCommand`, `GetParameterCommand`).
+  - Create mocks at module scope; reset in `beforeEach`.
+- Import Path Consistency
+  - Mock the exact path used by production code. If production uses barrel files, mock the barrel (e.g., `../aws`) not deep paths.
+- Best Practices
+  - Reset, not just clear, mocks in `beforeEach` when using client mocks.
+  - Avoid duplicate mock implementations and brittle type casts.
+  - Use realistic fixture values, not placeholder error functions.
+
+### Running Tests
+
+- Use Vitest in run mode to avoid watch mode by default:
+
+  ```bash
+  npx vitest run
+  ```
+
+- Prefer running individual tests to avoid timeouts and speed up feedback:
+
+  ```bash
+  # Single file
+  npx vitest run test/clients/aws/aws-cloudwatch-metrics.test.ts
+
+  # By name pattern
+  npx vitest run --testNamePattern="RestClient"
+  ```
+
+These practices are mandatory for contributors to ensure consistency, reliability, and maintainability of the test suite.
 
 ## Important Distinction
 
@@ -300,7 +362,7 @@ When(
 
 - `ssm:/path/to/parameter` - AWS SSM Parameter Store
 - `s3://bucket/key` - Raw S3 object content
-- `s3+json://bucket/key` - Parsed JSON from S3
+- JSON from S3 is parsed automatically when the object has `.json` extension or `Content-Type: application/json`; otherwise content is treated as raw text
 - `config:path.to.value` - Configuration values
 - `property:propertyName` - World properties
 - Literal strings (no prefix) - Used as-is
@@ -585,102 +647,151 @@ npm start -- --tags "(@smoke or @critical) and not @wip"
 
 ## Library Components
 
-The framework provides reusable library components for common testing patterns:
+The framework provides reusable utilities under `src/lib/` to simplify step and helper implementation. Below are concise examples for each module.
 
-### Utility Functions
+- ***DateUtils (`src/lib/date-utils.ts`)***
+  ```ts
+  import { DateUtils } from "../src/lib/date-utils";
 
-```typescript
-// Date and time utilities
-import { DateUtils } from "../lib/date-utils";
+  // current timestamp ISO string
+  const ts = DateUtils.getCurrentTimestamp();
 
-When("I work with dates", async function (this: SmokeWorld) {
-  const timestamp = DateUtils.getCurrentTimestamp();
-  const futureDate = DateUtils.addDays(new Date(), 7);
-  const isExpired = DateUtils.isExpired(expirationDate);
-});
+  // add/subtract
+  const in3Days = DateUtils.addDays(new Date(), 3);
+  const in5Min = DateUtils.addMinutes(new Date(), 5);
 
-// String manipulation utilities
-import { StringUtils } from "../lib/string-utils";
+  // expiration checks
+  const expired = DateUtils.isExpired(new Date("2000-01-01"));
 
-When("I process text data", async function (this: SmokeWorld) {
-  const sanitized = StringUtils.sanitize(userInput);
-  const slug = StringUtils.createSlug(title);
-  const masked = StringUtils.maskSensitiveData(creditCard);
-});
+  // parse duration strings (ms)
+  const ms = DateUtils.parseDuration("2m"); // 120000
+  ```
+- ***StringUtils (`src/lib/string-utils.ts`)***
+  ```ts
+  import { StringUtils } from "../src/lib/string-utils";
 
-// Validation utilities
-import { ValidationUtils } from "../lib/validation-utils";
+  const sanitized = StringUtils.sanitize(" <Hello>  world \n "); // "Hello world"
+  const slug = StringUtils.createSlug("Hello World!"); // "hello-world"
+  const trimmed = StringUtils.normalizeWhitespace("a   b\n c"); // "a b c"
+  ```
+- ***NumberUtils (`src/lib/number-utils.ts`)***
+  ```ts
+  import { NumberUtils } from "../src/lib/number-utils";
 
-Then("the data should be valid", async function (this: SmokeWorld) {
-  const data = this.getProperty("responseData");
+  const clamped = NumberUtils.clamp(15, 0, 10); // 10
+  const rounded = NumberUtils.roundTo(3.14159, 2); // 3.14
+  const parsed = NumberUtils.parseNumber("42", 0); // 42
+  ```
+- ***UrlUtils (`src/lib/url-utils.ts`)***
+  ```ts
+  import { UrlUtils } from "../src/lib/url-utils";
 
-  expect(ValidationUtils.isValidEmail(data.email)).toBe(true);
-  expect(ValidationUtils.isValidUUID(data.id)).toBe(true);
-  expect(ValidationUtils.isValidPhoneNumber(data.phone)).toBe(true);
-});
-```
+  const url = UrlUtils.buildUrl("https://api.example.com", "/users", { q: "john" });
+  // https://api.example.com/users?q=john
+  const joined = UrlUtils.join("/api/", "/v1/", "users"); // "/api/v1/users"
+  ```
+- ***ObjectUtils (`src/lib/object-utils.ts`)***
+  ```ts
+  import { ObjectUtils } from "../src/lib/object-utils";
 
-### Test Data Generators
+  const obj = { a: { b: { c: 1 } } };
+  const v = ObjectUtils.get(obj, "a.b.c", 0); // 1
+  ObjectUtils.set(obj, "a.b.d", 2); // { a: { b: { c:1, d:2 } } }
+  const merged = ObjectUtils.deepMerge({ a: 1 }, { b: 2 }); // { a:1, b:2 }
+  ```
+- ***RetryUtils (`src/lib/retry-utils.ts`)***
+  ```ts
+  import { retryAsync } from "../src/lib/retry-utils";
 
-```typescript
-// User data generation
-import { UserDataGenerator } from "../lib/generators/user-data";
+  const result = await retryAsync(
+    async () => {
+      const ok = Math.random() > 0.7;
+      if (!ok) throw new Error("transient");
+      return "done";
+    },
+    { retries: 5, delayMs: 200, backoff: "exponential-jitter", maxDelayMs: 2000 },
+  );
+  ```
+- ***RandomUtils (`src/lib/random-utils.ts`)***
+  ```ts
+  import { RandomUtils } from "../src/lib/random-utils";
 
-Given("I have test user data", async function (this: SmokeWorld) {
-  const userData = UserDataGenerator.createRandomUser();
-  this.setProperty("testUser", userData);
+  const uuid = RandomUtils.uuid();
+  const n = RandomUtils.randomInt(1, 10);
+  const s = RandomUtils.randomString(8);
+  const one = RandomUtils.pickOne(["a", "b", "c"]);
+  const shuffled = RandomUtils.shuffle([1, 2, 3, 4]);
+  ```
+- ***EnvUtils (`src/lib/env-utils.ts`)***
+  ```ts
+  import { EnvUtils } from "../src/lib/env-utils";
 
-  const users = UserDataGenerator.createUserBatch(10);
-  this.setProperty("testUsers", users);
-});
+  const level = EnvUtils.getEnv("LOG_LEVEL", "info");
+  const debug = EnvUtils.getBoolEnv("DEBUG", false);
+  const timeoutMs = EnvUtils.getNumberEnv("HTTP_TIMEOUT_MS", 5000);
+  const cfg = EnvUtils.getJsonEnv<Record<string, unknown>>("APP_CONFIG", {});
 
-// API data generation
-import { ApiDataGenerator } from "../lib/generators/api-data";
+  // throws SmokerError if missing/empty
+  const port = EnvUtils.requireEnv("PORT");
+  ```
+- ObfuscationUtils (`src/lib/obfuscation-utils.ts`)
+  ```ts
+  import { ObfuscationUtils } from "../src/lib/obfuscation-utils";
 
-When("I generate API test data", async function (this: SmokeWorld) {
-  const requestData = ApiDataGenerator.createRequestPayload("user", {
-    name: "John Doe",
-    email: "john@example.com",
+  // strings
+  const masked = ObfuscationUtils.mask("my-secret-token", { showStart: 2, showEnd: 2 });
+
+  // headers
+  const safeHeaders = ObfuscationUtils.obfuscateHeaders({
+    authorization: "Bearer abc123",
+    "x-api-key": "key-xyz",
   });
 
-  this.setProperty("apiRequestData", requestData);
-});
-```
+  // objects by property name
+  const safe = ObfuscationUtils.obfuscateObject(
+    { password: "pwd", token: "tkn", data: { secret: "abc" } },
+    { matchProps: [/pass/i, /token/i, /secret/i] },
+  );
+  ```
 
-### Common Test Patterns
+## Logging and Error Handling
 
-```typescript
-// Retry patterns
-import { RetryUtils } from "../lib/retry-utils";
+Use the shared logger and SmokerError across steps and helpers for consistent diagnostics.
 
-When("I wait for the operation to complete", async function (this: SmokeWorld) {
-  const result = await RetryUtils.retryWithBackoff(
-    async () => {
-      const response = await this.getRest().get("/status");
-      if (response.data.status !== "completed") {
-        throw new Error("Operation not yet completed");
+- **Logger (`src/lib/logger.ts`)**
+  - Import and log structured data:
+    ```ts
+    import { logger } from "../src/lib/logger";
+    logger.info({ feature: this.pickle.name }, "starting scenario");
+    ```
+  - Optionally create a named child logger for consistent filtering and context:
+    ```ts
+    import { logger } from "../src/lib/logger";
+    const stepLogger = logger.child({ name: "Steps", feature: this.pickle.name });
+    stepLogger.info("starting scenario");
+    ```
+  - Control verbosity with `LOG_LEVEL` (default `info`).
+
+- **SmokerError (`src/errors/smoker-error.ts`)**
+  - Prefer throwing `SmokerError` with a meaningful `code`, `domain`, and `details`:
+    ```ts
+    import { SmokerError } from "../src/errors/smoker-error";
+
+    function parsePayload(json: string) {
+      try {
+        return JSON.parse(json);
+      } catch (e) {
+        throw new SmokerError("Invalid JSON payload", {
+          code: "INVALID_JSON",
+          domain: "steps",
+          details: { sample: json.slice(0, 80) },
+          cause: e as Error,
+        });
       }
-      return response.data;
-    },
-    { maxRetries: 10, initialDelay: 1000 },
-  );
-
-  this.setProperty("operationResult", result);
-});
-
-// Polling patterns
-import { PollingUtils } from "../lib/polling-utils";
-
-When("I poll for the resource to be available", async function (this: SmokeWorld) {
-  const resource = await PollingUtils.pollUntilCondition(
-    async () => this.getRest().get("/resource/123"),
-    (response) => response.status === 200 && response.data.available,
-    { timeout: 30000, interval: 2000 },
-  );
-
-  this.setProperty("availableResource", resource.data);
-});
-```
+    }
+    ```
+  - When catching unknown errors, normalize with `SmokerError.fromUnknown(err, ctx)`.
+  - Mask secrets before logging using `ObfuscationUtils` from `src/lib/obfuscation-utils.ts`.
 
 ## Best Practices
 
