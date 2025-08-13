@@ -37,21 +37,6 @@ The framework is designed to validate that external systems are functioning corr
 - **Deployment Verification**: Confirming successful deployments in various environments
 - **Continuous Monitoring**: Running periodic health checks in production environments
 
-### Architecture Overview
-
-```mermaid
-graph TD
-  A[Feature Files] --> B[Step Definitions]
-  B --> C[World Object]
-  C --> D[Configuration System]
-  D --> F[Parameter Resolver]
-  C --> E[Service Clients]
-  E --> G[Client Registry]
-  E --> H[Library Code]
-  H --> E
-  D --> E
-```
-
 ## Main Features
 
 ### 🧪 **BDD Testing with Cucumber.js**
