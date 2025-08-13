@@ -1,6 +1,9 @@
 {
   "name": "smoker",
   "version": "0.7.0",
+  "engines": {
+    "node": ">=22.0.0"
+  },
   "scripts": {
     "check": "tsc",
     "lint": "eslint",
@@ -9,7 +12,7 @@
     "test:watch": "vitest watch",
     "test:coverage": "vitest run --coverage",
     "build": "tsup",
-    "postbuild": "find features -name '*.feature' -exec cp --parents {} dist \\;",
+    "postbuild": "cpx features/**/*.feature dist",
     "prestart": "npm run build",
     "start": "node dist/src/main.cjs",
     "cdk:bootstrap": "npm run bootstrap --prefix cdk",
@@ -38,6 +41,7 @@
     "@vitest/eslint-plugin": "^1.3.4",
     "aws-sdk-client-mock": "^4.1.0",
     "aws-sdk-client-mock-vitest": "^6.1.1",
+    "cpx2": "^8.0.0",
     "eslint": "^9.30.1",
     "pino-pretty": "^13.1.1",
     "prettier": "^3.6.2",
@@ -47,6 +51,7 @@
     "vitest": "^3.2.4"
   },
   "dependencies": {
+    "@aws-sdk/client-cloudwatch": "^3.840.0",
     "@aws-sdk/client-cloudwatch-logs": "^3.840.0",
     "@aws-sdk/client-kinesis": "^3.840.0",
     "@aws-sdk/client-s3": "^3.842.0",
