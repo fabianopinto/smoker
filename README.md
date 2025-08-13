@@ -40,7 +40,7 @@ The framework is designed to validate that external systems are functioning corr
 ### Architecture Overview
 
 ```mermaid
-graph LR
+graph TD
   A[Feature Files] --> B[Step Definitions]
   B --> C[World Object]
   C --> D[Configuration System]

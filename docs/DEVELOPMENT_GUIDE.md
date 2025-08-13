@@ -41,7 +41,7 @@ The framework follows these fundamental design principles:
 ### Components Interactions
 
 ```mermaid
-graph LR
+graph TD
   A[Feature Files] --> B[Step Definitions]
   B --> C[World Object]
   C --> D[Configuration System]
