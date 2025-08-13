@@ -34,3 +34,12 @@ export const ERR_MQTT_UNSUBSCRIBE = "ERR_MQTT_UNSUBSCRIBE";
 
 // Validation domain
 export const ERR_VALIDATION = "ERR_VALIDATION";
+
+// Utilities domain (align with existing literal codes in utils)
+export const ERR_INVALID_DURATION = "INVALID_DURATION"; // domain: "date"
+export const ERR_ENV_MISSING = "ENV_MISSING"; // domain: "env"
+export const ERR_RETRY_EXHAUSTED = "RETRY_EXHAUSTED"; // domain: "retry"
+
+// Random utils domain
+export const ERR_RANDOM_INVALID_BOUNDS = "RANDOM_INVALID_BOUNDS"; // domain: "random"
+export const ERR_RANDOM_EMPTY_ARRAY = "RANDOM_EMPTY_ARRAY"; // domain: "random"
