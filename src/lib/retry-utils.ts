@@ -94,11 +94,21 @@ export async function retryAsync<T>(
   const totalAttempts = Math.max(1, (options.retries ?? DEFAULTS.retries) + 1);
 
   // first attempt without delay
-  while (attempt < totalAttempts) {
+  while (true) {
     attempt += 1;
+    if (logger.isLevelEnabled("trace")) {
+      logger.trace({ attempt, totalAttempts, opts }, "retry-utils: starting attempt");
+    }
     try {
-      return await operation();
+      const result = await operation();
+      if (logger.isLevelEnabled("debug")) {
+        logger.debug({ attempt }, "retry-utils: attempt succeeded");
+      }
+      return result;
     } catch (err) {
+      if (logger.isLevelEnabled("debug")) {
+        logger.debug({ attempt, totalAttempts, err }, "retry-utils: attempt failed");
+      }
       if (opts.onAttemptError) await opts.onAttemptError(err, attempt);
       if (attempt >= totalAttempts)
         throw new SmokerError("Retry attempts exhausted", {
@@ -116,17 +126,15 @@ export async function retryAsync<T>(
           cause: err,
         });
       let delay = nextDelay(opts.delayMs, attempt, opts);
+      const capped = opts.maxDelayMs != null && delay > opts.maxDelayMs;
       if (opts.maxDelayMs != null) delay = Math.min(delay, opts.maxDelayMs);
+      if (logger.isLevelEnabled("debug")) {
+        logger.debug(
+          { attempt, nextDelayMs: delay, wasCapped: capped },
+          "retry-utils: sleeping before next attempt",
+        );
+      }
       await sleep(delay);
     }
   }
-  // Unreachable by design: loop always either returns on success or throws on exhaustion.
-  // Present only to satisfy TypeScript's control-flow analysis.
-  throw new SmokerError("Retry attempts exhausted", {
-    code: ERR_RETRY_EXHAUSTED,
-    domain: "retry",
-    details: { reason: "loop-exit-guard" },
-    retryable: false,
-    severity: "error",
-  });
 }

@@ -2,31 +2,47 @@
  * retry-utils.test.ts
  *
  * Coverage:
- * - ensure exhausted retries throw SmokerError with standardized code/domain
+ * - ensure exhausted retries throw SmokerError with standardized code/domain,
+ *   and that logs are produced with appropriate levels
  */
 
-import { afterEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { ERR_RETRY_EXHAUSTED, SmokerError } from "../../src/errors";
+import { logger } from "../../src/lib/logger";
 import { retryAsync } from "../../src/lib/retry-utils";
 
 describe("RetryUtils", () => {
+  let traceSpy: ReturnType<typeof vi.spyOn>;
+  let debugSpy: ReturnType<typeof vi.spyOn>;
+
+  beforeEach(() => {
+    // Enable trace/debug logging paths via logger level
+    logger.setLevel("trace");
+    traceSpy = vi
+      .spyOn(logger as unknown as { trace: (...args: unknown[]) => void }, "trace")
+      .mockImplementation(() => undefined);
+    debugSpy = vi
+      .spyOn(logger as unknown as { debug: (...args: unknown[]) => void }, "debug")
+      .mockImplementation(() => undefined);
+  });
+
   afterEach(() => {
     vi.restoreAllMocks();
     vi.useRealTimers();
   });
+
   it("should throw SmokerError with ERR_RETRY_EXHAUSTED and domain 'retry' when attempts exhausted", async () => {
+    vi.useFakeTimers();
     const op = async () => {
       throw new Error("boom");
     };
-    try {
-      await retryAsync(op, { retries: 1, delayMs: 1, backoff: "fixed" });
-      throw new Error("Expected to throw");
-    } catch (e) {
-      expect(SmokerError.isSmokerError(e)).toBe(true);
-      const err = e as SmokerError;
-      expect(err.code).toBe(ERR_RETRY_EXHAUSTED);
-      expect(err.domain).toBe("retry");
-    }
+    const p = retryAsync(op, { retries: 1, delayMs: 1, backoff: "fixed" }).catch((e) => e);
+    await vi.runAllTimersAsync();
+    const e = await p;
+    expect(SmokerError.isSmokerError(e)).toBe(true);
+    const err = e as SmokerError;
+    expect(err.code).toBe(ERR_RETRY_EXHAUSTED);
+    expect(err.domain).toBe("retry");
   });
 
   it("should use fixed backoff delays for each retry", async () => {
@@ -125,15 +141,18 @@ describe("RetryUtils", () => {
   });
 
   it("should perform zero delays when retries = 0 (single attempt)", async () => {
-    vi.useFakeTimers();
+    vi.useFakeTimers({ toFake: ["setTimeout", "clearTimeout"] });
     const setTimeoutSpy = vi.spyOn(globalThis, "setTimeout");
     const op = async () => {
       throw new Error("boom");
     };
-    const p = retryAsync(op, { retries: 0, delayMs: 10, backoff: "fixed" }).catch((e) => e);
-    await vi.runAllTimersAsync();
-    await p;
+    // No timers should be scheduled; promise should reject immediately
+    const e = await retryAsync(op, { retries: 0, delayMs: 10, backoff: "fixed" }).catch(
+      (err) => err,
+    );
+    expect(SmokerError.isSmokerError(e)).toBe(true);
     expect(setTimeoutSpy).not.toHaveBeenCalled();
+    expect(vi.getTimerCount()).toBe(0);
   });
 
   it("should clamp totalAttempts to at least 1 when retries is negative", async () => {
@@ -150,5 +169,35 @@ describe("RetryUtils", () => {
     await vi.runAllTimersAsync();
     await p;
     expect(setTimeoutSpy).not.toHaveBeenCalled();
+  });
+
+  it("should log trace on attempt start and debug on failure/success/sleep", async () => {
+    vi.useFakeTimers();
+
+    // Operation fails once, then succeeds
+    const op: () => Promise<string> = vi
+      .fn()
+      .mockRejectedValueOnce(new Error("boom"))
+      .mockResolvedValueOnce("ok");
+
+    const p = retryAsync(op, { retries: 1, delayMs: 10, backoff: "fixed" });
+
+    // First failure schedules one sleep
+    await vi.advanceTimersByTimeAsync(10);
+    const result = await p;
+    expect(result).toBe("ok");
+
+    // Trace called for each attempt start (2 attempts)
+    expect(traceSpy).toHaveBeenCalled();
+    const traceMessages = traceSpy.mock.calls.map((c: unknown[]) => c[1] as string);
+    expect(traceMessages).toContain("retry-utils: starting attempt");
+
+    // Debug called for failure, sleeping, and success
+    const debugMessages = debugSpy.mock.calls.map((c: unknown[]) => c[1] as string);
+    expect(debugMessages).toContain("retry-utils: attempt failed");
+    expect(debugMessages).toContain("retry-utils: sleeping before next attempt");
+    expect(debugMessages).toContain("retry-utils: attempt succeeded");
+
+    // isLevelEnabled is stubbed to enable logs
   });
 });
