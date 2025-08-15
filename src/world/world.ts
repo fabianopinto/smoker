@@ -425,15 +425,12 @@ export class SmokeWorldImpl<T = unknown> extends CucumberWorld<T> implements Smo
       const [clientType, clientId] = key.includes(":") ? key.split(":") : [key, undefined];
 
       // Skip if client already exists
-      if (this.hasClient(clientId ? `${clientType}:${clientId}` : clientType)) {
+      if (this.hasClient(clientKey(clientType, clientId))) {
         continue;
       }
 
       // Create and register client
-      this.registerClient(
-        clientId ? `${clientType}:${clientId}` : clientType,
-        this.clientFactory.createClient(clientType, clientId),
-      );
+      this.registerClient(clientKey(clientType, clientId), this.clientFactory.createClient(clientType, clientId));
     }
   }
 
@@ -526,9 +523,9 @@ export class SmokeWorldImpl<T = unknown> extends CucumberWorld<T> implements Smo
     // Ensure clientId is a string by checking the type of config.id
     const configId = typeof config.id === "string" ? config.id : undefined;
     const clientId = id || configId || clientType;
-    const clientKey = clientId !== clientType ? `${clientType}:${clientId}` : clientType;
+    const key = clientKey(clientType, clientId);
     const client = this.clientFactory.createClient(clientType, clientId);
-    this.registerClient(clientKey, client);
+    this.registerClient(key, client);
 
     return client;
   }
@@ -829,6 +826,14 @@ export class SmokeWorldImpl<T = unknown> extends CucumberWorld<T> implements Smo
     // For other types (number, boolean, etc.), return as is
     return param;
   }
+}
+
+/**
+ * Build a client key from type and optional id.
+ * Example: clientKey(ClientType.REST, "api") => "rest:api"
+ */
+export function clientKey(clientType: ClientType | string, id?: string): string {
+  return id ? `${clientType}:${id}` : `${clientType}`;
 }
 
 // Register the World constructor with Cucumber
