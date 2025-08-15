@@ -313,109 +313,6 @@ export interface SmokeWorld<T = unknown> extends IWorld<T> {
   destroyClients(): Promise<void>;
 
   /**
-   * Test Data Helper Methods
-   *
-   * These methods provide functionality for storing and retrieving test data
-   * such as API responses, content, and errors. They are useful for passing
-   * data between test steps and making assertions on previous operations.
-   */
-
-  /**
-   * Store response for later assertions
-   *
-   * Stores an API response or other data object for later retrieval and assertions.
-   * This is particularly useful for multi-step tests where the response from one
-   * step needs to be verified in a subsequent step.
-   *
-   * @param response - The response object to store
-   *
-   * @example
-   * // Store an API response
-   * const response = await restClient.get("/users");
-   * world.attachResponse(response);
-   */
-  attachResponse(response: unknown): void;
-
-  /**
-   * Retrieve the last stored response
-   *
-   * Gets the most recently stored response for assertions or further processing.
-   *
-   * @return The last stored response
-   * @throws {SmokerError} if no response has been stored
-   *
-   * @example
-   * // Retrieve and verify the last response
-   * const response = world.getLastResponse();
-   * expect(response.status).toBe(200);
-   */
-  getLastResponse(): unknown;
-
-  /**
-   * Store content for later assertions
-   *
-   * Stores string content (such as file contents, API response bodies, etc.)
-   * for later retrieval and assertions.
-   *
-   * @param content - The string content to store
-   *
-   * @example
-   * // Store file content
-   * const fileContent = await s3Client.read("config.json");
-   * world.attachContent(fileContent);
-   */
-  attachContent(content: string): void;
-
-  /**
-   * Retrieve the last stored content
-   *
-   * Gets the most recently stored string content for assertions or further processing.
-   *
-   * @return The last stored content string
-   * @throws {SmokerError} if no content has been stored
-   *
-   * @example
-   * // Retrieve and verify the last content
-   * const content = world.getLastContent();
-   * expect(content).toContain('"status": "active"');
-   */
-  getLastContent(): string;
-
-  /**
-   * Store error for later assertions
-   *
-   * Stores an error object for later retrieval and assertions. This is useful
-   * for testing error handling and negative test cases.
-   *
-   * @param error - The error object to store
-   *
-   * @example
-   * // Store an error from a failed operation
-   * try {
-   *   await restClient.get("/invalid-endpoint");
-   * } catch (error) {
-   *   world.attachError(error);
-   * }
-   */
-  attachError(error: Error | unknown): void;
-
-  /**
-   * Retrieve the last stored error
-   *
-   * Gets the most recently stored error for assertions or further processing.
-   *
-   * @return The last stored error
-   * @throws {SmokerError} if no error has been stored
-   *
-   * @example
-   * // Retrieve and verify the last error
-   * const error = world.getLastError();
-   * expect(error).toHaveProperty("message")
-   * expect(error.message).toContain("Not Found");
-   */
-  getLastError(): Error | unknown;
-
-  /**
    * Property Management Methods
    *
    * These methods provide functionality for storing and retrieving properties
@@ -595,11 +492,6 @@ export class SmokeWorldImpl<T = unknown> extends CucumberWorld<T> implements Smo
   // Client configuration and factory
   private clientRegistry: ClientRegistry;
   private clientFactory: ClientFactory;
-
-  // Storage for test execution state
-  private lastResponse: unknown = null;
-  private lastContent = "";
-  private lastError: Error | null = null;
 
   // WorldProperties instance for property management
   private worldProperties: WorldProperties;
@@ -894,87 +786,6 @@ export class SmokeWorldImpl<T = unknown> extends CucumberWorld<T> implements Smo
       await client.destroy();
     }
     this.clients.clear();
-  }
-
-  /**
-   * Store a response for later assertions
-   *
-   * @param response - The response object to store
-   */
-  attachResponse(response: unknown): void {
-    this.lastResponse = response;
-  }
-
-  /**
-   * Get the last stored response
-   *
-   * @return The last stored response object
-   * @throws {SmokerError} if no response has been attached
-   */
-  getLastResponse(): unknown {
-    if (this.lastResponse === null) {
-      throw new SmokerError("No response has been attached", {
-        code: ERR_VALIDATION,
-        domain: "world",
-        details: { component: "world" },
-        retryable: false,
-      });
-    }
-    return this.lastResponse;
-  }
-
-  /**
-   * Store content for later assertions
-   *
-   * @param content - The content string to store
-   */
-  attachContent(content: string): void {
-    this.lastContent = content;
-  }
-
-  /**
-   * Get the last stored content
-   *
-   * @return The last stored content string
-   * @throws {SmokerError} if no content has been attached
-   */
-  getLastContent(): string {
-    if (!this.lastContent) {
-      throw new SmokerError("No content has been attached", {
-        code: ERR_VALIDATION,
-        domain: "world",
-        details: { component: "world" },
-        retryable: false,
-      });
-    }
-    return this.lastContent;
-  }
-
-  /**
-   * Store an error for later assertions
-   *
-   * @param error - The error to store
-   */
-  attachError(error: Error): void {
-    this.lastError = error;
-  }
-
-  /**
-   * Get the last stored error
-   *
-   * @return The last stored error
-   * @throws {SmokerError} if no error has been attached
-   */
-  getLastError(): Error {
-    if (!this.lastError) {
-      throw new SmokerError("No error has been attached", {
-        code: ERR_VALIDATION,
-        domain: "world",
-        details: { component: "world" },
-        retryable: false,
-      });
-    }
-    return this.lastError;
   }
 
   /**

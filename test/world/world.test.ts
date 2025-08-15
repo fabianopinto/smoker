@@ -225,9 +225,6 @@ describe("SmokeWorldImpl", () => {
         world["clients"].has(`${TEST_FIXTURES.CLIENT_TYPE_REST}:${TEST_FIXTURES.REST_CLIENT_ID}`),
       ).toBe(true);
       expect(world["clients"].has(`cloudwatch:${TEST_FIXTURES.CLIENT_ID}`)).toBe(true);
-      expect(world["lastResponse"]).toBe(null);
-      expect(world["lastContent"]).toBe("");
-      expect(world["lastError"]).toBe(null);
       // Verify that the WorldProperties instance is initialized with no properties
       const worldProperties = world.getWorldProperties();
       expect(worldProperties).toBeInstanceOf(WorldProperties);
@@ -508,53 +505,6 @@ describe("SmokeWorldImpl", () => {
 
         // The clients map should be cleared
         expect(world["clients"].size).toBe(0);
-      });
-    });
-  });
-
-  /**
-   * Tests for test data storage methods
-   */
-  describe("test data storage", () => {
-    describe("responses", () => {
-      it("should store and retrieve a response", () => {
-        world.attachResponse(TEST_FIXTURES.RESPONSE_DATA);
-
-        expect(world.getLastResponse()).toBe(TEST_FIXTURES.RESPONSE_DATA);
-      });
-
-      it("should throw an error when getting a response that doesn't exist", () => {
-        expect(() => {
-          world.getLastResponse();
-        }).toThrow("No response has been attached");
-      });
-    });
-
-    describe("content", () => {
-      it("should store and retrieve content", () => {
-        world.attachContent(TEST_FIXTURES.CONTENT_DATA);
-
-        expect(world.getLastContent()).toBe(TEST_FIXTURES.CONTENT_DATA);
-      });
-
-      it("should throw an error when getting content that doesn't exist", () => {
-        expect(() => {
-          world.getLastContent();
-        }).toThrow("No content has been attached");
-      });
-    });
-
-    describe("errors", () => {
-      it("should store and retrieve an error", () => {
-        world.attachError(TEST_FIXTURES.ERROR_DATA);
-
-        expect(world.getLastError()).toBe(TEST_FIXTURES.ERROR_DATA);
-      });
-
-      it("should throw an error when getting an error that doesn't exist", () => {
-        expect(() => {
-          world.getLastError();
-        }).toThrow("No error has been attached");
       });
     });
   });
