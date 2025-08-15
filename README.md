@@ -10,10 +10,12 @@ A modern smoke testing framework designed to test external systems with BDD supp
 
 ## Documentation
 
-- [📚 Test Development Guide](docs/TEST_DEVELOPMENT.md) - Complete guide for creating smoke tests with this framework
-- [⚙️ Operations Guide](docs/OPERATIONS_GUIDE.md) - Deployment, configuration, and operational procedures
-- [🔧 Development Guide](docs/DEVELOPMENT_GUIDE.md) - Framework architecture and contribution guidelines
-- [🔌 Service Client Guide](docs/SERVICE_CLIENT_GUIDE.md) - Complete reference for all service clients
+- [📖 Docs Index](docs/index.md) — Start here
+- [Overview](docs/overview.md)
+- [Getting Started](docs/getting-started.md)
+- [User Guide](docs/user-guide.md)
+- [Reference](docs/reference.md)
+- [Development](docs/development.md)
 
 ## Table of Contents
 
@@ -41,11 +43,11 @@ The framework is designed to validate that external systems are functioning corr
 
 ### 🧪 **BDD Testing with Cucumber.js**
 
-Write tests in human-readable Gherkin syntax with full Cucumber.js support. Create comprehensive test scenarios that are easy to understand and maintain. Learn more in the [Test Development Guide](docs/TEST_DEVELOPMENT.md).
+Write tests in human-readable Gherkin syntax with full Cucumber.js support. Create comprehensive test scenarios that are easy to understand and maintain. Learn more in the [Testing](docs/development.md#testing).
 
 ### 🔌 **Comprehensive Service Client Architecture**
 
-Pre-built clients for REST APIs, MQTT messaging, Kafka, and comprehensive AWS services (S3, SSM, SQS, CloudWatch, Kinesis). Extensible architecture allows easy addition of custom clients. Complete documentation available in the [Service Client Guide](docs/SERVICE_CLIENT_GUIDE.md).
+Pre-built clients for REST APIs, MQTT messaging, Kafka, and comprehensive AWS services (S3, SSM, SQS, CloudWatch, Kinesis). Extensible architecture allows easy addition of custom clients. Complete documentation available in the [Service Clients](docs/reference.md#service-clients).
 
 ### ⚙️ **Flexible Multi-Source Configuration**
 
@@ -73,30 +75,30 @@ Easy to extend with new service clients, custom step definitions, and additional
 smoker/
 ├── src/
 │   ├── clients/                   # Service client implementations
-│   │   ├── aws/                   # AWS service clients (S3, SSM, SQS, etc.)
+│   │   ├── aws/                   # AWS service clients (e.g., S3, SSM, SQS)
 │   │   ├── core/                  # Core client interfaces and base classes
-│   │   ├── http/                  # HTTP clients (REST)
-│   │   ├── messaging/             # Messaging clients (MQTT, Kafka)
-│   │   └── registry/              # Client registry and factory
-│   ├── lib/                       # Library code (utility functions)
-│   │   └── logger.ts              # Pino-based logger
-│   ├── support/                   # Support modules
-│   │   ├── aws/                   # AWS integration utilities
-│   │   └── config/                # Configuration system
-│   ├── errors/                    # Framework error classes
-│   ├── world/                     # Cucumber.js SmokeWorld implementation
-│   └── main.ts                    # Main entry point & AWS Lambda handler
-├── features/                      # Cucumber.js feature files
-│   └── step_definitions/          # Step definition implementations
-├── docs/                          # Documentation
-│   ├── DEVELOPMENT_GUIDE.md       # Framework development guide
-│   ├── OPERATIONS_GUIDE.md        # Operations and deployment guide
-│   ├── SERVICE_CLIENT_GUIDE.md    # Service clients documentation
-│   └── TEST_DEVELOPMENT.md        # Test development guide
-├── test/                          # Framework unit tests
+│   │   └── http/                  # HTTP clients (REST)
+│   ├── lib/                       # Utilities (logger, dates, retry, etc.)
+│   ├── support/                   # Integration and config helpers
+│   ├── errors/                    # Error classes and codes
+│   └── world/                     # Cucumber.js World implementation
+├── features/                      # Cucumber feature files and steps
+│   ├── step_definitions/
+│   └── *.feature
+├── docs/                          # Documentation site (new IA)
+│   ├── index.md                   # Docs landing page
+│   ├── overview/
+│   ├── getting-started/
+│   ├── usage/
+│   ├── reference/
+│   ├── development/
+│   ├── troubleshooting/
+│   └── meta/
+├── test/                          # Unit tests (Vitest)
+├── cdk/                           # AWS CDK stack and scripts
 ├── package.json                   # Node.js dependencies and scripts
 ├── tsconfig.json                  # TypeScript configuration
-└── README.md                      # This file
+└── README.md                      # Project overview (this file)
 ```
 
 ## Quick Start
@@ -152,7 +154,11 @@ smoker/
 
 ## Usage
 
-For comprehensive usage instructions including configuration management, AWS deployment, and advanced features, see the [Operations Guide](docs/OPERATIONS_GUIDE.md).
+For comprehensive usage instructions including configuration management, AWS deployment, and advanced features, see the [User Guide](docs/user-guide.md):
+- [Configuration](docs/user-guide.md#configuration)
+- [Running Locally](docs/user-guide.md#running-locally)
+- [Running in AWS](docs/user-guide.md#running-in-aws)
+- [Reporting & Monitoring](docs/user-guide.md#reporting--monitoring)
 
 ### Basic Local Execution
 
@@ -297,9 +303,9 @@ npm start -- --logLevel debug
 ### Getting Help
 
 1. **Check the documentation:**
-   - [Test Development Guide](docs/TEST_DEVELOPMENT.md) for test creation issues
-   - [Operations Guide](docs/OPERATIONS_GUIDE.md) for deployment and configuration
-   - [Service Client Guide](docs/SERVICE_CLIENT_GUIDE.md) for client-specific problems
+   - [Getting Started](docs/getting-started.md) for first steps
+   - [Testing](docs/development.md#testing) for framework tests and standards
+   - [Service Clients](docs/reference.md#service-clients) for client-specific details
 
 2. **Review example tests** in the `features/` directory
 
@@ -324,4 +330,4 @@ This project uses several open-source libraries. See individual package licenses
 
 ---
 
-**Ready to start testing?** Check out the [Test Development Guide](docs/TEST_DEVELOPMENT.md) to create your first smoke test suite!
+**Ready to start testing?** Check out [Getting Started](docs/getting-started.md) to create your first smoke test suite!
