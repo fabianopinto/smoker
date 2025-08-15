@@ -19,7 +19,7 @@ import {
 import { ClientType, type ServiceClient } from "../clients/core";
 import { type ClientConfig, ClientFactory, ClientRegistry } from "../clients/registry";
 import { ERR_CONFIG_MISSING, ERR_CONFIG_PARSE, ERR_VALIDATION, SmokerError } from "../errors";
-import { Configuration, type ConfigurationProvider, type ConfigValue } from "../support/config";
+import { type ConfigurationProvider, DefaultConfigurationProvider } from "../support/config";
 import { createWorldProperties, WorldProperties } from "./world-properties";
 
 /**
@@ -340,32 +340,6 @@ export interface SmokeWorld<T = unknown> extends IWorld<T> {
    * @return The WorldProperties instance used by this world
    */
   getWorldProperties(): WorldProperties;
-}
-
-/**
- * Default implementation of ConfigurationProvider
- *
- * This class provides the default implementation of the ConfigurationProvider interface,
- * serving as a bridge between the SmokeWorld and the global Configuration instance.
- * It delegates configuration value retrieval to the global Configuration object.
- *
- * The provider supports asynchronous value retrieval with type safety through generics,
- * and handles default values when configuration keys are not found. This implementation
- * aligns with the factory pattern used in the Configuration class refactoring.
- *
- * @implements {ConfigurationProvider}
- */
-export class DefaultConfigurationProvider implements ConfigurationProvider {
-  /**
-   * Get a configuration value by key path
-   *
-   * @param keyPath - The dot-notation path to the configuration value
-   * @param defaultValue - Optional default value if the configuration value is not found
-   * @return The configuration value or the default value if not found
-   */
-  async getValue<T extends ConfigValue>(keyPath: string, defaultValue?: T): Promise<T | undefined> {
-    return await Configuration.getInstance().getValue<T>(keyPath, defaultValue);
-  }
 }
 
 /**

@@ -38,6 +38,18 @@ export interface ConfigurationProvider {
 }
 
 /**
+ * Default implementation of ConfigurationProvider
+ *
+ * Bridges consumers to the global Configuration instance. Delegates value retrieval
+ * to Configuration.getInstance().getValue with proper typing.
+ */
+export class DefaultConfigurationProvider implements ConfigurationProvider {
+  async getValue<T extends ConfigValue>(keyPath: string, defaultValue?: T): Promise<T | undefined> {
+    return await Configuration.getInstance().getValue<T>(keyPath, defaultValue);
+  }
+}
+
+/**
  * ConfigValue type
  *
  * Represents any type of value that can be stored in the configuration system.

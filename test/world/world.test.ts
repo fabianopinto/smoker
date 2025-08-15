@@ -19,8 +19,8 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { ClientType, type ServiceClient } from "../../src/clients/core";
 import { type ClientConfig, ClientFactory, ClientRegistry } from "../../src/clients/registry";
 import { ERR_VALIDATION, SmokerError } from "../../src/errors";
-import { Configuration } from "../../src/support/config";
-import { DefaultConfigurationProvider, SmokeWorldImpl } from "../../src/world/world";
+import { Configuration, DefaultConfigurationProvider } from "../../src/support/config";
+import { SmokeWorldImpl } from "../../src/world/world";
 import { WorldProperties } from "../../src/world/world-properties";
 
 /**
