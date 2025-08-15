@@ -21,6 +21,7 @@ export {
   type ConfigValue,
   createConfiguration,
   createConfigurationFromObject,
+  DefaultConfigurationProvider,
   type SmokeConfig,
 } from "./configuration";
 export { ParameterResolver } from "./parameter-resolver";

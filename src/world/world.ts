@@ -16,16 +16,7 @@ import {
   type IWorldOptions,
   setWorldConstructor,
 } from "@cucumber/cucumber";
-import type {
-  CloudWatchServiceClient,
-  KinesisServiceClient,
-  S3ServiceClient,
-  SqsServiceClient,
-  SsmServiceClient,
-} from "../clients/aws";
 import { ClientType, type ServiceClient } from "../clients/core";
-import type { RestServiceClient } from "../clients/http";
-import type { KafkaServiceClient, MqttServiceClient } from "../clients/messaging";
 import { type ClientConfig, ClientFactory, ClientRegistry } from "../clients/registry";
 import { ERR_CONFIG_MISSING, ERR_CONFIG_PARSE, ERR_VALIDATION, SmokerError } from "../errors";
 import { Configuration, type ConfigurationProvider, type ConfigValue } from "../support/config";
@@ -39,7 +30,7 @@ import { createWorldProperties, WorldProperties } from "./world-properties";
  * client types, manage client registration, and handle client lifecycle operations.
  *
  * The SmokeWorld serves as the central context for test execution, providing:
- * - Typed access to service clients (AWS, HTTP, messaging services)
+ * - Access to service clients (AWS, HTTP, messaging services) via `getClient`
  * - Client lifecycle management (initialization, reset, destruction)
  * - Test data storage and retrieval
  * - Property management for storing and accessing test state
@@ -49,96 +40,6 @@ import { createWorldProperties, WorldProperties } from "./world-properties";
  * @extends {IWorld<T>}
  */
 export interface SmokeWorld<T = unknown> extends IWorld<T> {
-  /**
-   * Client Access Methods
-   *
-   * These methods provide typed access to service clients of different types.
-   * Each method retrieves a client of the specified type with an optional ID.
-   * If no ID is provided, the default client for that type is returned.
-   *
-   * The generic type parameter allows for retrieving extended client types
-   * while maintaining type safety.
-   *
-   * @example
-   * // Get the default CloudWatch client
-   * const cloudWatch = world.getCloudWatch();
-   *
-   * // Get a specific S3 client with ID
-   * const backupS3 = world.getS3("backup");
-   */
-
-  /**
-   * Get a CloudWatch client with optional ID
-   *
-   * @param id - Optional client identifier
-   * @return The CloudWatch client instance
-   * @throws {SmokerError} if the client does not exist
-   */
-  getCloudWatch<T extends CloudWatchServiceClient = CloudWatchServiceClient>(id?: string): T;
-
-  /**
-   * Get a Kafka client with optional ID
-   *
-   * @param id - Optional client identifier
-   * @return The Kafka client instance
-   * @throws {SmokerError} if the client does not exist
-   */
-  getKafka<T extends KafkaServiceClient = KafkaServiceClient>(id?: string): T;
-
-  /**
-   * Get a Kinesis client with optional ID
-   *
-   * @param id - Optional client identifier
-   * @return The Kinesis client instance
-   * @throws {SmokerError} if the client does not exist
-   */
-  getKinesis<T extends KinesisServiceClient = KinesisServiceClient>(id?: string): T;
-
-  /**
-   * Get an MQTT client with optional ID
-   *
-   * @param id - Optional client identifier
-   * @return The MQTT client instance
-   * @throws {SmokerError} if the client does not exist
-   */
-  getMqtt<T extends MqttServiceClient = MqttServiceClient>(id?: string): T;
-
-  /**
-   * Get a REST client with optional ID
-   *
-   * @param id - Optional client identifier
-   * @return The REST client instance
-   * @throws {SmokerError} if the client does not exist
-   */
-  getRest<T extends RestServiceClient = RestServiceClient>(id?: string): T;
-
-  /**
-   * Get an S3 client with optional ID
-   *
-   * @param id - Optional client identifier
-   * @return The S3 client instance
-   * @throws {SmokerError} if the client does not exist
-   */
-  getS3<T extends S3ServiceClient = S3ServiceClient>(id?: string): T;
-
-  /**
-   * Get an SQS client with optional ID
-   *
-   * @param id - Optional client identifier
-   * @return The SQS client instance
-   * @throws {SmokerError} if the client does not exist
-   */
-  getSqs<T extends SqsServiceClient = SqsServiceClient>(id?: string): T;
-
-  /**
-   * Get an SSM client with optional ID
-   *
-   * @param id - Optional client identifier
-   * @return The SSM client instance
-   * @throws {SmokerError} if the client does not exist
-   */
-  getSsm<T extends SsmServiceClient = SsmServiceClient>(id?: string): T;
-
   /**
    * Client Registration and Management Methods
    *
@@ -656,94 +557,6 @@ export class SmokeWorldImpl<T = unknown> extends CucumberWorld<T> implements Smo
     this.registerClient(clientKey, client);
 
     return client;
-  }
-
-  /**
-   * Get a CloudWatch client with optional ID
-   *
-   * @param id - Optional client identifier
-   * @return The CloudWatch client instance
-   * @throws {SmokerError} if the client does not exist
-   */
-  getCloudWatch<T extends CloudWatchServiceClient = CloudWatchServiceClient>(id?: string): T {
-    return this.getClient<T>(id ? `cloudwatch:${id}` : "cloudwatch");
-  }
-
-  /**
-   * Get a Kafka client with optional ID
-   *
-   * @param id - Optional client identifier
-   * @return The Kafka client instance
-   * @throws {SmokerError} if the client does not exist
-   */
-  getKafka<T extends KafkaServiceClient = KafkaServiceClient>(id?: string): T {
-    return this.getClient<T>(id ? `kafka:${id}` : "kafka");
-  }
-
-  /**
-   * Get a Kinesis client with optional ID
-   *
-   * @param id - Optional client identifier
-   * @return The Kinesis client instance
-   * @throws {SmokerError} if the client does not exist
-   */
-  getKinesis<T extends KinesisServiceClient = KinesisServiceClient>(id?: string): T {
-    return this.getClient<T>(id ? `kinesis:${id}` : "kinesis");
-  }
-
-  /**
-   * Get an MQTT client with optional ID
-   *
-   * @param id - Optional client identifier
-   * @return The MQTT client instance
-   * @throws {SmokerError} if the client does not exist
-   */
-  getMqtt<T extends MqttServiceClient = MqttServiceClient>(id?: string): T {
-    return this.getClient<T>(id ? `mqtt:${id}` : "mqtt");
-  }
-
-  /**
-   * Get a REST client with optional ID
-   *
-   * @param id - Optional client identifier
-   * @return The REST client instance
-   * @throws {SmokerError} if the client does not exist
-   */
-  getRest<T extends RestServiceClient = RestServiceClient>(id?: string): T {
-    return this.getClient<T>(id ? `rest:${id}` : "rest");
-  }
-
-  /**
-   * Get an S3 client with optional ID
-   *
-   * @param id - Optional client identifier
-   * @return The S3 client instance
-   * @throws {SmokerError} if the client does not exist
-   */
-  getS3<T extends S3ServiceClient = S3ServiceClient>(id?: string): T {
-    return this.getClient<T>(id ? `s3:${id}` : "s3");
-  }
-
-  /**
-   * Get an SQS client with optional ID
-   *
-   * @param id - Optional client identifier
-   * @return The SQS client instance
-   * @throws {SmokerError} if the client does not exist
-   */
-  getSqs<T extends SqsServiceClient = SqsServiceClient>(id?: string): T {
-    return this.getClient<T>(id ? `sqs:${id}` : "sqs");
-  }
-
-  /**
-   * Get an SSM client with optional ID
-   *
-   * @param id - Optional client identifier
-   * @return The SSM client instance
-   * @throws {SmokerError} if the client does not exist
-   */
-  getSsm<T extends SsmServiceClient = SsmServiceClient>(id?: string): T {
-    return this.getClient<T>(id ? `ssm:${id}` : "ssm");
   }
 
   /**

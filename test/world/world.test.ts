@@ -401,38 +401,6 @@ describe("SmokeWorldImpl", () => {
         );
       });
     });
-
-    // Tests for the typed client getter methods
-    describe("typed client getters", () => {
-      it("should get a REST client with the correct type", () => {
-        const spy = vi.spyOn(world, "getClient");
-        world.getRest();
-
-        expect(spy).toHaveBeenCalledWith("rest");
-      });
-
-      it("should get a REST client with an ID", () => {
-        const spy = vi.spyOn(world, "getClient");
-        world.getRest(TEST_FIXTURES.REST_CLIENT_ID);
-
-        expect(spy).toHaveBeenCalledWith(`rest:${TEST_FIXTURES.REST_CLIENT_ID}`);
-      });
-
-      // Similar tests can be added for other client types
-      it("should get an S3 client with the correct type", () => {
-        const spy = vi.spyOn(world, "getClient");
-        world.getS3();
-
-        expect(spy).toHaveBeenCalledWith("s3");
-      });
-
-      it("should get a CloudWatch client with an ID", () => {
-        const spy = vi.spyOn(world, "getClient");
-        world.getCloudWatch(TEST_FIXTURES.CLIENT_ID);
-
-        expect(spy).toHaveBeenCalledWith(`cloudwatch:${TEST_FIXTURES.CLIENT_ID}`);
-      });
-    });
   });
 
   /**
