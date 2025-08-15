@@ -72,26 +72,30 @@ describe("RetryUtils", () => {
     expect(delays).toEqual([10, 20]);
   });
 
-  it("should compute exponential-jitter within [raw*(1-j), raw*(1+j)] and be deterministic with stubbed random", async () => {
-    vi.useFakeTimers();
-    const setTimeoutSpy = vi.spyOn(globalThis, "setTimeout");
-    vi.spyOn(Math, "random").mockReturnValue(0); // pick min bound deterministically
-    const op = async () => {
-      throw new Error("boom");
-    };
-    const p = retryAsync(op, {
-      retries: 2,
-      delayMs: 100,
-      backoff: "exponential-jitter",
-      jitterRatio: 0.5,
-    }).catch((e) => e);
-    await vi.runAllTimersAsync();
-    await p;
-    const delays = setTimeoutSpy.mock.calls.map((c) => c[1] as number);
-    // attempt 1: raw=100, min=50; attempt 2: raw=200, min=100
-    expect(delays[0]).toBe(50);
-    expect(delays[1]).toBe(100);
-  });
+  it(
+    "should compute exponential-jitter within [raw*(1-j), raw*(1+j)] and be deterministic with stubbed random",
+    { retry: 2 },
+    async () => {
+      vi.useFakeTimers();
+      const setTimeoutSpy = vi.spyOn(globalThis, "setTimeout");
+      vi.spyOn(Math, "random").mockReturnValue(0); // pick min bound deterministically
+      const op = async () => {
+        throw new Error("boom");
+      };
+      const p = retryAsync(op, {
+        retries: 2,
+        delayMs: 100,
+        backoff: "exponential-jitter",
+        jitterRatio: 0.5,
+      }).catch((e) => e);
+      await vi.runAllTimersAsync();
+      await p;
+      const delays = setTimeoutSpy.mock.calls.map((c) => c[1] as number);
+      // attempt 1: raw=100, min=50; attempt 2: raw=200, min=100
+      expect(delays[0]).toBe(50);
+      expect(delays[1]).toBe(100);
+    },
+  );
 
   it("should cap delays at maxDelayMs when provided", async () => {
     vi.useFakeTimers();
