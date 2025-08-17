@@ -15,21 +15,21 @@
  */
 
 import { DataTable, Given, Then, When } from "@cucumber/cucumber";
-import { ClientType } from "../../src/clients/core";
+import { ClientType } from "../../../src/clients/core";
 import {
   type KafkaMessage,
   type KafkaRecordMetadata,
   type KafkaServiceClient,
-} from "../../src/clients/messaging/kafka";
-import { ERR_VALIDATION, SmokerError } from "../../src/errors";
+} from "../../../src/clients/messaging/kafka";
+import { ERR_VALIDATION, SmokerError } from "../../../src/errors";
 import {
   csvToArray,
   parseDurationMs,
   parseJsonDoc,
   resolveDeepWithWorld,
   tableToRecord,
-} from "../../src/lib";
-import { clientKey, type SmokeWorld } from "../../src/world/world";
+} from "../../../src/lib";
+import { clientKey, type SmokeWorld } from "../../../src/world/world";
 
 // Configure a Kafka client from a DataTable (brokers/auth/clientId)
 Given(

@@ -18,17 +18,17 @@
 
 import { DataTable, Given, Then, When } from "@cucumber/cucumber";
 import { type AxiosResponse } from "axios";
-import { ClientType } from "../../src/clients/core";
-import { type RestServiceClient } from "../../src/clients/http";
-import { ERR_VALIDATION, SmokerError } from "../../src/errors";
+import { ClientType } from "../../../src/clients/core";
+import { type RestServiceClient } from "../../../src/clients/http";
+import { ERR_VALIDATION, SmokerError } from "../../../src/errors";
 import {
   normalizeHeaders,
   parseJsonDoc,
   resolveAndBuildUrl,
   resolveDeepWithWorld,
   tableToRecord,
-} from "../../src/lib";
-import { clientKey, type SmokeWorld } from "../../src/world/world";
+} from "../../../src/lib";
+import { clientKey, type SmokeWorld } from "../../../src/world/world";
 
 // Configure a REST client from a DataTable (base URL, headers, auth)
 Given(

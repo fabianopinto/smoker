@@ -20,11 +20,11 @@ import {
   type CloudWatchLogEvent,
   type CloudWatchMetric,
   type CloudWatchServiceClient,
-} from "../../src/clients/aws";
-import { ClientType } from "../../src/clients/core";
-import { ERR_VALIDATION, SmokerError } from "../../src/errors";
-import { parseDurationMs, parseJsonDoc, resolveDeepWithWorld, tableToRecord } from "../../src/lib";
-import { clientKey, type SmokeWorld } from "../../src/world/world";
+} from "../../../src/clients/aws";
+import { ClientType } from "../../../src/clients/core";
+import { ERR_VALIDATION, SmokerError } from "../../../src/errors";
+import { parseDurationMs, parseJsonDoc, resolveDeepWithWorld, tableToRecord } from "../../../src/lib";
+import { clientKey, type SmokeWorld } from "../../../src/world/world";
 
 // Configure a CloudWatch client from a data table (credentials/region/log group)
 Given(

@@ -16,11 +16,11 @@
  */
 
 import { DataTable, Given, Then, When } from "@cucumber/cucumber";
-import { type KinesisRecord, type KinesisServiceClient } from "../../src/clients/aws";
-import { ClientType } from "../../src/clients/core";
-import { ERR_VALIDATION, SmokerError } from "../../src/errors";
-import { parseDurationMs, parseJsonDoc, resolveDeepWithWorld, tableToRecord } from "../../src/lib";
-import { clientKey, type SmokeWorld } from "../../src/world/world";
+import { type KinesisRecord, type KinesisServiceClient } from "../../../src/clients/aws";
+import { ClientType } from "../../../src/clients/core";
+import { ERR_VALIDATION, SmokerError } from "../../../src/errors";
+import { parseDurationMs, parseJsonDoc, resolveDeepWithWorld, tableToRecord } from "../../../src/lib";
+import { clientKey, type SmokeWorld } from "../../../src/world/world";
 
 // Configure a Kinesis client from a DataTable (region/credentials/stream)
 Given(

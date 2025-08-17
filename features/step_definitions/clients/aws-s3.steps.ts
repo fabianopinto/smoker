@@ -15,11 +15,11 @@
  */
 
 import { DataTable, Given, Then, When } from "@cucumber/cucumber";
-import { type S3ServiceClient } from "../../src/clients/aws";
-import { ClientType } from "../../src/clients/core";
-import { ERR_VALIDATION, SmokerError } from "../../src/errors";
-import { parseJsonDoc, resolveDeepWithWorld, tableToRecord } from "../../src/lib";
-import { clientKey, type SmokeWorld } from "../../src/world/world";
+import { type S3ServiceClient } from "../../../src/clients/aws";
+import { ClientType } from "../../../src/clients/core";
+import { ERR_VALIDATION, SmokerError } from "../../../src/errors";
+import { parseJsonDoc, resolveDeepWithWorld, tableToRecord } from "../../../src/lib";
+import { clientKey, type SmokeWorld } from "../../../src/world/world";
 
 // Configure an S3 client from a DataTable (region/credentials/bucket)
 Given(
