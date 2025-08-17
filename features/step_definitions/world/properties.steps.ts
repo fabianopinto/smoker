@@ -17,10 +17,10 @@
  */
 
 import { Then, When } from "@cucumber/cucumber";
-import { ERR_VALIDATION, SmokerError } from "../../src/errors";
-import { resolveDeepWithWorld } from "../../src/lib";
-import { ObjectUtils } from "../../src/lib/object-utils";
-import { type SmokeWorld } from "../../src/world/world";
+import { ERR_VALIDATION, SmokerError } from "../../../src/errors";
+import { resolveDeepWithWorld } from "../../../src/lib";
+import { ObjectUtils } from "../../../src/lib/object-utils";
+import { type SmokeWorld } from "../../../src/world/world";
 
 // Store a resolved value into a world property
 When(
