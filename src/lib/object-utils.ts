@@ -18,6 +18,90 @@
 
 export const ObjectUtils = {
   /**
+   * Parse a dot/bracket path (e.g., a.b[0].c or a['x']) into tokens.
+   * Supports numeric indices and quoted keys inside brackets.
+   */
+  _parsePath(path: string): (string | number)[] {
+    const tokens: (string | number)[] = [];
+    let i = 0;
+    let buf = "";
+    const pushBuf = () => {
+      if (buf.length > 0) {
+        tokens.push(buf);
+        buf = "";
+      }
+    };
+    while (i < path.length) {
+      const ch = path[i] as string;
+      if (ch === "\\") {
+        // escape next char
+        if (i + 1 < path.length) {
+          buf += path[i + 1];
+          i += 2;
+          continue;
+        }
+      }
+      if (ch === ".") {
+        pushBuf();
+        i += 1;
+        continue;
+      }
+      if (ch === "[") {
+        pushBuf();
+        // parse bracket content until ]
+        i += 1;
+        // skip whitespace
+        while (i < path.length && /\s/.test(path[i] as string)) i += 1;
+        if (i >= path.length) break;
+        const start = path[i] as string;
+        if (start === '"' || start === "'") {
+          // quoted key
+          const quote = start;
+          i += 1;
+          let key = "";
+          while (i < path.length) {
+            const c = path[i] as string;
+            if (c === "\\") {
+              if (i + 1 < path.length) {
+                key += path[i + 1];
+                i += 2;
+                continue;
+              }
+            }
+            if (c === quote) {
+              i += 1; // skip closing quote
+              break;
+            }
+            key += c;
+            i += 1;
+          }
+          // skip whitespace
+          while (i < path.length && /\s/.test(path[i] as string)) i += 1;
+          if (path[i] === "]") i += 1;
+          tokens.push(key);
+        } else {
+          // numeric or bare key until ]
+          let raw = "";
+          while (i < path.length && path[i] !== "]") {
+            raw += path[i];
+            i += 1;
+          }
+          if (path[i] === "]") i += 1;
+          const trimmed = raw.trim();
+          const num = Number(trimmed);
+          if (trimmed !== "" && !Number.isNaN(num) && /^-?\d+$/.test(trimmed)) tokens.push(num);
+          else if (trimmed !== "") tokens.push(trimmed);
+        }
+        continue;
+      }
+      buf += ch;
+      i += 1;
+    }
+    pushBuf();
+    return tokens.filter((t) => t !== "");
+  },
+
+  /**
    * Returns value at path (dot-notation).
    *
    * @param obj - Source object (may be unknown)
@@ -26,10 +110,16 @@ export const ObjectUtils = {
    */
   deepGet<T = unknown>(obj: unknown, path: string): T | undefined {
     if (obj == null) return undefined;
-    const parts = path.split(".").filter(Boolean);
+    const parts = ObjectUtils._parsePath(path);
     let cur: unknown = obj;
     for (const p of parts) {
-      if (cur == null || typeof cur !== "object") return undefined;
+      if (cur == null) return undefined;
+      if (typeof p === "number") {
+        if (!Array.isArray(cur)) return undefined;
+        cur = cur[p as number];
+        continue;
+      }
+      if (typeof cur !== "object") return undefined;
       const rec = cur as Record<string, unknown>;
       if (!(p in rec)) return undefined;
       cur = rec[p];
@@ -47,18 +137,40 @@ export const ObjectUtils = {
    * @returns The same object reference with the path set
    */
   deepSet<T extends Record<string, unknown>>(obj: T, path: string, value: unknown): T {
-    const parts = path.split(".").filter(Boolean);
+    const parts = ObjectUtils._parsePath(path);
     if (parts.length === 0) return obj;
-    let cur: Record<string, unknown> = obj;
+    let cur: unknown = obj;
     for (let i = 0; i < parts.length - 1; i += 1) {
-      const key = parts[i] as string;
-      const next = cur[key];
-      if (next == null || typeof next !== "object") cur[key] = {} as Record<string, unknown>;
-      cur = cur[key] as Record<string, unknown>;
+      const key = parts[i] as string | number;
+      const nextKey = parts[i + 1] as string | number | undefined;
+      // ensure current is object/array to assign
+      if (typeof cur !== "object" || cur == null) return obj;
+      const rec = cur as Record<string, unknown>;
+      let container = rec[key as string];
+      if (container == null || typeof container !== "object") {
+        // create array if next token is numeric, else object
+        container =
+          typeof nextKey === "number" ? ([] as unknown[]) : ({} as Record<string, unknown>);
+        rec[key as string] = container;
+      }
+      cur = container;
     }
-    const last = parts[parts.length - 1] as string | undefined;
-    if (last) {
-      cur[last] = value as unknown;
+    const last = parts[parts.length - 1] as string | number | undefined;
+    if (last !== undefined) {
+      if (typeof cur === "object" && cur != null) {
+        if (typeof last === "number") {
+          const arr = Array.isArray(cur)
+            ? (cur as unknown[])
+            : (cur as Record<string, unknown>)[String(last)];
+          if (Array.isArray(arr)) {
+            (arr as unknown[])[last] = value as unknown;
+          } else {
+            (cur as Record<string, unknown>)[String(last)] = value as unknown;
+          }
+        } else {
+          (cur as Record<string, unknown>)[last] = value as unknown;
+        }
+      }
     }
     return obj;
   },

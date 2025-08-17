@@ -17,5 +17,6 @@ export * from "./obfuscation-utils";
 export * from "./object-utils";
 export * from "./random-utils";
 export * from "./retry-utils";
+export * from "./step-utils";
 export * from "./string-utils";
 export * from "./url-utils";

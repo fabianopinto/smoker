@@ -430,7 +430,10 @@ export class SmokeWorldImpl<T = unknown> extends CucumberWorld<T> implements Smo
       }
 
       // Create and register client
-      this.registerClient(clientKey(clientType, clientId), this.clientFactory.createClient(clientType, clientId));
+      this.registerClient(
+        clientKey(clientType, clientId),
+        this.clientFactory.createClient(clientType, clientId),
+      );
     }
   }
 

@@ -10,6 +10,7 @@
 export {
   CloudWatchClient,
   type CloudWatchLogEvent,
+  type CloudWatchMetric,
   type CloudWatchServiceClient,
 } from "./aws-cloudwatch";
 export { delay, KinesisClient, type KinesisRecord, type KinesisServiceClient } from "./aws-kinesis";
