@@ -9,10 +9,15 @@ Welcome to the Smoker framework documentation.
 - [Development](development.md)
 
 Shortcuts:
+
 - Configuration (deep-dive): [User Guide › Configuration](user-guide.md#configuration)
 - Running Locally: [User Guide › Running Locally](user-guide.md#running-locally)
 - Running in AWS: [User Guide › Running in AWS](user-guide.md#running-in-aws)
 - World API: [Reference › World API](reference.md#world-api)
+- REST URL Building: [User Guide › REST URL Building](user-guide.md#rest-url-building)
+- Default clients: [Reference › Service Clients](reference.md#service-clients)
+- Steps overview: [User Guide › Step Patterns & Parameter Resolution](user-guide.md#step-patterns--parameter-resolution)
+- Pre-defined steps: [Reference › Steps Reference](reference.md#steps-reference)
 
 ## Architecture Overview
 
