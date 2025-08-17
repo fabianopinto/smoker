@@ -9,5 +9,5 @@
  * Also exports the WorldProperties implementation for property management functionality.
  */
 
-export { DefaultConfigurationProvider, type SmokeWorld, SmokeWorldImpl } from "./world";
+export { type SmokeWorld, SmokeWorldImpl } from "./world";
 export { createWorldProperties, WorldProperties } from "./world-properties";
