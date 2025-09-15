@@ -6,10 +6,6 @@
  * It provides a single entry point for importing library functionality.
  */
 
-// Logging
-export * from "./logger";
-
-// Utilities
 export * from "./date-utils";
 export * from "./env-utils";
 export * from "./number-utils";
