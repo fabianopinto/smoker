@@ -15,7 +15,7 @@
 - Separation of concerns, interface-driven design, dependency injection, and type safety.
 - Use barrel files for clean exports.
 - Error model: use `SmokerError` with `code`, `domain`, `details`, `retryable`, `cause`.
-- Logger: shared Pino logger from `src/lib/logger.ts`; prefer structured logs.
+- Logger: shared logger provided by [`@fabianopinto/logger`](https://github.com/fabianopinto/logger); prefer structured logs with a context object as the first argument and a message as the second.
 
 See detailed examples in [Logger](reference.md#logger) and [Errors](reference.md#errors).
 

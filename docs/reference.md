@@ -286,8 +286,9 @@ Note: Nested path extraction is supported using dot/bracket notation (e.g., `use
 
 ## Logger
 
-- Shared Pino-based logger from `src/lib/logger.ts`.
-- Control via `LOG_LEVEL` (error|warn|info|debug|trace).
+- Shared logger provided by [`@fabianopinto/logger`](https://github.com/fabianopinto/logger).
+- Prefer structured logs with context objects as first parameter and a message as the second.
+- Typical level control via the package's supported environment variables (for example `LOG_LEVEL`). Refer to the package documentation for the full list of options.
 
 ## Errors
 

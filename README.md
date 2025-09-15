@@ -78,7 +78,7 @@ smoker/
 │   │   ├── aws/                   # AWS service clients (e.g., S3, SSM, SQS)
 │   │   ├── core/                  # Core client interfaces and base classes
 │   │   └── http/                  # HTTP clients (REST)
-│   ├── lib/                       # Utilities (logger, dates, retry, etc.)
+│   ├── lib/                       # Utilities (dates, retry, etc.)
 │   ├── support/                   # Integration and config helpers
 │   ├── errors/                    # Error classes and codes
 │   └── world/                     # Cucumber.js World implementation
