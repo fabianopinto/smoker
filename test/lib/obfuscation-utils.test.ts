@@ -10,8 +10,8 @@
  * - obfuscateObject catches and logs path when shouldMaskKey throws
  */
 
+import { logger } from "@fabianopinto/logger";
 import { describe, expect, it, vi } from "vitest";
-import { logger } from "../../src/lib/logger";
 import { ObfuscationUtils } from "../../src/lib/obfuscation-utils";
 
 describe("ObfuscationUtils", () => {

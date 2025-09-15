@@ -12,10 +12,24 @@
  * - Error handling and edge cases for all source types
  */
 
+vi.mock("@fabianopinto/logger", () => {
+  class MockBaseLogger {
+    info(...args: unknown[]) {
+      void args;
+    }
+    error(...args: unknown[]) {
+      void args;
+    }
+    warn(...args: unknown[]) {
+      void args;
+    }
+  }
+  return { BaseLogger: MockBaseLogger, logger: new MockBaseLogger() };
+});
 import { S3Client } from "@aws-sdk/client-s3";
+import { BaseLogger } from "@fabianopinto/logger";
 import { existsSync, readFileSync } from "node:fs";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { BaseLogger } from "../../../src/lib/logger";
 import { S3ClientWrapper, parseS3Url } from "../../../src/support/aws";
 import {
   type ConfigurationSource,
@@ -162,8 +176,11 @@ describe("ConfigurationSource", () => {
 
         expect(result).toEqual(TEST_FIXTURES.CONFIG_EMPTY);
         expect(loggerErrorSpy).toHaveBeenCalledWith(
-          expect.any(SyntaxError),
-          `Error loading configuration from ${TEST_FIXTURES.VALID_FILE}`,
+          expect.objectContaining({
+            err: expect.any(SyntaxError),
+            filePath: TEST_FIXTURES.VALID_FILE,
+          }),
+          "Error loading configuration from file",
         );
       });
 
@@ -177,8 +194,11 @@ describe("ConfigurationSource", () => {
 
         expect(result).toEqual(TEST_FIXTURES.CONFIG_EMPTY);
         expect(loggerErrorSpy).toHaveBeenCalledWith(
-          fsError,
-          `Error loading configuration from ${TEST_FIXTURES.VALID_FILE}`,
+          expect.objectContaining({
+            err: fsError,
+            filePath: TEST_FIXTURES.VALID_FILE,
+          }),
+          "Error loading configuration from file",
         );
       });
 
@@ -190,8 +210,11 @@ describe("ConfigurationSource", () => {
 
         expect(result).toEqual(TEST_FIXTURES.CONFIG_EMPTY);
         expect(loggerErrorSpy).toHaveBeenCalledWith(
-          expect.any(SyntaxError),
-          `Error loading configuration from ${TEST_FIXTURES.VALID_FILE}`,
+          expect.objectContaining({
+            err: expect.any(SyntaxError),
+            filePath: TEST_FIXTURES.VALID_FILE,
+          }),
+          "Error loading configuration from file",
         );
       });
     });
@@ -305,8 +328,8 @@ describe("ConfigurationSource", () => {
 
         expect(result).toEqual(TEST_FIXTURES.CONFIG_EMPTY);
         expect(loggerErrorSpy).toHaveBeenCalledWith(
-          s3Error,
-          `Error loading configuration from S3 ${TEST_FIXTURES.S3_URL}`,
+          expect.objectContaining({ err: s3Error, s3Url: TEST_FIXTURES.S3_URL }),
+          "Error loading configuration from S3",
         );
       });
 
@@ -323,8 +346,8 @@ describe("ConfigurationSource", () => {
 
         expect(result).toEqual(TEST_FIXTURES.CONFIG_EMPTY);
         expect(loggerErrorSpy).toHaveBeenCalledWith(
-          resolverError,
-          `Error loading configuration from S3 ${TEST_FIXTURES.S3_URL}`,
+          expect.objectContaining({ err: resolverError, s3Url: TEST_FIXTURES.S3_URL }),
+          "Error loading configuration from S3",
         );
       });
 
@@ -338,8 +361,8 @@ describe("ConfigurationSource", () => {
 
         expect(result).toEqual(TEST_FIXTURES.CONFIG_EMPTY);
         expect(loggerErrorSpy).toHaveBeenCalledWith(
-          generalError,
-          `Error in S3ConfigurationSource.load for ${TEST_FIXTURES.S3_URL}`,
+          expect.objectContaining({ err: generalError, s3Url: TEST_FIXTURES.S3_URL }),
+          "Error in S3ConfigurationSource.load",
         );
       });
 

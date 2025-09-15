@@ -17,8 +17,8 @@
  * ensuring consistency throughout the application lifecycle.
  */
 
+import { BaseLogger } from "@fabianopinto/logger";
 import { resolve } from "node:path";
-import { BaseLogger } from "../../lib/logger";
 import { deepMerge } from "./config-merger";
 import {
   type ConfigurationSource,
@@ -223,8 +223,11 @@ export class ConfigurationFactory {
         }
       } catch (error) {
         logger.error(
-          error instanceof Error ? error : String(error),
-          `Error loading configuration from source: ${source.constructor.name}`,
+          {
+            err: error instanceof Error ? error : new Error(String(error)),
+            source: source.constructor.name,
+          },
+          "Error loading configuration from source",
         );
       }
     }

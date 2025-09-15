@@ -15,9 +15,9 @@
  * ```
  */
 
+import { logger } from "@fabianopinto/logger";
 import { ERR_RANDOM_EMPTY_ARRAY, ERR_RANDOM_INVALID_BOUNDS } from "../errors";
 import { SmokerError } from "../errors/smoker-error";
-import { logger } from "./logger";
 
 export const RandomUtils = {
   /**

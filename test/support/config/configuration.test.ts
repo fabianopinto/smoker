@@ -14,8 +14,23 @@
  * - Type safety and immutability guarantees
  */
 
+vi.mock("@fabianopinto/logger", () => {
+  class MockBaseLogger {
+    info(...args: unknown[]) {
+      void args;
+    }
+    error(...args: unknown[]) {
+      void args;
+    }
+    warn(...args: unknown[]) {
+      void args;
+    }
+  }
+  return { BaseLogger: MockBaseLogger, logger: new MockBaseLogger() };
+});
+
+import { BaseLogger } from "@fabianopinto/logger";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { BaseLogger } from "../../../src/lib/logger";
 import { S3ClientWrapper, SSMClientWrapper } from "../../../src/support/aws/aws-clients";
 import { ConfigurationFactory } from "../../../src/support/config/config-factory";
 import {
@@ -419,8 +434,11 @@ describe("Configuration", () => {
           await createTestConfiguration().getValue("database.credentials.password", defaultValue);
 
           expect(loggerErrorSpy).toHaveBeenCalledWith(
-            expect.any(Error),
-            "Error resolving SSM parameter reference ssm://db/password",
+            expect.objectContaining({
+              err: expect.any(Error),
+              reference: "ssm://db/password",
+            }),
+            "Error resolving SSM parameter reference",
           );
 
           loggerErrorSpy.mockRestore();
@@ -474,8 +492,11 @@ describe("Configuration", () => {
           await createTestConfiguration().getValue("features.config", defaultValue);
 
           expect(loggerErrorSpy).toHaveBeenCalledWith(
-            expect.any(Error),
-            "Error resolving S3 reference s3://bucket/config.json",
+            expect.objectContaining({
+              err: expect.any(Error),
+              reference: "s3://bucket/config.json",
+            }),
+            "Error resolving S3 reference",
           );
 
           loggerErrorSpy.mockRestore();

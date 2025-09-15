@@ -16,9 +16,9 @@
  */
 
 import { loadConfiguration, runCucumber } from "@cucumber/cucumber/api";
-import { BaseLogger } from "./lib/logger";
-import { type ConfigObject, Configuration, ConfigurationFactory } from "./support/config";
+import { BaseLogger } from "@fabianopinto/logger";
 import { ERR_CONFIG_PARSE, SmokerError } from "./errors";
+import { type ConfigObject, Configuration, ConfigurationFactory } from "./support/config";
 
 // Create a logger instance for this module
 const logger = new BaseLogger({ name: "smoker:main" });
@@ -103,7 +103,10 @@ export async function main(
 
     return { success, statusCode: success ? 200 : 400 };
   } catch (error) {
-    logger.error(error instanceof Error ? error : String(error), "Test execution failed");
+    logger.error(
+      { err: error instanceof Error ? error : new Error(String(error)) },
+      "Test execution failed",
+    );
     return { success: false, statusCode: 500 };
   }
 }
@@ -168,7 +171,10 @@ export async function handler(event: LambdaEvent, context: LambdaContext): Promi
       }),
     };
   } catch (error) {
-    logger.error(error instanceof Error ? error : String(error), "Lambda handler error");
+    logger.error(
+      { err: error instanceof Error ? error : new Error(String(error)) },
+      "Lambda handler error",
+    );
     return {
       statusCode: 500,
       body: JSON.stringify({
@@ -227,7 +233,7 @@ async function loadTestConfigurations(event: LambdaEvent): Promise<void> {
     Configuration.initializeGlobalInstance(config);
   } catch (error) {
     logger.error(
-      error instanceof Error ? error : String(error),
+      { err: error instanceof Error ? error : new Error(String(error)) },
       "Error loading test configurations",
     );
     throw new SmokerError("Failed to load test configurations", {
@@ -251,7 +257,10 @@ if (require.main === module) {
       process.exit(success ? 0 : 1);
     })
     .catch((error) => {
-      logger.error(error instanceof Error ? error : String(error), "Test execution failed");
+      logger.error(
+        { err: error instanceof Error ? error : new Error(String(error)) },
+        "Test execution failed",
+      );
       process.exit(1);
     });
 }

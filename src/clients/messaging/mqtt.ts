@@ -10,6 +10,7 @@
  * and handling messages asynchronously through event-based callbacks.
  */
 
+import { BaseLogger } from "@fabianopinto/logger";
 import mqtt, {
   type IClientOptions,
   type IClientPublishOptions,
@@ -24,7 +25,6 @@ import {
   MqttConnectionError,
   SmokerError,
 } from "../../errors";
-import { BaseLogger } from "../../lib/logger";
 import { BaseServiceClient, type ServiceClient } from "../core";
 
 // Create a logger instance for this module

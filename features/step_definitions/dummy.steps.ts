@@ -1,5 +1,5 @@
 import { Given, Then, When } from "@cucumber/cucumber";
-import { logger } from "../../src/lib";
+import { logger } from "@fabianopinto/logger";
 import { type SmokeWorld } from "../../src/world/world";
 
 Given("a target named {string}", function (this: SmokeWorld, userTarget: string) {

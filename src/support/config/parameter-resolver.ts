@@ -15,8 +15,8 @@
 
 import { S3Client } from "@aws-sdk/client-s3";
 import { SSMClient } from "@aws-sdk/client-ssm";
+import { BaseLogger } from "@fabianopinto/logger";
 import { ERR_VALIDATION, SmokerError } from "../../errors";
-import { BaseLogger } from "../../lib/logger";
 import { S3ClientWrapper, SSMClientWrapper } from "../aws";
 import type { ConfigObject, ConfigValue } from "./configuration";
 
@@ -171,8 +171,11 @@ export class ParameterResolver {
             }
 
             logger.error(
-              `Error resolving S3 JSON reference ${value}:`,
-              error instanceof Error ? error : String(error),
+              {
+                err: error instanceof Error ? error : new Error(String(error)),
+                reference: value,
+              },
+              "Error resolving S3 JSON reference",
             );
             // Return the original reference on non-circular reference errors
             return value;

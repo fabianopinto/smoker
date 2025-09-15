@@ -14,6 +14,22 @@
  * - Resource cleanup and connection termination
  */
 
+vi.mock("@fabianopinto/logger", () => {
+  class MockBaseLogger {
+    info(...args: unknown[]) {
+      void args;
+    }
+    error(...args: unknown[]) {
+      void args;
+    }
+    warn(...args: unknown[]) {
+      void args;
+    }
+  }
+  return { BaseLogger: MockBaseLogger, logger: new MockBaseLogger() };
+});
+
+import { BaseLogger } from "@fabianopinto/logger";
 import mqtt from "mqtt";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { MqttClient } from "../../../src/clients/messaging/mqtt";
@@ -25,7 +41,6 @@ import {
   ERR_VALIDATION,
   SmokerError,
 } from "../../../src/errors";
-import { BaseLogger } from "../../../src/lib/logger";
 
 /**
  * Mocks for MQTT client

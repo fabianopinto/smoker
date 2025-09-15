@@ -16,9 +16,23 @@
  * helper functions, and integration with external services.
  */
 
+vi.mock("@fabianopinto/logger", () => {
+  class MockBaseLogger {
+    info(...args: unknown[]) {
+      void args;
+    }
+    error(...args: unknown[]) {
+      void args;
+    }
+    warn(...args: unknown[]) {
+      void args;
+    }
+  }
+  return { BaseLogger: MockBaseLogger, logger: new MockBaseLogger() };
+});
+import { BaseLogger } from "@fabianopinto/logger";
 import { resolve } from "node:path";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { BaseLogger } from "../../../src/lib/logger";
 import { ConfigurationFactory } from "../../../src/support/config/config-factory";
 import { deepMerge } from "../../../src/support/config/config-merger";
 import {
@@ -398,12 +412,15 @@ describe("ConfigurationFactory", () => {
 
       const result = await configurationFactory.build();
 
-      // logger.error should be called with a string (String(error)) and message containing constructor name
+      // logger.error should be called with object-first and message-second
       expect(loggerErrorSpy).toHaveBeenCalled();
-      const [firstArg, secondArg] = loggerErrorSpy.mock.calls[0] as [unknown, string];
-      expect(typeof firstArg).toBe("string");
-      expect(firstArg).toContain("non-error failure");
-      expect(secondArg).toContain("Error loading configuration from source: FailingSource");
+      const [firstArg, secondArg] = loggerErrorSpy.mock.calls[0] as [
+        { err: unknown; source: string },
+        string,
+      ];
+      expect(firstArg).toMatchObject({ source: "FailingSource" });
+      expect(firstArg.err).toBeDefined();
+      expect(secondArg).toBe("Error loading configuration from source");
 
       // Configuration still created and returned; global initialized
       expect(Configuration).toHaveBeenCalledTimes(1);
@@ -466,10 +483,10 @@ describe("ConfigurationFactory", () => {
 
       await configurationFactory.build();
 
-      // logger.error(errorObjOrString, message)
+      // logger.error(object, message)
       expect(loggerErrorSpy).toHaveBeenCalledWith(
-        expect.any(Error),
-        "Error loading configuration from source: Object",
+        expect.objectContaining({ err: expect.any(Error), source: "Object" }),
+        "Error loading configuration from source",
       );
       expect(ObjectConfigurationSource).toHaveBeenCalledWith(TEST_FIXTURES.BASIC_CONFIG); // Other sources still loaded
       expect(deepMerge).toHaveBeenCalledWith({}, TEST_FIXTURES.BASIC_CONFIG); // Valid config was merged

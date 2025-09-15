@@ -16,9 +16,9 @@
  * ```
  */
 
+import { logger } from "@fabianopinto/logger";
 import { ERR_RETRY_EXHAUSTED } from "../errors";
 import { SmokerError } from "../errors/smoker-error";
-import { logger } from "./logger";
 
 export type BackoffStrategy = "fixed" | "exponential" | "exponential-jitter";
 

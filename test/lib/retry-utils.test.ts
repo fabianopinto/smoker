@@ -6,9 +6,9 @@
  *   and that logs are produced with appropriate levels
  */
 
+import { logger } from "@fabianopinto/logger";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { ERR_RETRY_EXHAUSTED, SmokerError } from "../../src/errors";
-import { logger } from "../../src/lib/logger";
 import { retryAsync } from "../../src/lib/retry-utils";
 
 describe("RetryUtils", () => {

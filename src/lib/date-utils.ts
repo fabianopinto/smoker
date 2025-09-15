@@ -16,9 +16,9 @@
  * ```
  */
 
+import { logger } from "@fabianopinto/logger";
 import { ERR_INVALID_DURATION } from "../errors";
 import { SmokerError } from "../errors/smoker-error";
-import { logger } from "./logger";
 
 export const DateUtils = {
   /**

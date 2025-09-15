@@ -15,8 +15,8 @@
  * helper functions for common configuration operations.
  */
 
+import { BaseLogger } from "@fabianopinto/logger";
 import { ERR_CONFIG_MISSING, SmokerError } from "../../errors";
-import { BaseLogger } from "../../lib/logger";
 import { S3ClientWrapper, SSMClientWrapper } from "../aws";
 import { ConfigurationFactory } from "./config-factory";
 
@@ -306,8 +306,11 @@ export class Configuration {
       return (await ssmClient.getParameter(parameterName)) as unknown as T;
     } catch (error) {
       logger.error(
-        error instanceof Error ? error : String(error),
-        `Error resolving SSM parameter reference ${reference}`,
+        {
+          err: error instanceof Error ? error : new Error(String(error)),
+          reference,
+        },
+        "Error resolving SSM parameter reference",
       );
       return defaultValue;
     }
@@ -338,8 +341,11 @@ export class Configuration {
       return String(content) as unknown as T;
     } catch (error) {
       logger.error(
-        error instanceof Error ? error : String(error),
-        `Error resolving S3 reference ${reference}`,
+        {
+          err: error instanceof Error ? error : new Error(String(error)),
+          reference,
+        },
+        "Error resolving S3 reference",
       );
       return defaultValue;
     }

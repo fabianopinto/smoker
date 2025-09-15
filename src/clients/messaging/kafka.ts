@@ -10,6 +10,7 @@
  * and managing consumer groups for distributed message processing.
  */
 
+import { BaseLogger } from "@fabianopinto/logger";
 import { type Consumer, Kafka, type KafkaConfig, logLevel, type Producer } from "kafkajs";
 import {
   ERR_KAFKA_CONNECT,
@@ -18,7 +19,6 @@ import {
   KafkaConnectionError,
   SmokerError,
 } from "../../errors";
-import { BaseLogger } from "../../lib/logger";
 import { BaseServiceClient, type ServiceClient } from "../core";
 
 // Create a logger instance for this module

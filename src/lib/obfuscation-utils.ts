@@ -30,7 +30,7 @@
  * ```
  */
 
-import { logger } from "./logger";
+import { logger } from "@fabianopinto/logger";
 
 /** Options for partial masking */
 export interface PartialMaskOptions {

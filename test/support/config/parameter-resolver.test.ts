@@ -15,10 +15,25 @@
  * - Caching behavior
  */
 
+vi.mock("@fabianopinto/logger", () => {
+  class MockBaseLogger {
+    info(...args: unknown[]) {
+      void args;
+    }
+    error(...args: unknown[]) {
+      void args;
+    }
+    warn(...args: unknown[]) {
+      void args;
+    }
+  }
+  return { BaseLogger: MockBaseLogger, logger: new MockBaseLogger() };
+});
+
 import { S3Client } from "@aws-sdk/client-s3";
 import { SSMClient } from "@aws-sdk/client-ssm";
+import { BaseLogger } from "@fabianopinto/logger";
 import { beforeEach, describe, expect, it, vi } from "vitest";
-import { BaseLogger } from "../../../src/lib/logger";
 import { S3ClientWrapper, SSMClientWrapper } from "../../../src/support/aws";
 import type { ConfigObject, ConfigValue } from "../../../src/support/config/configuration";
 import { ParameterResolver } from "../../../src/support/config/parameter-resolver";
@@ -405,10 +420,13 @@ describe("ParameterResolver", () => {
         const result = await parameterResolver.resolveValue(TEST_FIXTURES.S3_FEATURES);
 
         expect(result).toBe(TEST_FIXTURES.S3_FEATURES); // Returns original reference on error
-        // ParameterResolver logs as logger.error(message, error)
+        // ParameterResolver logs as logger.error(object, message)
         expect(loggerErrorSpy).toHaveBeenCalledWith(
-          `Error resolving S3 JSON reference ${TEST_FIXTURES.S3_FEATURES}:`,
-          s3Error,
+          expect.objectContaining({
+            err: expect.any(Error),
+            reference: TEST_FIXTURES.S3_FEATURES,
+          }),
+          "Error resolving S3 JSON reference",
         );
 
         loggerErrorSpy.mockRestore();

@@ -16,8 +16,8 @@
  */
 
 import { S3Client } from "@aws-sdk/client-s3";
+import { BaseLogger } from "@fabianopinto/logger";
 import { existsSync, readFileSync } from "node:fs";
-import { BaseLogger } from "../../lib/logger";
 import { S3ClientWrapper, parseS3Url } from "../aws";
 import type { ConfigObject } from "./configuration";
 import { ParameterResolver } from "./parameter-resolver";
@@ -91,8 +91,11 @@ export class FileConfigurationSource implements ConfigurationSource {
       return JSON.parse(content) as ConfigObject;
     } catch (error) {
       logger.error(
-        error instanceof Error ? error : String(error),
-        `Error loading configuration from ${this.filePath}`,
+        {
+          err: error instanceof Error ? error : new Error(String(error)),
+          filePath: this.filePath,
+        },
+        "Error loading configuration from file",
       );
       return {};
     }
@@ -155,15 +158,21 @@ export class S3ConfigurationSource implements ConfigurationSource {
         return await this.resolver.resolveConfig(configObject);
       } catch (error) {
         logger.error(
-          error instanceof Error ? error : String(error),
-          `Error loading configuration from S3 ${this.s3Url}`,
+          {
+            err: error instanceof Error ? error : new Error(String(error)),
+            s3Url: this.s3Url,
+          },
+          "Error loading configuration from S3",
         );
         return {};
       }
     } catch (error) {
       logger.error(
-        error instanceof Error ? error : String(error),
-        `Error in S3ConfigurationSource.load for ${this.s3Url}`,
+        {
+          err: error instanceof Error ? error : new Error(String(error)),
+          s3Url: this.s3Url,
+        },
+        "Error in S3ConfigurationSource.load",
       );
       return {};
     }

@@ -14,6 +14,21 @@
  * - Client cleanup and resource management
  */
 
+vi.mock("@fabianopinto/logger", () => {
+  class MockBaseLogger {
+    info(...args: unknown[]) {
+      void args;
+    }
+    error(...args: unknown[]) {
+      void args;
+    }
+    warn(...args: unknown[]) {
+      void args;
+    }
+  }
+  return { BaseLogger: MockBaseLogger, logger: new MockBaseLogger() };
+});
+import { BaseLogger } from "@fabianopinto/logger";
 import {
   type Consumer,
   type EachMessageHandler,
@@ -30,7 +45,6 @@ import {
   ERR_VALIDATION,
   SmokerError,
 } from "../../../src/errors";
-import { BaseLogger } from "../../../src/lib/logger";
 
 /**
  * Mock Kafka library for unit testing
