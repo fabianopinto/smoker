@@ -1,5 +1,5 @@
 /**
- * Configuration Sources Module
+ * @fileoverview Configuration Sources Module
  *
  * This module defines the interfaces and implementations for loading configuration
  * from various sources. It provides a unified approach to configuration loading
@@ -45,7 +45,7 @@ export interface ConfigurationSource {
    * gracefully, returning an empty object rather than throwing exceptions when
    * configuration cannot be loaded.
    *
-   * @return Promise resolving to a configuration object
+   * @returns {Promise<ConfigObject>} Promise resolving to a configuration object
    */
   load(): Promise<ConfigObject>;
 }
@@ -61,7 +61,7 @@ export interface ConfigurationSource {
  * is missing or contains invalid JSON. It provides graceful fallback to an empty
  * configuration object when errors occur during loading.
  *
- * @implements {ConfigurationSource}
+ * @implements {ConfigurationSource} - Implements the ConfigurationSource interface
  */
 export class FileConfigurationSource implements ConfigurationSource {
   private filePath: string;
@@ -69,7 +69,7 @@ export class FileConfigurationSource implements ConfigurationSource {
   /**
    * Create a new file configuration source
    *
-   * @param filePath - The path to the JSON configuration file
+   * @param {string} filePath - The path to the JSON configuration file
    */
   constructor(filePath: string) {
     this.filePath = filePath;
@@ -78,7 +78,7 @@ export class FileConfigurationSource implements ConfigurationSource {
   /**
    * Load configuration from the file
    *
-   * @return The configuration object loaded from the file
+   * @returns {Promise<ConfigObject>} Promise resolving to the configuration object loaded from the file
    */
   async load(): Promise<ConfigObject> {
     try {
@@ -113,7 +113,7 @@ export class FileConfigurationSource implements ConfigurationSource {
  * handling. It automatically resolves any SSM parameter references or nested S3 references
  * in the loaded configuration through the ParameterResolver.
  *
- * @implements {ConfigurationSource}
+ * @implements {ConfigurationSource} - Implements the ConfigurationSource interface
  */
 export class S3ConfigurationSource implements ConfigurationSource {
   private s3Url: string;
@@ -123,9 +123,9 @@ export class S3ConfigurationSource implements ConfigurationSource {
   /**
    * Create a new S3 configuration source
    *
-   * @param s3Url - S3 URL in the format s3://bucket/path/file.json
-   * @param region - Optional AWS region (defaults to environment variable or us-east-1)
-   * @param s3ClientInstance - Optional S3Client instance for testing
+   * @param {string} s3Url - S3 URL in the format s3://bucket/path/file.json
+   * @param {string} [region] - AWS region (defaults to environment variable or us-east-1)
+   * @param {S3Client} [s3ClientInstance] - Optional S3Client instance for testing
    */
   constructor(s3Url: string, region?: string, s3ClientInstance?: S3Client) {
     this.s3Url = s3Url;
@@ -136,7 +136,7 @@ export class S3ConfigurationSource implements ConfigurationSource {
   /**
    * Load configuration from the S3 file
    *
-   * @return The configuration object loaded from the S3 file
+   * @returns {Promise<ConfigObject>} The configuration object loaded from the S3 file
    */
   async load(): Promise<ConfigObject> {
     try {
@@ -190,7 +190,7 @@ export class S3ConfigurationSource implements ConfigurationSource {
  * ensuring that modifications to the returned configuration don't affect the source object.
  * This is particularly useful for providing default configurations or for testing scenarios.
  *
- * @implements {ConfigurationSource}
+ * @implements {ConfigurationSource} - Implements the ConfigurationSource interface
  */
 export class ObjectConfigurationSource implements ConfigurationSource {
   private configObject: ConfigObject;
@@ -198,7 +198,7 @@ export class ObjectConfigurationSource implements ConfigurationSource {
   /**
    * Create a new object configuration source
    *
-   * @param configObject - The configuration object
+   * @param {ConfigObject} configObject - The configuration object
    */
   constructor(configObject: ConfigObject) {
     this.configObject = configObject;
@@ -207,7 +207,7 @@ export class ObjectConfigurationSource implements ConfigurationSource {
   /**
    * Load configuration from the object
    *
-   * @return The configuration object
+   * @returns {Promise<ConfigObject>} The configuration object
    */
   async load(): Promise<ConfigObject> {
     return { ...this.configObject };

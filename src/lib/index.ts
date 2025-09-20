@@ -1,5 +1,5 @@
 /**
- * Library Module Index
+ * @packageDocumentation Library Module Index
  *
  * This module serves as the barrel file for the library components,
  * re-exporting interfaces and implementations for easier imports.

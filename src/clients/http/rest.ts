@@ -1,5 +1,5 @@
 /**
- * REST Client Module
+ * @fileoverview REST Client Module
  *
  * This module provides interfaces and implementations for HTTP REST service clients.
  * It defines the contract for REST operations such as GET, POST, PUT, PATCH, and DELETE
@@ -25,8 +25,7 @@ import { BaseServiceClient, type ServiceClient } from "../core";
  * options. It uses TypeScript generics to provide type-safe response handling, allowing
  * consumers to specify the expected response data structure for each request.
  *
- * @extends {ServiceClient}
- * @see {ServiceClient} The base service client interface
+ * @extends {ServiceClient} The base service client interface
  */
 export interface RestServiceClient extends ServiceClient {
   /**
@@ -38,10 +37,11 @@ export interface RestServiceClient extends ServiceClient {
    * Send a GET request
    *
    * @template T - Response data type
-   * @param url - The URL to request
-   * @param config - Optional axios request configuration
-   * @return Promise resolving to Axios response
-   * @throws {SmokerError} if request fails
+   * @param {string} url - The URL to request
+   * @param {AxiosRequestConfig} [config] - Optional axios request configuration
+   * @returns {Promise<AxiosResponse<T>>} Promise resolving to Axios response
+   * @throws {ValidationError} if input is invalid
+   * @throws {AppError} if request fails
    */
   get<T = unknown>(url: string, config?: AxiosRequestConfig): Promise<AxiosResponse<T>>;
 
@@ -49,10 +49,10 @@ export interface RestServiceClient extends ServiceClient {
    * Send a POST request
    *
    * @template T - Response data type
-   * @param url - The URL to request
-   * @param data - The data to send in the request body
-   * @param config - Optional axios request configuration
-   * @return Promise resolving to Axios response
+   * @param {string} url - The URL to request
+   * @param {unknown} [data] - The data to send in the request body
+   * @param {AxiosRequestConfig} [config] - Optional axios request configuration
+   * @returns {Promise<AxiosResponse<T>>} Promise resolving to Axios response
    * @throws {SmokerError} if request fails
    */
   post<T = unknown>(
@@ -65,10 +65,10 @@ export interface RestServiceClient extends ServiceClient {
    * Send a PUT request
    *
    * @template T - Response data type
-   * @param url - The URL to request
-   * @param data - The data to send in the request body
-   * @param config - Optional axios request configuration
-   * @return Promise resolving to Axios response
+   * @param {string} url - The URL to request
+   * @param {unknown} [data] - The data to send in the request body
+   * @param {AxiosRequestConfig} [config] - Optional axios request configuration
+   * @returns {Promise<AxiosResponse<T>>} Promise resolving to Axios response
    * @throws {SmokerError} if request fails
    */
   put<T = unknown>(
@@ -81,10 +81,10 @@ export interface RestServiceClient extends ServiceClient {
    * Send a PATCH request
    *
    * @template T - Response data type
-   * @param url - The URL to request
-   * @param data - The data to send in the request body
-   * @param config - Optional axios request configuration
-   * @return Promise resolving to Axios response
+   * @param {string} url - The URL to request
+   * @param {unknown} [data] - The data to send in the request body
+   * @param {AxiosRequestConfig} [config] - Optional axios request configuration
+   * @returns {Promise<AxiosResponse<T>>} Promise resolving to Axios response
    * @throws {SmokerError} if request fails
    */
   patch<T = unknown>(
@@ -97,9 +97,9 @@ export interface RestServiceClient extends ServiceClient {
    * Send a DELETE request
    *
    * @template T - Response data type
-   * @param url - The URL to request
-   * @param config - Optional axios request configuration
-   * @return Promise resolving to Axios response
+   * @param {string} url - The URL to request
+   * @param {AxiosRequestConfig} [config] - Optional axios request configuration
+   * @returns {Promise<AxiosResponse<T>>} Promise resolving to Axios response
    * @throws {SmokerError} if request fails
    */
   delete<T = unknown>(url: string, config?: AxiosRequestConfig): Promise<AxiosResponse<T>>;
@@ -119,8 +119,8 @@ export interface RestServiceClient extends ServiceClient {
  * Each HTTP method is implemented with type-safe response handling through TypeScript
  * generics, allowing consumers to specify the expected response data structure.
  *
- * @implements {RestServiceClient}
- * @extends {BaseServiceClient}
+ * @extends {BaseServiceClient} The base service client class
+ * @implements {RestServiceClient} The REST service client interface
  */
 export class RestClient extends BaseServiceClient implements RestServiceClient {
   private client: AxiosInstance | null = null;
@@ -128,8 +128,8 @@ export class RestClient extends BaseServiceClient implements RestServiceClient {
   /**
    * Create a new REST client
    *
-   * @param clientId - Client identifier (defaults to "RestClient")
-   * @param config - Optional client configuration with properties:
+   * @param {string} clientId - Client identifier (defaults to "RestClient")
+   * @param {Record<string, unknown>} config - Optional client configuration with properties:
    *   - baseURL: Base URL for all requests
    *   - timeout: Request timeout in milliseconds (default: 30000)
    *   - headers: Default headers to send with each request
@@ -141,7 +141,8 @@ export class RestClient extends BaseServiceClient implements RestServiceClient {
   /**
    * Initialize the REST client with configuration
    *
-   * @throws {SmokerError} if client creation fails
+   * @throws {ValidationError} if baseURL is invalid
+   * @throws {AppError} if client creation fails
    */
   protected async initializeClient(): Promise<void> {
     try {
@@ -191,8 +192,8 @@ export class RestClient extends BaseServiceClient implements RestServiceClient {
   /**
    * Validate a URL string
    *
-   * @param url - The URL to validate
-   * @return True if the URL is valid, false otherwise
+   * @param {string} url - The URL to validate
+   * @returns {boolean} True if the URL is valid, false otherwise
    */
   private isValidUrl(url: string): boolean {
     try {
@@ -208,10 +209,11 @@ export class RestClient extends BaseServiceClient implements RestServiceClient {
    * Send a GET request
    *
    * @template T - Response data type
-   * @param url - The URL to request
-   * @param config - Optional axios request configuration
-   * @return Promise resolving to Axios response
-   * @throws {SmokerError} if request fails or client is not initialized
+   * @param {string} url - The URL to request
+   * @param {AxiosRequestConfig} [config] - Optional axios request configuration
+   * @returns {Promise<AxiosResponse<T>>} Promise resolving to Axios response
+   * @throws {ValidationError} if input is invalid or client is not initialized
+   * @throws {AppError} if request fails
    */
   async get<T = unknown>(url: string, config?: AxiosRequestConfig): Promise<AxiosResponse<T>> {
     this.ensureInitialized();
@@ -251,11 +253,12 @@ export class RestClient extends BaseServiceClient implements RestServiceClient {
    * Send a POST request
    *
    * @template T - Response data type
-   * @param url - The URL to request
-   * @param data - The data to send in the request body
-   * @param config - Optional axios request configuration
-   * @return Promise resolving to Axios response
-   * @throws {SmokerError} if request fails or client is not initialized
+   * @param {string} url - The URL to request
+   * @param {unknown} [data] - The data to send in the request body
+   * @param {AxiosRequestConfig} [config] - Optional axios request configuration
+   * @returns {Promise<AxiosResponse<T>>} Promise resolving to Axios response
+   * @throws {ValidationError} if input is invalid or client is not initialized
+   * @throws {AppError} if request fails
    */
   async post<T = unknown>(
     url: string,
@@ -299,11 +302,12 @@ export class RestClient extends BaseServiceClient implements RestServiceClient {
    * Send a PUT request
    *
    * @template T - Response data type
-   * @param url - The URL to request
-   * @param data - The data to send in the request body
-   * @param config - Optional axios request configuration
-   * @return Promise resolving to Axios response
-   * @throws {SmokerError} if request fails or client is not initialized
+   * @param {string} url - The URL to request
+   * @param {unknown} [data] - The data to send in the request body
+   * @param {AxiosRequestConfig} [config] - Optional axios request configuration
+   * @returns {Promise<AxiosResponse<T>>} Promise resolving to Axios response
+   * @throws {ValidationError} if input is invalid or client is not initialized
+   * @throws {AppError} if request fails
    */
   async put<T = unknown>(
     url: string,
@@ -347,11 +351,12 @@ export class RestClient extends BaseServiceClient implements RestServiceClient {
    * Send a PATCH request
    *
    * @template T - Response data type
-   * @param url - The URL to request
-   * @param data - The data to send in the request body
-   * @param config - Optional axios request configuration
-   * @return Promise resolving to Axios response
-   * @throws {SmokerError} if request fails or client is not initialized
+   * @param {string} url - The URL to request
+   * @param {unknown} [data] - The data to send in the request body
+   * @param {AxiosRequestConfig} [config] - Optional axios request configuration
+   * @returns {Promise<AxiosResponse<T>>} Promise resolving to Axios response
+   * @throws {ValidationError} if input is invalid or client is not initialized
+   * @throws {AppError} if request fails
    */
   async patch<T = unknown>(
     url: string,
@@ -395,10 +400,11 @@ export class RestClient extends BaseServiceClient implements RestServiceClient {
    * Send a DELETE request
    *
    * @template T - Response data type
-   * @param url - The URL to request
-   * @param config - Optional axios request configuration
-   * @return Promise resolving to Axios response
-   * @throws {SmokerError} if request fails or client is not initialized
+   * @param {string} url - The URL to request
+   * @param {AxiosRequestConfig} [config] - Optional axios request configuration
+   * @returns {Promise<AxiosResponse<T>>} Promise resolving to Axios response
+   * @throws {ValidationError} if input is invalid or client is not initialized
+   * @throws {AppError} if request fails
    */
   async delete<T = unknown>(url: string, config?: AxiosRequestConfig): Promise<AxiosResponse<T>> {
     this.ensureInitialized();

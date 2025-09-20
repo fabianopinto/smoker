@@ -1,5 +1,5 @@
 /**
- * Application Entry Point Module
+ * @fileoverview Application Entry Point Module
  *
  * This module serves as the main entry point for the Smoker testing framework.
  * It provides functionality to run Cucumber tests with configurable options,
@@ -29,6 +29,14 @@ const logger = new BaseLogger({ name: "smoker:main" });
  * Defines the structure of the event object received by the Lambda function.
  * This interface includes both test execution parameters and configuration options,
  * allowing for flexible test customization through the Lambda event payload.
+ *
+ * @property {string} [paths] - Optional array of feature file paths to run
+ * @property {string[]} [formats] - Optional array of output formats
+ * @property {string} [tags] - Optional tag expression to filter tests
+ * @property {Record<string, string>} [environment] - Optional environment variables
+ * @property {string[]} [configFiles] - Optional paths to JSON configuration files
+ * @property {ConfigObject[]} [configObjects] - Optional configuration objects to be loaded directly
+ * @property {ConfigObject} [config] - Optional single configuration object
  */
 export interface LambdaEvent {
   // Optional parameters that can be passed to customize test execution
@@ -49,6 +57,9 @@ export interface LambdaEvent {
  * Defines the structure of the response object returned by the Lambda function.
  * This interface follows the API Gateway proxy integration format, containing
  * a status code and a JSON-formatted body with test results and messages.
+ *
+ * @property {number} statusCode - HTTP status code
+ * @property {string} body - JSON-formatted body containing test results and messages
  */
 export interface LambdaResponse {
   statusCode: number;
@@ -68,8 +79,8 @@ export interface LambdaResponse {
  * - Cucumber test execution with customizable options
  * - Result processing and status code determination
  *
- * @param event - Optional event parameters for customizing test execution
- * @return Promise resolving to an object containing test success status and HTTP status code
+ * @param {LambdaEvent} event - Optional event parameters for customizing test execution
+ * @returns {Promise<{ success: boolean; statusCode: number }>} Promise resolving to an object containing test success status and HTTP status code
  */
 export async function main(
   event: LambdaEvent = {},
@@ -117,6 +128,16 @@ export async function main(
  * Defines the structure of the context object provided by AWS Lambda runtime.
  * This interface includes Lambda execution environment details and callback functions
  * for managing the Lambda lifecycle and response handling.
+ *
+ * @property {string} functionName - Name of the Lambda function
+ * @property {string} functionVersion - Version of the Lambda function
+ * @property {string} invokedFunctionArn - ARN of the invoked Lambda function
+ * @property {string} memoryLimitInMB - Memory limit allocated to the Lambda function
+ * @property {string} awsRequestId - Unique identifier for the Lambda execution
+ * @property {string} logGroupName - Name of the CloudWatch log group
+ * @property {string} logStreamName - Name of the CloudWatch log stream
+ * @property {Record<string, unknown>} [identity] - Identity information for the Lambda execution
+ * @property {Record<string, unknown>} [clientContext] - Client context information for the Lambda execution
  */
 export interface LambdaContext {
   functionName: string;
@@ -128,9 +149,34 @@ export interface LambdaContext {
   logStreamName: string;
   identity?: Record<string, unknown>;
   clientContext?: Record<string, unknown>;
+
+  /**
+   * Returns the remaining time in milliseconds before the Lambda execution times out
+   *
+   * @returns {number} The remaining time in milliseconds
+   */
   getRemainingTimeInMillis: () => number;
+
+  /**
+   * Completes the Lambda execution
+   *
+   * @param {Error} [error] - Optional error object
+   * @param {unknown} [result] - Optional result object
+   */
   done: (error?: Error, result?: unknown) => void;
+
+  /**
+   * Fails the Lambda execution
+   *
+   * @param {Error | string} error - Error object or string message
+   */
   fail: (error: Error | string) => void;
+
+  /**
+   * Succeeds the Lambda execution
+   *
+   * @param {unknown} messageOrObject - Message or object to return
+   */
   succeed: (messageOrObject: unknown) => void;
 }
 
@@ -145,9 +191,9 @@ export interface LambdaContext {
  * provides comprehensive error handling with appropriate status codes and
  * formatted error messages in the response body.
  *
- * @param event - Lambda event object with test parameters and configuration
- * @param context - Lambda context object with execution environment details
- * @return Promise resolving to a formatted Lambda response
+ * @param {LambdaEvent} event - Lambda event object with test parameters and configuration
+ * @param {LambdaContext} context - Lambda context object with execution environment details
+ * @returns {Promise<LambdaResponse>} Promise resolving to a formatted Lambda response
  */
 export async function handler(event: LambdaEvent, context: LambdaContext): Promise<LambdaResponse> {
   logger.info(
@@ -197,8 +243,8 @@ export async function handler(event: LambdaEvent, context: LambdaContext): Promi
  * The resulting configuration is set as the global configuration instance using
  * the Configuration factory pattern, making it available throughout the application.
  *
- * @param event - Lambda event object with configuration sources
- * @return Promise that resolves when configuration is loaded
+ * @param {LambdaEvent} event - Lambda event object with configuration sources
+ * @returns {Promise<void>} Promise that resolves when configuration is loaded
  * @throws {SmokerError} if configuration loading fails
  */
 async function loadTestConfigurations(event: LambdaEvent): Promise<void> {

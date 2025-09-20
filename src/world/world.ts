@@ -1,5 +1,5 @@
 /**
- * Smoke Test World Module
+ * @fileoverview Smoke Test World Module
  *
  * This module defines the interfaces and implementations for the Smoke test world,
  * providing type definitions and contracts for client management and test helpers.
@@ -30,14 +30,14 @@ import { createWorldProperties, WorldProperties } from "./world-properties";
  * client types, manage client registration, and handle client lifecycle operations.
  *
  * The SmokeWorld serves as the central context for test execution, providing:
- * - Access to service clients (AWS, HTTP, messaging services) via `getClient`
+ * - Access to service clients (AWS, HTTP, messaging services) via getClient
  * - Client lifecycle management (initialization, reset, destruction)
  * - Test data storage and retrieval
  * - Property management for storing and accessing test state
  * - Parameter resolution for configuration and property references
  *
  * @template T - The type parameter for the world, used to extend the Cucumber World
- * @extends {IWorld<T>}
+ * @extends {IWorld<T>} Cucumber World interface
  */
 export interface SmokeWorld<T = unknown> extends IWorld<T> {
   /**
@@ -55,8 +55,8 @@ export interface SmokeWorld<T = unknown> extends IWorld<T> {
    * when you have an existing client instance that you want to make available
    * through the world context.
    *
-   * @param name - The name to register the client under
-   * @param client - The client instance to register
+   * @param {string} name - The name to register the client under
+   * @param {ServiceClient} client - The client instance to register
    *
    * @example
    * // Register a custom client
@@ -72,10 +72,10 @@ export interface SmokeWorld<T = unknown> extends IWorld<T> {
    * and registers it for later access. This is a convenience method that
    * combines configuration registration, client creation, and client registration.
    *
-   * @param clientType - The type of client to create
-   * @param config - The configuration for the client
-   * @param id - Optional client identifier
-   * @return The created and registered client instance
+   * @param {ClientType | string} clientType - The type of client to create
+   * @param {ClientConfig} config - The configuration for the client
+   * @param {string} [id] - Optional client identifier
+   * @returns {ServiceClient} The created and registered client instance
    *
    * @example
    * // Register and create an S3 client with custom configuration
@@ -98,9 +98,9 @@ export interface SmokeWorld<T = unknown> extends IWorld<T> {
    * This is useful when you need a temporary client that doesn't need
    * to be accessed by other test steps.
    *
-   * @param clientType - The type of client to create
-   * @param id - Optional client identifier
-   * @return The created client instance
+   * @param {ClientType | string} clientType - The type of client to create
+   * @param {string} [id] - Optional client identifier
+   * @returns {ServiceClient} The created client instance
    *
    * @example
    * // Create a temporary REST client
@@ -118,8 +118,8 @@ export interface SmokeWorld<T = unknown> extends IWorld<T> {
    * parameter allows for retrieving the client with the correct type.
    *
    * @template T - The type of client to retrieve
-   * @param name - The name of the client to retrieve
-   * @return The client instance with the specified type
+   * @param {string} name - The name of the client to retrieve
+   * @returns {T} The client instance with the specified type
    * @throws {SmokerError} if no client is registered with the given name
    *
    * @example
@@ -135,8 +135,8 @@ export interface SmokeWorld<T = unknown> extends IWorld<T> {
    * Verifies whether a client is registered with the given name.
    * This is useful for conditional logic based on client availability.
    *
-   * @param name - The name of the client to check
-   * @return True if a client is registered with the given name, false otherwise
+   * @param {string} name - The name of the client to check
+   * @returns {boolean} True if a client is registered with the given name, false otherwise
    *
    * @example
    * // Check if a client exists before using it
@@ -165,8 +165,8 @@ export interface SmokeWorld<T = unknown> extends IWorld<T> {
    * setup operations. This should be called before using any clients in tests.
    * Optionally accepts a configuration object to configure clients during initialization.
    *
-   * @param config - Optional configuration object for client initialization
-   * @return Promise that resolves when all clients are initialized
+   * @param {Record<string, unknown>} [config] - Optional configuration object for client initialization
+   * @returns {Promise<void>} Promise that resolves when all clients are initialized
    * @throws {SmokerError} if any client initialization fails
    *
    * @example
@@ -188,7 +188,7 @@ export interface SmokeWorld<T = unknown> extends IWorld<T> {
    * between test scenarios to ensure a clean state without having to
    * reinitialize all clients.
    *
-   * @return Promise that resolves when all clients are reset
+   * @returns {Promise<void>} Promise that resolves when all clients are reset
    * @throws {SmokerError} if any client reset fails
    *
    * @example
@@ -204,7 +204,7 @@ export interface SmokeWorld<T = unknown> extends IWorld<T> {
    * any resources they hold. This should be called at the end of test
    * execution to ensure proper cleanup.
    *
-   * @return Promise that resolves when all clients are destroyed
+   * @returns {Promise<void>} Promise that resolves when all clients are destroyed
    * @throws {SmokerError} if any client destruction fails
    *
    * @example
@@ -227,8 +227,8 @@ export interface SmokeWorld<T = unknown> extends IWorld<T> {
    * Stores a value in the property map with the specified key. The key is a string
    * that uniquely identifies the property. The value can be a primitive, array, or plain object.
    *
-   * @param key - The key to store the value under
-   * @param value - The value to store (primitive, array, or plain object)
+   * @param {string} key - The key to store the value under
+   * @param {unknown} value - The value to store (primitive, array, or plain object)
    *
    * @example
    * // Store a simple value
@@ -249,9 +249,9 @@ export interface SmokeWorld<T = unknown> extends IWorld<T> {
    * doesn't exist, returns the default value if provided, or undefined otherwise.
    *
    * @template T - The expected type of the property value
-   * @param key - The key of the property to retrieve
-   * @param defaultValue - Optional default value to return if the property doesn't exist
-   * @return The property value, the default value if not found, or undefined
+   * @param {string} key - The key of the property to retrieve
+   * @param {T} [defaultValue] - Optional default value to return if the property doesn't exist
+   * @returns {T | undefined} The property value, the default value if not found, or undefined
    *
    * @example
    * // Get a simple value
@@ -269,8 +269,8 @@ export interface SmokeWorld<T = unknown> extends IWorld<T> {
    *
    * Verifies whether a property exists in the property map with the specified key.
    *
-   * @param key - The key to check
-   * @return True if the property exists, false otherwise
+   * @param {string} key - The key to check
+   * @returns {boolean} True if the property exists, false otherwise
    *
    * @example
    * // Check if a property exists before using it
@@ -286,7 +286,7 @@ export interface SmokeWorld<T = unknown> extends IWorld<T> {
    *
    * Removes a property from the property map with the specified key.
    *
-   * @param key - The key of the property to delete
+   * @param {string} key - The key of the property to delete
    *
    * @example
    * // Delete a property that's no longer needed
@@ -301,8 +301,8 @@ export interface SmokeWorld<T = unknown> extends IWorld<T> {
    * syntax. This is useful for parameterizing tests with values that may be
    * determined at runtime.
    *
-   * @param param - The parameter value to resolve
-   * @return Promise that resolves to the resolved parameter value
+   * @param {unknown} param - The parameter value to resolve
+   * @returns {Promise<unknown>} Promise that resolves to the resolved parameter value
    *
    * @example
    * // Resolve a parameter that may contain property references
@@ -313,31 +313,31 @@ export interface SmokeWorld<T = unknown> extends IWorld<T> {
   /**
    * Resolve configuration references in a string
    *
-   * @param input - The input string that may contain configuration references
-   * @return Promise resolving to the string with all configuration references replaced
+   * @param {string} input - The input string that may contain configuration references
+   * @returns {Promise<string>} Promise resolving to the string with all configuration references replaced
    */
   resolveConfigValue(input: string): Promise<string>;
 
   /**
    * Resolve property references in a string
    *
-   * @param input - The input string that may contain property references
-   * @return The string with all property references replaced
+   * @param {string} input - The input string that may contain property references
+   * @returns {string} The string with all property references replaced
    */
   resolvePropertyValue(input: string): string;
 
   /**
    * Check if a string is a property reference
    *
-   * @param input - The input string to check
-   * @return True if the string is a property reference, false otherwise
+   * @param {string} input - The input string to check
+   * @returns {boolean} True if the string is a property reference, false otherwise
    */
   isPropertyReference(input: string): boolean;
 
   /**
    * Get the WorldProperties instance
    *
-   * @return The WorldProperties instance used by this world
+   * @returns {WorldProperties} The WorldProperties instance used by this world
    */
   getWorldProperties(): WorldProperties;
 }
@@ -357,8 +357,8 @@ export interface SmokeWorld<T = unknown> extends IWorld<T> {
  * for sharing data between test steps.
  *
  * @template T - The type parameter for the world, used to extend the Cucumber World
- * @extends {CucumberWorld<T>}
- * @implements {SmokeWorld<T>}
+ * @extends {CucumberWorld<T>} - Extends the Cucumber World class
+ * @implements {SmokeWorld<T>} - Implements the SmokeWorld interface
  */
 export class SmokeWorldImpl<T = unknown> extends CucumberWorld<T> implements SmokeWorld<T> {
   // Registry for all service clients
@@ -377,11 +377,11 @@ export class SmokeWorldImpl<T = unknown> extends CucumberWorld<T> implements Smo
   /**
    * Create a new SmokeWorld instance
    *
-   * @param options - Cucumber World constructor options
-   * @param config - Optional initial configuration
-   * @param injectedRegistry - Optional client registry for dependency injection
-   * @param injectedFactory - Optional client factory for dependency injection
-   * @param injectedConfigProvider - Optional configuration provider for dependency injection
+   * @param {IWorldOptions} options - Cucumber World constructor options
+   * @param {Record<string, unknown>} [config] - Optional initial configuration
+   * @param {ClientRegistry} [injectedRegistry] - Optional client registry for dependency injection
+   * @param {ClientFactory} [injectedFactory] - Optional client factory for dependency injection
+   * @param {ConfigurationProvider} [injectedConfigProvider] - Optional configuration provider for dependency injection
    */
   constructor(
     options: IWorldOptions,
@@ -440,8 +440,8 @@ export class SmokeWorldImpl<T = unknown> extends CucumberWorld<T> implements Smo
   /**
    * Register a client with the world
    *
-   * @param name - The client name
-   * @param client - The client instance
+   * @param {string} name - The client name
+   * @param {ServiceClient} client - The client instance
    */
   registerClient(name: string, client: ServiceClient): void {
     this.clients.set(name, client);
@@ -450,8 +450,9 @@ export class SmokeWorldImpl<T = unknown> extends CucumberWorld<T> implements Smo
   /**
    * Get a client by name
    *
-   * @param name - The client name
-   * @return The client instance
+   * @template T - The type of the client
+   * @param {string} name - The client name
+   * @returns {T} The client instance
    * @throws {SmokerError} if the client does not exist
    */
   getClient<T extends ServiceClient = ServiceClient>(name: string): T {
@@ -470,8 +471,8 @@ export class SmokeWorldImpl<T = unknown> extends CucumberWorld<T> implements Smo
   /**
    * Check if a client exists
    *
-   * @param name - The client name
-   * @return True if the client exists, false otherwise
+   * @param {string} name - The client name
+   * @returns {boolean} True if the client exists, false otherwise
    */
   hasClient(name: string): boolean {
     return this.clients.has(name);
@@ -480,7 +481,7 @@ export class SmokeWorldImpl<T = unknown> extends CucumberWorld<T> implements Smo
   /**
    * Get the client registry
    *
-   * @return The client registry instance
+   * @returns {ClientRegistry} The client registry instance
    */
   getClientRegistry(): ClientRegistry {
     return this.clientRegistry;
@@ -489,7 +490,7 @@ export class SmokeWorldImpl<T = unknown> extends CucumberWorld<T> implements Smo
   /**
    * Get the client factory
    *
-   * @return The client factory instance
+   * @returns {ClientFactory} The client factory instance
    */
   getClientFactory(): ClientFactory {
     return this.clientFactory;
@@ -498,9 +499,10 @@ export class SmokeWorldImpl<T = unknown> extends CucumberWorld<T> implements Smo
   /**
    * Create a new client instance
    *
-   * @param clientType - The client type (enum or string)
-   * @param id - Optional client identifier
-   * @return The created client
+   * @param {ClientType | string} clientType - The client type (enum or string)
+   * @param {string} [id] - Optional client identifier
+   * @returns {ServiceClient} The created client
+   * @throws {ValidationError} if client type is unknown or configuration is invalid
    */
   createClient(clientType: ClientType | string, id?: string): ServiceClient {
     return this.clientFactory.createClient(clientType, id);
@@ -509,10 +511,11 @@ export class SmokeWorldImpl<T = unknown> extends CucumberWorld<T> implements Smo
   /**
    * Register a client configuration and create the client
    *
-   * @param clientType - The client type (enum or string)
-   * @param config - The client configuration
-   * @param id - Optional client identifier
-   * @return The created client
+   * @param {ClientType | string} clientType - The client type (enum or string)
+   * @param {ClientConfig} config - The client configuration
+   * @param {string} [id] - Optional client identifier
+   * @returns {ServiceClient} The created client
+   * @throws {ValidationError} if client type is unknown or configuration is invalid
    */
   registerClientWithConfig(
     clientType: ClientType | string,
@@ -536,8 +539,8 @@ export class SmokeWorldImpl<T = unknown> extends CucumberWorld<T> implements Smo
   /**
    * Initialize all clients with configuration
    *
-   * @param config - Optional client-specific configuration
-   * @return Promise that resolves when all clients are initialized
+   * @param {Record<string, unknown>} [config] - Optional client-specific configuration
+   * @returns {Promise<void>} Promise that resolves when all clients are initialized
    */
   async initializeClients(config?: Record<string, unknown>): Promise<void> {
     if (config) {
@@ -555,7 +558,7 @@ export class SmokeWorldImpl<T = unknown> extends CucumberWorld<T> implements Smo
   /**
    * Reset all clients to their initial state
    *
-   * @return Promise that resolves when all clients are reset
+   * @returns {Promise<void>} Promise that resolves when all clients are reset
    */
   async resetClients(): Promise<void> {
     for (const client of this.clients.values()) {
@@ -566,7 +569,7 @@ export class SmokeWorldImpl<T = unknown> extends CucumberWorld<T> implements Smo
   /**
    * Destroy all clients and free up resources
    *
-   * @return Promise that resolves when all clients are destroyed
+   * @returns {Promise<void>} Promise that resolves when all clients are destroyed
    */
   async destroyClients(): Promise<void> {
     for (const client of this.clients.values()) {
@@ -581,8 +584,8 @@ export class SmokeWorldImpl<T = unknown> extends CucumberWorld<T> implements Smo
    * Stores a value in the property map with the specified key. The value can be
    * a primitive, array, or plain object.
    *
-   * @param key - The key to store the value under
-   * @param value - The value to store (primitive, array, or plain object)
+   * @param {string} key - The key to store the value under
+   * @param {unknown} value - The value to store (primitive, array, or plain object)
    * @throws {SmokerError} if the key is empty or contains invalid characters
    */
   setProperty(key: string, value: unknown): void {
@@ -594,10 +597,10 @@ export class SmokeWorldImpl<T = unknown> extends CucumberWorld<T> implements Smo
    * Get a property value by key
    *
    * @template T - The expected type of the property value
-   * @param key - The key of the property to retrieve
-   * @param defaultValue - The default value to return if the property doesn't exist
+   * @param {string} key - The key of the property to retrieve
+   * @param {T} [defaultValue] - Optional default value to return if the property doesn't exist
+   * @returns {T | undefined} The property value, or the default value if the property doesn't exist
    * @throws {SmokerError} if the key is empty or contains invalid characters
-   * @return The property value, or the default value if the property doesn't exist
    */
   getProperty<T = unknown>(key: string, defaultValue?: T): T | undefined {
     // Delegate to WorldProperties instance
@@ -607,9 +610,9 @@ export class SmokeWorldImpl<T = unknown> extends CucumberWorld<T> implements Smo
   /**
    * Check if a property exists with the specified key
    *
-   * @param key - The key of the property to check
+   * @param {string} key - The key of the property to check
    * @throws {SmokerError} if the key is empty or contains invalid characters
-   * @return True if the property exists, false otherwise
+   * @returns {boolean} True if the property exists, false otherwise
    */
   hasProperty(key: string): boolean {
     // Delegate to WorldProperties instance
@@ -619,7 +622,7 @@ export class SmokeWorldImpl<T = unknown> extends CucumberWorld<T> implements Smo
   /**
    * Delete a property with the specified key
    *
-   * @param key - The key of the property to delete
+   * @param {string} key - The key of the property to delete
    * @throws {SmokerError} if the key is empty or contains invalid characters
    * @throws {SmokerError} if the property doesn't exist
    */
@@ -641,8 +644,8 @@ export class SmokeWorldImpl<T = unknown> extends CucumberWorld<T> implements Smo
   /**
    * Resolve a configuration reference
    *
-   * @param input - The input string that may be a configuration reference
-   * @return The configuration value if input is a configuration reference, or the original string if not
+   * @param {string} input - The input string that may be a configuration reference
+   * @returns {Promise<string>} The configuration value if input is a configuration reference, or the original string if not
    * @throws {SmokerError} if input is a configuration reference but the configuration value is not found
    */
   async resolveConfigValue(input: string): Promise<string> {
@@ -698,8 +701,8 @@ export class SmokeWorldImpl<T = unknown> extends CucumberWorld<T> implements Smo
   /**
    * Helper method to get a configuration value
    *
-   * @param configPath - Path to the configuration value
-   * @returns The configuration value as a string
+   * @param {string} configPath - Path to the configuration value
+   * @returns {Promise<string>} The configuration value as a string
    * @throws {SmokerError} if the configuration value is not found
    */
   private async getConfigValue(configPath: string): Promise<string> {
@@ -735,8 +738,8 @@ export class SmokeWorldImpl<T = unknown> extends CucumberWorld<T> implements Smo
   /**
    * Check if a string is a property reference
    *
-   * @param input - The input string to check
-   * @return True if the string is a property reference, false otherwise
+   * @param {string} input - The input string to check
+   * @returns {boolean} True if the string is a property reference, false otherwise
    */
   isPropertyReference(input: string): boolean {
     return this.worldProperties.isPropertyReference(input);
@@ -745,7 +748,7 @@ export class SmokeWorldImpl<T = unknown> extends CucumberWorld<T> implements Smo
   /**
    * Get the WorldProperties instance
    *
-   * @return The WorldProperties instance used by this world
+   * @returns {WorldProperties} The WorldProperties instance used by this world
    */
   getWorldProperties(): WorldProperties {
     return this.worldProperties;
@@ -754,8 +757,8 @@ export class SmokeWorldImpl<T = unknown> extends CucumberWorld<T> implements Smo
   /**
    * Resolve property references in a string
    *
-   * @param input - The input string that may be a property reference
-   * @return The property value if input is a property reference, or the original string if not
+   * @param {string} input - The input string that may be a property reference
+   * @returns {string} The property value if input is a property reference, or the original string if not
    * @throws {SmokerError} if input is a property reference but the property is not found
    */
   resolvePropertyValue(input: string): string {
@@ -766,8 +769,8 @@ export class SmokeWorldImpl<T = unknown> extends CucumberWorld<T> implements Smo
   /**
    * Resolve configuration and property references in a step parameter
    *
-   * @param param - The parameter string that may contain configuration or property references
-   * @return The parameter with all references resolved, or the original parameter if it contains no references
+   * @param {string} param - The parameter string that may contain configuration or property references
+   * @returns {Promise<string>} The parameter with all references resolved, or the original parameter if it contains no references
    * @throws {SmokerError} if a referenced configuration or property value is not found
    */
   async resolveStepParameter(param: string): Promise<string> {
@@ -793,8 +796,8 @@ export class SmokeWorldImpl<T = unknown> extends CucumberWorld<T> implements Smo
    * syntax. This is useful for parameterizing tests with values that may be
    * determined at runtime.
    *
-   * @param param - The parameter value to resolve
-   * @return Promise that resolves to the resolved parameter value
+   * @param {unknown} param - The parameter value to resolve
+   * @returns {Promise<unknown>} Promise that resolves to the resolved parameter value
    * @throws {SmokerError} if a referenced configuration or property value is not found
    */
   async resolveParam(param: unknown): Promise<unknown> {
@@ -833,7 +836,13 @@ export class SmokeWorldImpl<T = unknown> extends CucumberWorld<T> implements Smo
 
 /**
  * Build a client key from type and optional id.
- * Example: clientKey(ClientType.REST, "api") => "rest:api"
+ *
+ * @param {ClientType | string} clientType - The type of the client
+ * @param {string} [id] - Optional id of the client
+ * @returns {string} The client key
+ *
+ * @example
+ * clientKey(ClientType.REST, "api") => "rest:api"
  */
 export function clientKey(clientType: ClientType | string, id?: string): string {
   return id ? `${clientType}:${id}` : `${clientType}`;

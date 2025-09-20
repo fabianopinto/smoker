@@ -1,5 +1,5 @@
 /**
- * Client Factory Module
+ * @fileoverview Client Factory Module
  *
  * This module provides a factory for creating and initializing service clients
  * based on configurations stored in the client registry. It implements the
@@ -45,7 +45,7 @@ export class ClientFactory {
    * Initializes a new client factory with the provided client registry.
    * The registry is used to retrieve configurations when creating clients.
    *
-   * @param registry - The client registry containing configurations
+   * @param {ClientRegistry} registry - The client registry containing configurations
    *
    * @example
    * // Create a new client factory with the global registry
@@ -67,10 +67,10 @@ export class ClientFactory {
    * attempt to retrieve a configuration specific to that ID, falling back to the
    * default configuration for the client type if not found.
    *
-   * @param clientType - The client type (enum or string)
-   * @param id - Optional client identifier
-   * @return The created and configured service client instance
-   * @throws {SmokerError} if client type is unknown or configuration is invalid
+   * @param {ClientType | string} clientType - The client type (enum or string)
+   * @param {string} [id] - Optional client identifier
+   * @returns {ServiceClient} The created and configured service client instance
+   * @throws {ValidationError} if client type is unknown or configuration is invalid
    *
    * @example
    * // Create a default REST client
@@ -98,12 +98,11 @@ export class ClientFactory {
    * the client type. It creates the appropriate client implementation and
    * passes the configuration and client ID to the constructor.
    *
-   * @param type - The client type
-   * @param clientId - The client identifier
-   * @param config - The client configuration
-   * @return The created service client instance
-   * @throws {SmokerError} if client type is unknown or not supported
-   * @private
+   * @param {string | ClientType} type - The client type
+   * @param {string} clientId - The client identifier
+   * @param {Record<string, unknown>} config - The client configuration
+   * @returns {ServiceClient} The created service client instance
+   * @throws {ValidationError} if client type is unknown or not supported
    */
   private createClientInstance(
     type: string | ClientType,
@@ -144,10 +143,10 @@ export class ClientFactory {
    * initialization. This is a convenience method for cases where the client
    * needs to be ready for use immediately after creation.
    *
-   * @param clientType - The client type (enum or string)
-   * @param id - Optional client identifier
-   * @return Promise that resolves to the initialized client
-   * @throws {SmokerError} if client creation or initialization fails
+   * @param {ClientType | string} clientType - The client type (enum or string)
+   * @param {string} [id] - Optional client identifier
+   * @returns {Promise<ServiceClient>} Promise that resolves to the initialized client
+   * @throws {AppError} if client creation or initialization fails
    *
    * @example
    * // Create and initialize an S3 client

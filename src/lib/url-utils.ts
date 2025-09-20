@@ -1,5 +1,5 @@
 /**
- * URL and Query Utilities
+ * @fileoverview URL and Query Utilities
  *
  * Lightweight helpers for URL path joining and query string manipulation.
  *
@@ -16,9 +16,9 @@ export const UrlUtils = {
   /**
    * Joins base URL with path ensuring single slash.
    *
-   * @param base - Base URL or path
-   * @param path - Path to append
-   * @returns Joined URL string with a single slash between parts
+   * @param {string} base - Base URL or path
+   * @param {string} path - Path to append
+   * @returns {string} Joined URL string with a single slash between parts
    */
   join(base: string, path: string): string {
     if (!base) return path;
@@ -29,9 +29,9 @@ export const UrlUtils = {
   /**
    * Adds or replaces query parameters on a URL string.
    *
-   * @param url - URL or path string
-   * @param params - Key/value pairs to set as query parameters (undefined values are skipped)
-   * @returns URL with updated query string
+   * @param {string} url - URL or path string
+   * @param {Record<string, string | number | boolean | undefined>} params - Key/value pairs to set as query parameters (undefined values are skipped)
+   * @returns {string} URL with updated query string
    */
   withQuery(url: string, params: Record<string, string | number | boolean | undefined>): string {
     const u = new URL(url, "resolve://");
@@ -48,8 +48,8 @@ export const UrlUtils = {
   /**
    * Converts an object to a query string without leading '?'.
    *
-   * @param params - Key/value pairs (undefined values are skipped)
-   * @returns Encoded query string (without leading '?')
+   * @param {Record<string, string | number | boolean | undefined>} params - Key/value pairs (undefined values are skipped)
+   * @returns {string} Encoded query string (without leading '?')
    */
   toQueryString(params: Record<string, string | number | boolean | undefined>): string {
     const usp = new URLSearchParams();

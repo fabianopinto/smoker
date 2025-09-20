@@ -1,5 +1,5 @@
 /**
- * Environment Variable Utilities
+ * @fileoverview Environment Variable Utilities
  *
  * Provides helpers to read and parse environment variables safely with sensible defaults.
  * These utilities avoid throwing for optional vars and provide typed coercion helpers for
@@ -23,9 +23,9 @@ export const EnvUtils = {
   /**
    * Gets an env var or returns a default. Trims whitespace.
    *
-   * @param name - Environment variable name
-   * @param defaultValue - Value to use when the variable is unset or empty
-   * @returns The trimmed env var value, or defaultValue when missing/empty
+   * @param {string} name - Environment variable name
+   * @param {string} defaultValue - Value to use when the variable is unset or empty
+   * @returns {string | undefined} The trimmed env var value, or defaultValue when missing/empty
    *
    * @example
    * // LOG_LEVEL or "info" if not set
@@ -43,8 +43,8 @@ export const EnvUtils = {
    * Throws a SmokerError with code "ENV_MISSING" including the variable name
    * in details when the variable is not present or empty.
    *
-   * @param name - Environment variable name (required)
-   * @returns The trimmed env var value
+   * @param {string} name - Environment variable name (required)
+   * @returns {string} The trimmed env var value
    * @throws {SmokerError} When the variable is missing or empty
    *
    * @example
@@ -69,9 +69,9 @@ export const EnvUtils = {
    *
    * Accepts: true/false/1/0/yes/no/y/n (case-insensitive). Returns defaultValue when unset or unrecognized.
    *
-   * @param name - Environment variable name
-   * @param defaultValue - Fallback when variable is missing or unparsable (default: false)
-   * @returns Parsed boolean value
+   * @param {string} name - Environment variable name
+   * @param {boolean} defaultValue - Fallback when variable is missing or unparsable (default: false)
+   * @returns {boolean} Parsed boolean value
    *
    * @example
    * const debug = EnvUtils.getBoolEnv("DEBUG", false);
@@ -90,9 +90,9 @@ export const EnvUtils = {
    *
    * Returns defaultValue when unset or not a finite number.
    *
-   * @param name - Environment variable name
-   * @param defaultValue - Fallback when missing or invalid (default: 0)
-   * @returns Parsed number or defaultValue
+   * @param {string} name - Environment variable name
+   * @param {number} defaultValue - Fallback when missing or invalid (default: 0)
+   * @returns {number} Parsed number value
    *
    * @example
    * const timeoutMs = EnvUtils.getNumberEnv("HTTP_TIMEOUT_MS", 5000);
@@ -107,9 +107,10 @@ export const EnvUtils = {
   /**
    * Parses JSON env var safely; returns default when invalid or missing.
    *
-   * @param name - Environment variable name
-   * @param defaultValue - Fallback when missing or invalid
-   * @returns Parsed JSON value typed as T, or defaultValue when parsing fails
+   * @template T - Type of the JSON value to parse
+   * @param {string} name - Environment variable name
+   * @param {T} [defaultValue] - Fallback when missing or invalid
+   * @returns {T | undefined} Parsed JSON value typed as T, or defaultValue when parsing fails
    *
    * @example
    * type Cfg = { feature: boolean };

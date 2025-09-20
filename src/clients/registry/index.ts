@@ -1,5 +1,5 @@
 /**
- * Client Registry Module
+ * @packageDocumentation Client Registry Module
  *
  * This barrel file exports all registry-related implementations and interfaces
  * for centralized access to client configuration and factory functionality.

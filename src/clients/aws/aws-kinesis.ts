@@ -1,5 +1,5 @@
 /**
- * Kinesis Client Module
+ * @fileoverview AWS Kinesis Client Module
  *
  * This module provides interfaces and implementations for AWS Kinesis service clients.
  * It defines the contract for Kinesis operations such as reading and writing records
@@ -26,10 +26,10 @@ import { BaseServiceClient, type ServiceClient } from "../core";
  * Represents a record retrieved from a Kinesis stream. Contains the data payload,
  * partition key, sequence number, and optional timestamp information.
  *
- * @property data - The record data as a string
- * @property partitionKey - The partition key used to determine the shard
- * @property sequenceNumber - The unique identifier for the record within the stream
- * @property approximateArrivalTimestamp - Optional timestamp when the record was inserted
+ * @property {string} data - The record data as a string
+ * @property {string} partitionKey - The partition key used to determine the shard
+ * @property {string} sequenceNumber - The unique identifier for the record within the stream
+ * @property {Date} [approximateArrivalTimestamp] - Optional timestamp when the record was inserted
  */
 export interface KinesisRecord {
   data: string;
@@ -51,8 +51,7 @@ export interface KinesisRecord {
  * for waiting for specific records to appear in the stream. Implementations handle
  * the details of AWS SDK interactions while providing a simplified and consistent API.
  *
- * @extends {ServiceClient}
- * @see {ServiceClient} The base service client interface
+ * @extends {ServiceClient} The base service client interface
  */
 export interface KinesisServiceClient extends ServiceClient {
   /**
@@ -61,10 +60,11 @@ export interface KinesisServiceClient extends ServiceClient {
    * Writes a single record to the Kinesis stream with the specified data and
    * partition key. The partition key determines which shard the record is routed to.
    *
-   * @param data - The data to write as string or Buffer
-   * @param partitionKey - The partition key to determine the shard
-   * @return Promise resolving to the sequence number of the record
-   * @throws {SmokerError} if writing fails or the stream doesn't exist
+   * @param {string | Buffer} data - The data to write as string or Buffer
+   * @param {string} partitionKey - The partition key to determine the shard
+   * @returns {Promise<string>} Promise resolving to the sequence number of the record
+   * @throws {ValidationError} if inputs are invalid
+   * @throws {AwsError} if writing fails or the stream doesn't exist
    *
    * @example
    * // Write a JSON record to the stream
@@ -81,10 +81,11 @@ export interface KinesisServiceClient extends ServiceClient {
    * The shard iterator points to a specific position in the shard from which to
    * start reading records.
    *
-   * @param shardIterator - The shard iterator pointing to the position in the shard
-   * @param limit - Maximum number of records to retrieve (default: 10)
-   * @return Promise resolving to an array of Kinesis records
-   * @throws {SmokerError} if reading fails or the shard iterator is invalid
+   * @param {string} shardIterator - The shard iterator pointing to the position in the shard
+   * @param {number} [limit=10] - Maximum number of records to retrieve (default: 10)
+   * @returns {Promise<KinesisRecord[]>} Promise resolving to an array of Kinesis records
+   * @throws {ValidationError} if shard iterator is invalid
+   * @throws {AwsError} if reading fails
    *
    * @example
    * // Get up to 20 records from a shard
@@ -102,29 +103,31 @@ export interface KinesisServiceClient extends ServiceClient {
   /**
    * Get a shard iterator for the Kinesis stream
    *
-   * @param shardId - The shard ID
-   * @param iteratorType - The iterator type (default: LATEST)
-   * @param sequence - Optional sequence number
-   * @return Shard iterator
-   * @throws {SmokerError} if iterator cannot be obtained
+   * @param {string} shardId - The shard ID
+   * @param {string} [iteratorType] - The iterator type (default: "LATEST")
+   * @param {string} [sequence] - Optional sequence number
+   * @returns {Promise<string>} Promise resolving to the shard iterator
+   * @throws {ValidationError} if shard id is invalid
+   * @throws {AwsError} if iterator cannot be obtained
    */
   getShardIterator(shardId: string, iteratorType?: string, sequence?: string): Promise<string>;
 
   /**
    * List shards in the Kinesis stream
    *
-   * @return Array of shard IDs
-   * @throws {SmokerError} if listing fails
+   * @returns {Promise<string[]>} Promise resolving to an array of shard IDs
+   * @throws {AwsError} if listing fails
    */
   listShards(): Promise<string[]>;
 
   /**
    * Wait for records with a specific partition key
    *
-   * @param partitionKey - The partition key to wait for
-   * @param timeoutMs - Timeout in milliseconds (default: 30000)
-   * @return Array of records that match the partition key
-   * @throws {SmokerError} if waiting fails
+   * @param {string} partitionKey - The partition key to wait for
+   * @param {number} [timeoutMs] - Timeout in milliseconds (default: 30000)
+   * @returns {Promise<KinesisRecord[]>} Promise resolving to an array of records that match the partition key
+   * @throws {ValidationError} if partitionKey is invalid
+   * @throws {AwsError} if waiting fails
    */
   waitForRecords(partitionKey: string, timeoutMs?: number): Promise<KinesisRecord[]>;
 }
@@ -142,8 +145,8 @@ export interface KinesisServiceClient extends ServiceClient {
  * formatting AWS SDK responses into application-friendly structures, and
  * waiting for records with configurable timeouts and retry mechanisms.
  *
- * @implements {KinesisServiceClient}
- * @extends {BaseServiceClient}
+ * @extends {BaseServiceClient} The base service client class
+ * @implements {KinesisServiceClient} The interface for Kinesis service client
  */
 export class KinesisClient extends BaseServiceClient implements KinesisServiceClient {
   private client: AwsKinesisClient | null = null;
@@ -152,8 +155,8 @@ export class KinesisClient extends BaseServiceClient implements KinesisServiceCl
   /**
    * Create a new Kinesis client
    *
-   * @param clientId - Client identifier (defaults to "KinesisClient")
-   * @param config - Optional client configuration with properties:
+   * @param {string} [clientId="KinesisClient"] - Client identifier (defaults to "KinesisClient")
+   * @param {Record<string, unknown>} [config] - Optional client configuration with properties:
    *   - streamName: (required) Name of the Kinesis stream
    *   - region: AWS region (default: "us-east-1")
    *   - accessKeyId: AWS access key ID
@@ -167,7 +170,8 @@ export class KinesisClient extends BaseServiceClient implements KinesisServiceCl
   /**
    * Initialize the client with AWS configuration
    *
-   * @throws {SmokerError} if streamName is not provided or client creation fails
+   * @throws {ValidationError} if streamName is not provided
+   * @throws {AwsError} if client creation fails
    */
   protected async initializeClient(): Promise<void> {
     try {
@@ -213,10 +217,11 @@ export class KinesisClient extends BaseServiceClient implements KinesisServiceCl
   /**
    * Put a record into the Kinesis stream
    *
-   * @param data - The data to write as string or Buffer
-   * @param partitionKey - The partition key
-   * @return Sequence number of the record
-   * @throws {SmokerError} if writing fails or client is not initialized
+   * @param {string | Buffer} data - The data to write as string or Buffer
+   * @param {string} partitionKey - The partition key
+   * @returns {Promise<string>} Sequence number of the record
+   * @throws {ValidationError} if inputs are invalid
+   * @throws {AwsError} if writing fails or client is not initialized
    */
   async putRecord(data: string | Buffer, partitionKey: string): Promise<string> {
     this.ensureInitialized();
@@ -273,10 +278,11 @@ export class KinesisClient extends BaseServiceClient implements KinesisServiceCl
   /**
    * Get records from the Kinesis stream
    *
-   * @param shardIterator - The shard iterator
-   * @param limit - Maximum number of records to retrieve (default: 10)
-   * @return Array of records
-   * @throws {SmokerError} if retrieval fails or client is not initialized
+   * @param {string} shardIterator - The shard iterator
+   * @param {number} [limit] - Maximum number of records to retrieve (default: 10)
+   * @returns {Promise<KinesisRecord[]>} Array of records
+   * @throws {ValidationError} if shard iterator is invalid
+   * @throws {AwsError} if retrieval fails or client is not initialized
    */
   async getRecords(shardIterator: string, limit = 10): Promise<KinesisRecord[]> {
     this.ensureInitialized();
@@ -328,11 +334,12 @@ export class KinesisClient extends BaseServiceClient implements KinesisServiceCl
   /**
    * Get a shard iterator for the Kinesis stream
    *
-   * @param shardId - The shard ID
-   * @param iteratorType - The iterator type (default: LATEST)
-   * @param sequence - Optional sequence number
-   * @return Shard iterator
-   * @throws {SmokerError} if iterator cannot be obtained or client is not initialized
+   * @param {string} shardId - The shard ID
+   * @param {string} [iteratorType] - The iterator type (default: "LATEST")
+   * @param {string} [sequence] - Optional sequence number
+   * @returns {Promise<string>} Shard iterator
+   * @throws {ValidationError} if shard id is invalid
+   * @throws {AwsError} if iterator cannot be obtained or client is not initialized
    */
   async getShardIterator(
     shardId: string,
@@ -408,8 +415,8 @@ export class KinesisClient extends BaseServiceClient implements KinesisServiceCl
   /**
    * List shards in the Kinesis stream
    *
-   * @return Array of shard IDs
-   * @throws {SmokerError} if listing fails or client is not initialized
+   * @returns {Promise<string[]>} Array of shard IDs
+   * @throws {AwsError} if listing fails or client is not initialized
    */
   async listShards(): Promise<string[]> {
     this.ensureInitialized();
@@ -450,8 +457,8 @@ export class KinesisClient extends BaseServiceClient implements KinesisServiceCl
   /**
    * Format AWS Kinesis records into the application's record format
    *
-   * @param awsRecords - Raw records from AWS Kinesis
-   * @return Formatted records
+   * @param {Array} awsRecords - Raw records from AWS Kinesis
+   * @returns {Array} Formatted records
    */
   private formatRecords(
     awsRecords: {
@@ -472,11 +479,11 @@ export class KinesisClient extends BaseServiceClient implements KinesisServiceCl
   /**
    * Poll for records with a specific partition key
    *
-   * @param shardIterator - Iterator for the shard to poll
-   * @param partitionKey - Partition key to filter records by
-   * @param endTime - Timestamp when polling should stop (milliseconds)
-   * @param pollInterval - Time between polling attempts (milliseconds)
-   * @return Matching records or empty array if timeout reached
+   * @param {string} shardIterator - Iterator for the shard to poll
+   * @param {string} partitionKey - Partition key to filter records by
+   * @param {number} endTime - Timestamp when polling should stop (milliseconds)
+   * @param {number} pollInterval - Time between polling attempts (milliseconds)
+   * @returns {Promise<KinesisRecord[]>} Matching records or empty array if timeout reached
    */
   private async pollForRecords(
     shardIterator: string,
@@ -584,7 +591,7 @@ export class KinesisClient extends BaseServiceClient implements KinesisServiceCl
 /**
  * Get the current timestamp in milliseconds
  *
- * @return Current time in milliseconds since epoch
+ * @returns {number} Current time in milliseconds since epoch
  */
 function getCurrentTime(): number {
   return Date.now();
@@ -593,11 +600,11 @@ function getCurrentTime(): number {
 /**
  * Create a delay for the specified duration
  *
- * Creates a promise that resolves after the specified time,
+ * Creates a Promise that resolves after the specified time,
  * useful for implementing polling mechanisms and rate limiting.
  *
- * @param ms - Milliseconds to delay
- * @return Promise that resolves after the specified delay
+ * @param {number} ms - Milliseconds to delay
+ * @returns {Promise<void>} Promise that resolves after the specified delay
  */
 export async function delay(ms: number): Promise<void> {
   return new Promise((resolve) => setTimeout(resolve, ms));

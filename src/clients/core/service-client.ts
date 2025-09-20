@@ -1,5 +1,5 @@
 /**
- * Core Service Client Module
+ * @fileoverview Core Service Client Module
  *
  * This module provides the foundation for all service clients in the smoke testing framework.
  * It defines the base ServiceClient interface that all client implementations must extend,
@@ -47,7 +47,7 @@ export interface ServiceClient {
    * Initialize the client
    * This should be called before using any client operations
    *
-   * @return Promise that resolves when the client is initialized
+   * @returns {Promise<void>} Promise that resolves when the client is initialized
    */
   init(): Promise<void>;
 
@@ -55,7 +55,7 @@ export interface ServiceClient {
    * Reset the client to its initial state
    * This should clear any stored state but keep the client initialized
    *
-   * @return Promise that resolves when the client is reset
+   * @returns {Promise<void>} Promise that resolves when the client is reset
    */
   reset(): Promise<void>;
 
@@ -63,21 +63,21 @@ export interface ServiceClient {
    * Destroy the client and free up any resources
    * The client should not be used after calling this method
    *
-   * @return Promise that resolves when the client is destroyed
+   * @returns {Promise<void>} Promise that resolves when the client is destroyed
    */
   destroy(): Promise<void>;
 
   /**
    * Check if the client is initialized
    *
-   * @return True if the client is initialized, false otherwise
+   * @returns {boolean} True if the client is initialized, false otherwise
    */
   isInitialized(): boolean;
 
   /**
    * Get the name of the client
    *
-   * @return The client name
+   * @returns {string} The client name
    */
   getName(): string;
 
@@ -85,7 +85,7 @@ export interface ServiceClient {
    * Clean up any resources before destroying the client
    * This method is called by destroy() and should be overridden by implementations
    *
-   * @return Promise that resolves when cleanup is complete
+   * @returns {Promise<void>} Promise that resolves when cleanup is complete
    */
   cleanupClient(): Promise<void>;
 }
@@ -106,7 +106,7 @@ export interface ServiceClient {
  * Specific client implementations should extend this class and implement the abstract
  * initializeClient() method to provide their service-specific initialization logic.
  *
- * @implements {ServiceClient}
+ * @extends {ServiceClient} The base service client interface
  */
 export abstract class BaseServiceClient implements ServiceClient {
   /** Client name identifier */
@@ -121,8 +121,8 @@ export abstract class BaseServiceClient implements ServiceClient {
   /**
    * Create a new client instance
    *
-   * @param name - The client name identifier
-   * @param config - Client-specific configuration object
+   * @param {string} name - The client name identifier
+   * @param {Record<string, unknown>} [config] - Client-specific configuration object
    */
   constructor(name: string, config: Record<string, unknown> = {}) {
     this.name = name;
@@ -132,7 +132,7 @@ export abstract class BaseServiceClient implements ServiceClient {
   /**
    * Get the client name identifier
    *
-   * @return The client name
+   * @returns {string} The client name
    */
   getName(): string {
     return this.name;
@@ -141,8 +141,8 @@ export abstract class BaseServiceClient implements ServiceClient {
   /**
    * Initialize the client with provided configuration
    *
-   * @return Promise that resolves when initialization is complete
-   * @throws {SmokerError} if initialization fails
+   * @returns {Promise<void>} Promise that resolves when initialization is complete
+   * @throws {AppError} if initialization fails
    */
   init(): Promise<void> {
     // Skip initialization if the client is already initialized
@@ -166,15 +166,14 @@ export abstract class BaseServiceClient implements ServiceClient {
    * Initialize client-specific functionality
    * This abstract method must be implemented by each client subclass
    *
-   * @return Promise that resolves when client-specific initialization is complete
-   * @throws {SmokerError} if client-specific initialization fails
+   * @throws {AppError} if client-specific initialization fails
    */
   protected abstract initializeClient(): Promise<void>;
 
   /**
    * Check if the client is initialized
    *
-   * @return True if the client has been successfully initialized, false otherwise
+   * @returns {boolean} True if the client has been successfully initialized, false otherwise
    */
   isInitialized(): boolean {
     return this.initialized;
@@ -184,8 +183,8 @@ export abstract class BaseServiceClient implements ServiceClient {
    * Reset the client to its initial state
    * Destroys the current client instance and reinitializes it
    *
-   * @return Promise that resolves when reset is complete
-   * @throws {SmokerError} if reset fails with the underlying error message
+   * @returns {Promise<void>} Promise that resolves when reset is complete
+   * @throws {AppError} if reset fails with the underlying error message
    */
   async reset(): Promise<void> {
     // If not initialized, nothing to reset
@@ -255,8 +254,8 @@ export abstract class BaseServiceClient implements ServiceClient {
    * Clean up client-specific resources
    * This method can be overridden by client subclasses if cleanup is required
    *
-   * @return Promise that resolves when client-specific cleanup is complete
-   * @throws {SmokerError} if cleanup fails
+   * @returns {Promise<void>} Promise that resolves when client-specific cleanup is complete
+   * @throws {AppError} if cleanup fails
    */
   async cleanupClient(): Promise<void> {
     // Default implementation does nothing
@@ -265,9 +264,10 @@ export abstract class BaseServiceClient implements ServiceClient {
   /**
    * Get a configuration value
    *
-   * @param key - The configuration key
-   * @param defaultValue - Default value if key is not found
-   * @return Configuration value
+   * @template T - Type of the configuration value
+   * @param {string} key - The configuration key
+   * @param {T} defaultValue - Default value if key is not found
+   * @returns {T} Configuration value
    */
   protected getConfig<T>(key: string, defaultValue: T): T {
     return key in this.config ? (this.config[key] as T) : defaultValue;
@@ -276,7 +276,7 @@ export abstract class BaseServiceClient implements ServiceClient {
   /**
    * Ensure the client is initialized
    *
-   * @throws {SmokerError} if client is not initialized
+   * @throws {ValidationError} if client is not initialized
    */
   protected ensureInitialized(): void {
     if (!this.isInitialized()) {
@@ -292,8 +292,9 @@ export abstract class BaseServiceClient implements ServiceClient {
   /**
    * Assert that the client is initialized
    *
-   * @param client - The client to check
-   * @throws {SmokerError} if client is not initialized
+   * @template T - Type of the client
+   * @param {T | null} client - The client to check
+   * @throws {ValidationError} if client is not initialized
    */
   protected assertNotNull<T>(client: T | null): asserts client is NonNullable<T> {
     if (client === null || client === undefined) {

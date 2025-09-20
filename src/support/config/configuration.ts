@@ -1,5 +1,5 @@
 /**
- * Configuration Module
+ * @fileoverview Configuration Module
  *
  * This module provides a comprehensive configuration management system based on a factory pattern.
  * It defines the core interfaces, types, and classes for working with application configuration.
@@ -34,6 +34,14 @@ const logger = new BaseLogger({ name: "smoker:configuration" });
  * resolution of external references like SSM parameters and S3 objects.
  */
 export interface ConfigurationProvider {
+  /**
+   * Retrieves a configuration value by key path.
+   *
+   * @template T - Type of the configuration value
+   * @param {string} keyPath - Path to the configuration value
+   * @param {T} [defaultValue] - Optional default value if the configuration value is not found
+   * @returns {Promise<T | undefined>} Promise resolving to the configuration value or undefined if not found
+   */
   getValue<T extends ConfigValue>(keyPath: string, defaultValue?: T): Promise<T | undefined>;
 }
 
@@ -42,6 +50,8 @@ export interface ConfigurationProvider {
  *
  * Bridges consumers to the global Configuration instance. Delegates value retrieval
  * to Configuration.getInstance().getValue with proper typing.
+ *
+ * @implements {ConfigurationProvider} - Implements the ConfigurationProvider interface
  */
 export class DefaultConfigurationProvider implements ConfigurationProvider {
   async getValue<T extends ConfigValue>(keyPath: string, defaultValue?: T): Promise<T | undefined> {
@@ -103,15 +113,9 @@ export type SmokeConfig = Record<string, ConfigValue>;
  *
  * The configuration is immutable after creation and can only be built
  * using the ConfigurationFactory.
- *
- * @implements {ConfigurationProvider}
  */
 export class Configuration {
-  /**
-   * Singleton instance of the configuration
-   *
-   * @private
-   */
+  /** Singleton instance of the configuration */
   private static instance: Configuration | null = null;
 
   /**
@@ -120,8 +124,8 @@ export class Configuration {
    * If the instance doesn't exist yet, it will throw an error as the configuration
    * must be explicitly initialized before use with initializeGlobalInstance.
    *
-   * @return The global configuration instance
-   * @throws {SmokerError} if the configuration has not been initialized
+   * @returns {Configuration} The global configuration instance
+   * @throws {AppError} if the configuration has not been initialized
    *
    * @example
    * // Get the global configuration and access a value
@@ -146,7 +150,7 @@ export class Configuration {
    * Sets the global configuration instance to the provided configuration or clears it.
    * This is useful for testing scenarios or when reinitializing the application.
    *
-   * @param newInstance - Optional new configuration instance to set as global
+   * @param {Configuration} [newInstance] - Optional new configuration instance to set as global
    *
    * @example
    * // Reset the global configuration
@@ -170,7 +174,7 @@ export class Configuration {
    * If a global configuration already exists, it will be overwritten with a warning.
    * This method is part of the factory pattern implementation for configuration management.
    *
-   * @param config - The configuration instance to set as global
+   * @param {Configuration} config - The configuration instance to set as global
    *
    * @example
    * // Create a configuration and set it as global
@@ -191,7 +195,7 @@ export class Configuration {
   /**
    * Create a new configuration instance with the provided config object
    *
-   * @param config - The configuration object
+   * @param {SmokeConfig} config - The configuration object
    */
   constructor(config: SmokeConfig) {
     this.config = { ...config };
@@ -200,7 +204,7 @@ export class Configuration {
   /**
    * Get the current configuration
    *
-   * @return A copy of the current configuration
+   * @returns {SmokeConfig} A copy of the current configuration
    */
   public getConfig(): SmokeConfig {
     return { ...this.config };
@@ -216,9 +220,9 @@ export class Configuration {
    *   - Other file types will be returned as strings in the configuration value
    *
    * @template T - The type of the configuration value to retrieve
-   * @param keyPath - Dot-separated path to the configuration value (e.g. "aws.region")
-   * @param defaultValue - Default value to return if the key is not found or resolution fails
-   * @return Promise resolving to the configuration value at the specified key path
+   * @param {string} keyPath - Dot-separated path to the configuration value (e.g. "aws.region")
+   * @param {T} [defaultValue] - Optional default value to return if the key is not found or resolution fails
+   * @returns {Promise<T | undefined>} Promise resolving to the configuration value at the specified key path
    *
    * @example
    * // Retrieve a regular configuration value
@@ -278,9 +282,8 @@ export class Configuration {
   /**
    * Validate that a key path matches the required format [a-zA-Z0-9_$]+
    *
-   * @param keyPath - The key path to validate
-   * @return True if the key path is valid, false otherwise
-   * @private
+   * @param {string} keyPath - The key path to validate
+   * @returns {boolean} True if the key path is valid, alse otherwise
    */
   private isValidKeyPath(keyPath: string): boolean {
     // Each segment of the key path must match the pattern
@@ -291,10 +294,10 @@ export class Configuration {
   /**
    * Resolve an SSM parameter reference
    *
-   * @param reference - The SSM reference string (e.g., "ssm://path/to/parameter")
-   * @param defaultValue - Default value to return if resolution fails
-   * @return The resolved parameter value or the default value
-   * @private
+   * @template T - The type of the value to resolve
+   * @param {string} reference - The SSM reference string (e.g., "ssm://path/to/parameter")
+   * @param {T} [defaultValue] - Optional default value to return if resolution fails
+   * @returns {Promise<T | undefined>} The resolved parameter value or the default value
    */
   private async resolveSSMReference<T extends ConfigValue>(
     reference: string,
@@ -319,10 +322,10 @@ export class Configuration {
   /**
    * Resolve an S3 reference
    *
-   * @param reference - The S3 reference string (e.g., "s3://bucket/path/to/file.json")
-   * @param defaultValue - Default value to return if resolution fails
-   * @return The resolved S3 content (parsed if JSON, string otherwise) or the default value
-   * @private
+   * @template T - The type of the value to resolve
+   * @param {string} reference - The S3 reference string (e.g., "s3://bucket/path/to/file.json")
+   * @param {T} [defaultValue] - Optional default value to return if resolution fails
+   * @returns {Promise<T | undefined>} The resolved S3 content (parsed if JSON, string otherwise) or the default value
    */
   private async resolveS3Reference<T extends ConfigValue>(
     reference: string,
@@ -358,9 +361,9 @@ export class Configuration {
  * Helper function that creates a ConfigurationFactory, adds file paths,
  * and builds a Configuration object. Part of the factory pattern implementation.
  *
- * @param filePaths - Array of file paths or S3 URLs to load
- * @param setAsGlobal - Whether to set the configuration as global (default: true)
- * @return Promise resolving to a new Configuration object
+ * @param {string[]} filePaths - Array of file paths or S3 URLs to load
+ * @param {boolean} [setAsGlobal] - Whether to set the configuration as global (default: true)
+ * @returns {Promise<Configuration>} Promise resolving to a new Configuration object
  */
 export async function createConfiguration(
   filePaths: string[],
@@ -386,9 +389,9 @@ export async function createConfiguration(
  * Helper function that creates a ConfigurationFactory, adds a configuration object,
  * and builds a Configuration object. Part of the factory pattern implementation.
  *
- * @param configObject - Configuration object to use as the source
- * @param setAsGlobal - Whether to set the configuration as global (default: true)
- * @return Promise resolving to a new Configuration object
+ * @param {ConfigObject} configObject - Configuration object to use as the source
+ * @param {boolean} [setAsGlobal] - Whether to set the configuration as global (default: true)
+ * @returns {Promise<Configuration>} Promise resolving to a new Configuration object
  */
 export async function createConfigurationFromObject(
   configObject: ConfigObject,

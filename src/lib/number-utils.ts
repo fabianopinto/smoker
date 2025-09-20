@@ -1,5 +1,5 @@
 /**
- * Number Utilities
+ * @fileoverview Number Utilities
  *
  * Helper functions for clamping, range checks, and safe numeric parsing.
  *
@@ -17,10 +17,10 @@ export const NumberUtils = {
   /**
    * Clamps a number within the inclusive [min, max] range.
    *
-   * @param value - Input number
-   * @param min - Lower bound (inclusive)
-   * @param max - Upper bound (inclusive)
-   * @returns The clamped value within [min, max]
+   * @param {number} value - Input number
+   * @param {number} min - Lower bound (inclusive)
+   * @param {number} max - Upper bound (inclusive)
+   * @returns {number} The clamped value within [min, max]
    */
   clamp(value: number, min: number, max: number): number {
     if (min > max) [min, max] = [max, min];
@@ -30,10 +30,10 @@ export const NumberUtils = {
   /**
    * Returns true if value is within inclusive [min, max].
    *
-   * @param value - Input number
-   * @param min - Lower bound (inclusive)
-   * @param max - Upper bound (inclusive)
-   * @returns True when value ∈ [min, max]
+   * @param {number} value - Input number
+   * @param {number} min - Lower bound (inclusive)
+   * @param {number} max - Upper bound (inclusive)
+   * @returns {boolean} True when value ∈ [min, max]
    */
   inRange(value: number, min: number, max: number): boolean {
     if (min > max) [min, max] = [max, min];
@@ -43,10 +43,10 @@ export const NumberUtils = {
   /**
    * Parses integer safely with default fallback.
    *
-   * @param input - Value to parse (string or number-like)
-   * @param defaultValue - Fallback when parsing fails (default: 0)
-   * @param radix - Integer radix (default: 10)
-   * @returns Parsed integer or defaultValue
+   * @param {unknown} input - Value to parse (string or number-like)
+   * @param {number} defaultValue - Fallback when parsing fails (default: 0)
+   * @param {number} radix - Integer radix (default: 10)
+   * @returns {number} Parsed integer or defaultValue
    */
   safeParseInt(input: unknown, defaultValue = 0, radix = 10): number {
     const n = typeof input === "string" ? parseInt(input, radix) : Number(input);
@@ -56,9 +56,9 @@ export const NumberUtils = {
   /**
    * Parses float safely with default fallback.
    *
-   * @param input - Value to parse (string or number-like)
-   * @param defaultValue - Fallback when parsing fails (default: 0)
-   * @returns Parsed float or defaultValue
+   * @param {unknown} input - Value to parse (string or number-like)
+   * @param {number} defaultValue - Fallback when parsing fails (default: 0)
+   * @returns {number} Parsed float or defaultValue
    */
   safeParseFloat(input: unknown, defaultValue = 0): number {
     const n = typeof input === "string" ? parseFloat(input) : Number(input);

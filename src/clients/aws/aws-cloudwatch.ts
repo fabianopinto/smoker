@@ -1,5 +1,5 @@
 /**
- * CloudWatch Client Module
+ * @fileoverview AWS CloudWatch Client Module
  *
  * This module provides interfaces and implementations for AWS CloudWatch Logs service clients.
  * It defines the contract for CloudWatch operations such as searching logs, retrieving log events,
@@ -35,9 +35,9 @@ import { BaseServiceClient, type ServiceClient } from "../core";
  * returned by CloudWatch Logs API calls, making it easier to process and
  * display log data in applications.
  *
- * @property timestamp - Timestamp of the log event in milliseconds since epoch
- * @property message - The log message content
- * @property logStreamName - The name of the log stream containing this event
+ * @property {number} timestamp - Timestamp of the log event in milliseconds since epoch
+ * @property {string} message - The log message content
+ * @property {string} logStreamName - The name of the log stream containing this event
  */
 export interface CloudWatchLogEvent {
   timestamp: number;
@@ -58,8 +58,7 @@ export interface CloudWatchLogEvent {
  * Implementations handle the details of AWS SDK interactions while providing a
  * simplified and consistent API.
  *
- * @extends {ServiceClient}
- * @see {ServiceClient} The base service client interface
+ * @extends {ServiceClient} The base service client interface
  */
 export interface CloudWatchServiceClient extends ServiceClient {
   /**
@@ -68,12 +67,12 @@ export interface CloudWatchServiceClient extends ServiceClient {
    * Searches a specific log stream for log messages matching the given pattern.
    * Optionally filters results by time range if start and end times are provided.
    *
-   * @param logStreamName - The specific log stream to search within
-   * @param pattern - The search pattern/term to find
-   * @param startTime - Optional start time in milliseconds since epoch
-   * @param endTime - Optional end time in milliseconds since epoch
-   * @return Promise resolving to an array of matching log messages
-   * @throws {SmokerError} if the log stream doesn't exist or search fails
+   * @param {string} logStreamName - The specific log stream to search within
+   * @param {string} pattern - The search pattern/term to find
+   * @param {number} [startTime] - Optional start time in milliseconds since epoch
+   * @param {number} [endTime] - Optional end time in milliseconds since epoch
+   * @returns {Promise<string[]>} Promise resolving to an array of matching log messages
+   * @throws {AwsError} if the log stream doesn't exist or search fails
    *
    * @example
    * // Search for error messages in the last hour
@@ -100,12 +99,12 @@ export interface CloudWatchServiceClient extends ServiceClient {
    * and limited to a maximum number of events. Each event includes a timestamp,
    * message content, and the name of the log stream.
    *
-   * @param logStreamName - The name of the log stream to query
-   * @param startTime - Optional start time in milliseconds since epoch
-   * @param endTime - Optional end time in milliseconds since epoch
-   * @param limit - Optional maximum number of events to return
-   * @return Promise resolving to an array of log events
-   * @throws {SmokerError} if the log stream doesn't exist or retrieval fails
+   * @param {string} logStreamName - The name of the log stream to query
+   * @param {number} [startTime] - Optional start time in milliseconds since epoch
+   * @param {number} [endTime] - Optional end time in milliseconds since epoch
+   * @param {number} [limit] - Optional maximum number of events to return
+   * @returns {Promise<CloudWatchLogEvent[]>} Promise resolving to an array of log events
+   * @throws {AwsError} if the log stream doesn't exist or retrieval fails
    *
    * @example
    * // Get the most recent 10 log events
@@ -131,27 +130,33 @@ export interface CloudWatchServiceClient extends ServiceClient {
   /**
    * List all log streams in the configured log group
    *
-   * @return Array of log stream names
+   * @returns {Promise<string[]>} Promise resolving to an array of log stream names
    */
   listLogStreams(): Promise<string[]>;
 
   /**
    * Wait for a specific pattern to appear in logs
    *
-   * @param logStreamName - Optional specific log stream to monitor
-   * @param pattern - The pattern to search for
-   * @param timeoutMs - Optional timeout in milliseconds (default: 30000)
-   * @return True if pattern was found within timeout, false otherwise
+   * @param {string} logStreamName - Optional specific log stream to monitor
+   * @param {string} pattern - The pattern to search for
+   * @param {number} [timeoutMs] - Timeout in milliseconds (default: 30000)
+   * @returns {Promise<boolean>} True if pattern was found within timeout, false otherwise
    */
   waitForPattern(logStreamName: string, pattern: string, timeoutMs?: number): Promise<boolean>;
 
   /**
    * Publish a single CloudWatch metric data point
+   *
+   * @param {CloudWatchMetric} metric - The metric data point to publish
+   * @returns {Promise<void>} Promise resolving when the metric is published
    */
   publishMetric(metric: CloudWatchMetric): Promise<void>;
 
   /**
    * Publish multiple CloudWatch metric data points (handles chunking by 20)
+   *
+   * @param {CloudWatchMetric[]} metrics - Array of metric data points to publish
+   * @returns {Promise<void>} Promise resolving when all metrics are published
    */
   publishMetrics(metrics: CloudWatchMetric[]): Promise<void>;
 }
@@ -169,8 +174,8 @@ export interface CloudWatchServiceClient extends ServiceClient {
  * log searching, log stream listing, and waiting for specific log patterns with
  * configurable timeouts.
  *
- * @implements {CloudWatchServiceClient}
- * @extends {BaseServiceClient}
+ * @extends {BaseServiceClient} The base service client class
+ * @implements {CloudWatchServiceClient} The interface for CloudWatch service client
  */
 export class CloudWatchClient extends BaseServiceClient implements CloudWatchServiceClient {
   private client: CloudWatchLogsClient | null = null;
@@ -180,8 +185,8 @@ export class CloudWatchClient extends BaseServiceClient implements CloudWatchSer
   /**
    * Create a new CloudWatch client
    *
-   * @param clientId - Client identifier (defaults to "CloudWatchClient")
-   * @param config - Optional client configuration with properties:
+   * @param {string} clientId - Client identifier (defaults to "CloudWatchClient")
+   * @param {Record<string, unknown>} [config] - Optional client configuration with properties:
    *   - logGroupName: (required) Name of the CloudWatch log group to use
    *   - region: AWS region (default: "us-east-1")
    *   - accessKeyId: AWS access key ID
@@ -203,7 +208,7 @@ export class CloudWatchClient extends BaseServiceClient implements CloudWatchSer
   /**
    * Initialize the client with AWS CloudWatch Logs SDK
    *
-   * @throws {SmokerError} if logGroupName is not provided in configuration
+   * @throws {ValidationError} if logGroupName is not provided in configuration
    */
   protected async initializeClient(): Promise<void> {
     const region = this.getConfig<string>("region", "us-east-1");
@@ -254,12 +259,12 @@ export class CloudWatchClient extends BaseServiceClient implements CloudWatchSer
   /**
    * Search logs for a specific pattern
    *
-   * @param logStreamName - Optional specific log stream to search within
-   * @param pattern - The search pattern/term to find
-   * @param startTime - Optional start time in milliseconds since epoch
-   * @param endTime - Optional end time in milliseconds since epoch
-   * @return Array of matching log messages
-   * @throws {SmokerError} if client is not initialized or if AWS API call fails
+   * @param {string} logStreamName - Optional specific log stream to search within
+   * @param {string} pattern - The search pattern/term to find
+   * @param {number} [startTime] - Optional start time in milliseconds since epoch
+   * @param {number} [endTime] - Optional end time in milliseconds since epoch
+   * @returns {Promise<string[]>} Promise resolving to an array of matching log messages
+   * @throws {AwsError} if client is not initialized or if AWS API call fails
    */
   async searchLogStream(
     logStreamName: string,
@@ -304,12 +309,12 @@ export class CloudWatchClient extends BaseServiceClient implements CloudWatchSer
   /**
    * Retrieve log events from a specific log stream
    *
-   * @param logStreamName - The name of the log stream to query
-   * @param startTime - Optional start time in milliseconds since epoch
-   * @param endTime - Optional end time in milliseconds since epoch
-   * @param limit - Optional maximum number of events to return
-   * @return Array of log events with timestamp, message, and stream name
-   * @throws {SmokerError} if client is not initialized or if AWS API call fails
+   * @param {string} logStreamName - The name of the log stream to query
+   * @param {number} [startTime] - Optional start time in milliseconds since epoch
+   * @param {number} [endTime] - Optional end time in milliseconds since epoch
+   * @param {number} [limit] - Optional maximum number of events to return
+   * @returns {Promise<CloudWatchLogEvent[]>} Promise resolving to an array of log events with timestamp, message, and stream name
+   * @throws {AwsError} if client is not initialized or if AWS API call fails
    */
   async getLogEvents(
     logStreamName: string,
@@ -359,8 +364,8 @@ export class CloudWatchClient extends BaseServiceClient implements CloudWatchSer
   /**
    * List log streams in the configured log group
    *
-   * @return Array of log stream names
-   * @throws {SmokerError} if client is not initialized or if AWS API call fails
+   * @returns {Promise<string[]>} Promise resolving to an array of log stream names
+   * @throws {AwsError} if client is not initialized or if AWS API call fails
    */
   async listLogStreams(): Promise<string[]> {
     this.ensureInitialized();
@@ -400,11 +405,11 @@ export class CloudWatchClient extends BaseServiceClient implements CloudWatchSer
    * Wait for a specific pattern to appear in logs
    * Polls the logs periodically until the pattern is found or timeout is reached
    *
-   * @param logStreamName - Optional specific log stream to monitor
-   * @param pattern - The pattern to search for
-   * @param timeoutMs - Optional timeout in milliseconds (default: 30000)
-   * @return True if pattern was found within timeout, false otherwise
-   * @throws {SmokerError} if client is not initialized or if search fails
+   * @param {string} logStreamName - Optional specific log stream to monitor
+   * @param {string} pattern - The pattern to search for
+   * @param {number} [timeoutMs] - Timeout in milliseconds (default: 30000)
+   * @returns {Promise<boolean>} Promise resolving to true if pattern was found within timeout, false otherwise
+   * @throws {AwsError} if client is not initialized or if search fails
    */
   async waitForPattern(
     logStreamName: string,
@@ -449,6 +454,10 @@ export class CloudWatchClient extends BaseServiceClient implements CloudWatchSer
 
   /**
    * Publish a single CloudWatch metric data point
+   *
+   * @param {CloudWatchMetric} metric - The metric to publish
+   * @returns {Promise<void>} Promise resolving when the metric is published
+   * @throws {AwsError} if client is not initialized or if publishing fails
    */
   async publishMetric(metric: CloudWatchMetric): Promise<void> {
     this.ensureInitialized();
@@ -479,6 +488,10 @@ export class CloudWatchClient extends BaseServiceClient implements CloudWatchSer
 
   /**
    * Publish multiple CloudWatch metric data points (handles chunking by 20)
+   *
+   * @param {CloudWatchMetric[]} metrics - Array of metrics to publish
+   * @returns {Promise<void>} Promise resolving when all metrics are published
+   * @throws {AwsError} if client is not initialized or if publishing fails
    */
   async publishMetrics(metrics: CloudWatchMetric[]): Promise<void> {
     this.ensureInitialized();
@@ -512,6 +525,11 @@ export class CloudWatchClient extends BaseServiceClient implements CloudWatchSer
 
 /**
  * Metric model used by the Smoker CloudWatch client
+ *
+ * @property {string} MetricName - The name of the metric
+ * @property {number} Value - The value of the metric
+ * @property {StandardUnit | string} [Unit] - Optional unit of the metric
+ * @property {{ Name: string; Value: string }[]} [Dimensions] - Dimensions of the metric
  */
 export interface CloudWatchMetric {
   MetricName: string;

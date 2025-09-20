@@ -1,5 +1,5 @@
 /**
- * AWS Service Clients Module
+ * @packageDocumentation AWS Service Clients Module
  *
  * This barrel file exports all AWS service client implementations and interfaces
  * for easy consumption in other parts of the application. It provides a centralized

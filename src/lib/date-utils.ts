@@ -1,5 +1,5 @@
 /**
- * Date and Time Utilities
+ * @fileoverview Date and Time Utilities
  *
  * Provides helper functions commonly needed in smoke tests for working with
  * timestamps, durations, and time calculations.
@@ -24,7 +24,7 @@ export const DateUtils = {
   /**
    * Returns the current timestamp in ISO 8601 format.
    *
-   * @returns ISO 8601 timestamp (e.g., 2024-01-01T00:00:00.000Z)
+   * @returns {string} ISO 8601 timestamp (e.g., 2024-01-01T00:00:00.000Z)
    */
   getCurrentTimestamp(): string {
     return new Date().toISOString();
@@ -33,9 +33,9 @@ export const DateUtils = {
   /**
    * Adds the specified number of days to a date and returns a new Date.
    *
-   * @param date - Base date
-   * @param days - Number of days to add (can be negative)
-   * @returns A new Date adjusted by the specified number of days
+   * @param {Date} date - Base date
+   * @param {number} days - Number of days to add (can be negative)
+   * @returns {Date} A new Date adjusted by the specified number of days
    */
   addDays(date: Date, days: number): Date {
     const result = new Date(date.getTime());
@@ -46,9 +46,9 @@ export const DateUtils = {
   /**
    * Determines if a given date is expired (strictly before now or reference date).
    *
-   * @param date - Date to check
-   * @param reference - Optional reference time (defaults to now)
-   * @returns True if date < reference time, otherwise false
+   * @param {Date} date - Date to check
+   * @param {Date} reference - Reference time (defaults to now)
+   * @returns {boolean} True if date < reference time, otherwise false
    */
   isExpired(date: Date, reference: Date = new Date()): boolean {
     return date.getTime() < reference.getTime();
@@ -59,9 +59,9 @@ export const DateUtils = {
    * Supports: ms, s, m, h, d (e.g., "500ms", "30s", "15m", "2h", "7d").
    * If unit is omitted, assumes milliseconds.
    *
-   * @param input - Duration string (e.g., "30s", "2m", or a number-like string)
-   * @returns Number of milliseconds represented by the input
-   * @throws Error if the input does not match the supported format
+   * @param {string} input - Duration string (e.g., "30s", "2m", or a number-like string)
+   * @returns {number} Number of milliseconds represented by the input
+   * @throws {Error} if the input does not match the supported format
    */
   parseDuration(input: string): number {
     const trimmed = input.trim();
@@ -97,8 +97,8 @@ export const DateUtils = {
   /**
    * Resolves after the given time.
    *
-   * @param ms - Milliseconds to wait
-   * @returns Promise that resolves after the specified delay
+   * @param {number} ms - Milliseconds to wait
+   * @returns {Promise<void>} Promise that resolves after the specified delay
    */
   wait(ms: number): Promise<void> {
     return new Promise((resolve) => setTimeout(resolve, ms));

@@ -1,5 +1,5 @@
 /**
- * Configuration Merging Module
+ * @fileoverview Configuration Merging Module
  *
  * This module provides utilities for merging configuration objects in a deep, recursive manner.
  * It handles special cases like arrays, null values, and empty objects to ensure consistent
@@ -25,9 +25,9 @@ import type { ConfigValue } from "./configuration";
  * - Objects are merged recursively
  * - Primitive values overwrite existing values
  *
- * @param target - Target object to merge into
- * @param source - Source object to merge from
- * @return New object with merged properties
+ * @param {Record<string, ConfigValue>} target - Target object to merge into
+ * @param {Record<string, ConfigValue>} source - Source object to merge from
+ * @returns {Record<string, ConfigValue>} New object with merged properties
  *
  * @example
  * // Merge configuration objects

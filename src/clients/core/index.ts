@@ -1,5 +1,5 @@
 /**
- * Core Client Module
+ * @packageDocumentation Core Client Module
  *
  * This barrel file exports the foundational components of the client system,
  * including base interfaces, types, and implementations that all service

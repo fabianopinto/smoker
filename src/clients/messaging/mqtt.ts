@@ -1,5 +1,5 @@
 /**
- * MQTT Client Module
+ * @fileoverview MQTT Client Module
  *
  * This module provides interfaces and implementations for MQTT service clients.
  * It defines the contract for MQTT operations such as connecting to brokers,
@@ -43,44 +43,46 @@ const logger = new BaseLogger({ name: "smoker:mqtt" });
  * utilities for waiting for specific messages to appear on topics. Implementations
  * handle the details of broker interactions while providing a simplified API.
  *
- * @extends {ServiceClient}
- * @see {ServiceClient} The base service client interface
+ * @extends {ServiceClient} The base service client interface
  */
 export interface MqttServiceClient extends ServiceClient {
   /**
    * Publish a message to an MQTT topic
    *
-   * @param topic - The topic to publish to
-   * @param message - The message content as string or Buffer
-   * @param options - Optional publishing options
-   * @throws {SmokerError} if publishing fails or client is not initialized
+   * @param {string} topic - The topic to publish to
+   * @param {string | Buffer} message - The message content as string or Buffer
+   * @param {IClientPublishOptions} [options] - Optional publishing options
+   * @throws {ValidationError} if input is invalid or client is not initialized
+   * @throws {AppError} if publishing fails
    */
   publish(topic: string, message: string | Buffer, options?: IClientPublishOptions): Promise<void>;
 
   /**
    * Subscribe to one or more MQTT topics
    *
-   * @param topic - The topic or array of topics to subscribe to
-   * @param options - Optional subscription options
-   * @throws {SmokerError} if subscription fails or client is not initialized
+   * @param {string | string[]} topic - The topic or array of topics to subscribe to
+   * @param {IClientSubscribeOptions} [options] - Optional subscription options
+   * @throws {ValidationError} if input is invalid or client is not initialized
+   * @throws {AppError} if subscription fails
    */
   subscribe(topic: string | string[], options?: IClientSubscribeOptions): Promise<void>;
 
   /**
    * Unsubscribe from one or more MQTT topics
    *
-   * @param topic - The topic or array of topics to unsubscribe from
-   * @throws {SmokerError} if unsubscription fails or client is not initialized
+   * @param {string | string[]} topic - The topic or array of topics to unsubscribe from
+   * @throws {AppError} if unsubscription fails or client is not initialized
    */
   unsubscribe(topic: string | string[]): Promise<void>;
 
   /**
    * Wait for a message on a specific topic
    *
-   * @param topic - The topic to listen for messages on
-   * @param timeoutMs - Optional timeout in milliseconds (default: 30000)
-   * @return The message received as string, or null if timed out
-   * @throws {SmokerError} if client is not initialized
+   * @param {string} topic - The topic to listen for messages on
+   * @param {number} [timeoutMs] - Timeout in milliseconds (default: 30000)
+   * @returns {Promise<string | null>} The message received as string, or null if timed out
+   * @throws {ValidationError} if input is invalid
+   * @throws {AppError} if waiting fails
    */
   waitForMessage(topic: string, timeoutMs?: number): Promise<string | null>;
 }
@@ -98,8 +100,8 @@ export interface MqttServiceClient extends ServiceClient {
  * retained messages, topic wildcards, and proper error handling with automatic
  * reconnection capabilities.
  *
- * @implements {MqttServiceClient}
- * @extends {BaseServiceClient}
+ * @extends {BaseServiceClient} The base service client class
+ * @implements {MqttServiceClient} The MQTT service client interface
  */
 export class MqttClient extends BaseServiceClient implements MqttServiceClient {
   private client: MqttClientLib | null = null;
@@ -110,8 +112,8 @@ export class MqttClient extends BaseServiceClient implements MqttServiceClient {
   /**
    * Create a new MQTT client
    *
-   * @param clientId - Client identifier (defaults to "MqttClient")
-   * @param config - Optional client configuration with properties:
+   * @param {string} clientId - Client identifier (defaults to "MqttClient")
+   * @param {Record<string, unknown>} [config] - Optional client configuration with properties:
    *   - url: MQTT broker URL (default: "mqtt://localhost:1883")
    *   - clientId: Specific client ID for MQTT broker connection
    *   - username: Optional username for authentication
@@ -124,7 +126,8 @@ export class MqttClient extends BaseServiceClient implements MqttServiceClient {
   /**
    * Initialize the MQTT client with the broker connection
    *
-   * @throws {SmokerError} if the broker URL is not provided or connection fails
+   * @throws {ValidationError} if the broker URL is not provided or is invalid
+   * @throws {AppError} if connection/initialization fails
    */
   protected async initializeClient(): Promise<void> {
     try {
@@ -257,11 +260,12 @@ export class MqttClient extends BaseServiceClient implements MqttServiceClient {
   /**
    * Publish a message to an MQTT topic
    *
-   * @param topic - The topic to publish to
-   * @param message - The message content as string or Buffer
-   * @param options - Optional publishing options
-   * @return Promise that resolves when the message is published
-   * @throws {SmokerError} if publishing fails or client is not initialized
+   * @param {string} topic - The topic to publish to
+   * @param {string | Buffer} message - The message content as string or Buffer
+   * @param {IClientPublishOptions} [options] - Optional publishing options
+   * @returns {Promise<void>} Promise that resolves when the message is published
+   * @throws {ValidationError} if input is invalid or client is not initialized
+   * @throws {AppError} if publishing fails
    */
   async publish(
     topic: string,
@@ -326,10 +330,11 @@ export class MqttClient extends BaseServiceClient implements MqttServiceClient {
   /**
    * Subscribe to one or more MQTT topics
    *
-   * @param topic - The topic or array of topics to subscribe to
-   * @param options - Optional subscription options
-   * @return Promise that resolves when subscription is complete
-   * @throws {SmokerError} if subscription fails or client is not initialized
+   * @param {string | string[]} topic - The topic or array of topics to subscribe to
+   * @param {IClientSubscribeOptions} [options] - Optional subscription options
+   * @returns {Promise<void>} Promise that resolves when subscription is complete
+   * @throws {ValidationError} if input is invalid or client is not initialized
+   * @throws {AppError} if subscription fails
    */
   async subscribe(topic: string | string[], options?: IClientSubscribeOptions): Promise<void> {
     this.ensureInitialized();
@@ -398,7 +403,7 @@ export class MqttClient extends BaseServiceClient implements MqttServiceClient {
   /**
    * Unsubscribe from a topic or topics
    *
-   * @param topic - The topic or topics to unsubscribe from
+   * @param {string | string[]} topic - The topic or topics to unsubscribe from
    */
   async unsubscribe(topic: string | string[]): Promise<void> {
     this.ensureInitialized();
@@ -434,10 +439,11 @@ export class MqttClient extends BaseServiceClient implements MqttServiceClient {
   /**
    * Wait for a message on a specific topic
    *
-   * @param topic - The topic to listen for messages on
-   * @param timeoutMs - Optional timeout in milliseconds (default: 30000)
-   * @return Promise that resolves with the received message as string, or null if timed out
-   * @throws {SmokerError} if client is not initialized or subscription fails
+   * @param {string} topic - The topic to listen for messages on
+   * @param {number} [timeoutMs] - Timeout in milliseconds (default: 30000)
+   * @returns {Promise<string | null>} Promise that resolves with the received message as string, or null if timed out
+   * @throws {ValidationError} if input is invalid
+   * @throws {AppError} if client is not initialized or subscription fails
    */
   async waitForMessage(topic: string, timeoutMs = 30000): Promise<string | null> {
     this.ensureInitialized();
@@ -501,8 +507,8 @@ export class MqttClient extends BaseServiceClient implements MqttServiceClient {
   /**
    * Helper method to remove a callback from a topic
    *
-   * @param topic - The topic to remove the callback from
-   * @param callback - The callback function to remove
+   * @param {string} topic - The topic to remove the callback from
+   * @param { (message: string | Buffer) => void } callback - The callback function to remove
    */
   private removeCallback(topic: string, callback: (message: string | Buffer) => void): void {
     const callbacks = this.messageCallbacks.get(topic) || [];
@@ -522,7 +528,7 @@ export class MqttClient extends BaseServiceClient implements MqttServiceClient {
    * Client-specific cleanup logic
    * Disconnects from the MQTT broker and clears message callbacks
    *
-   * @return Promise that resolves when cleanup is complete
+   * @returns {Promise<void>} Promise that resolves when cleanup is complete
    */
   public async cleanupClient(): Promise<void> {
     if (this.client) {

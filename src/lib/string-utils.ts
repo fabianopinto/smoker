@@ -1,5 +1,5 @@
 /**
- * String Utilities
+ * @fileoverview String Utilities
  *
  * Common string helpers for formatting, casing, validation, and safe parsing.
  *
@@ -16,8 +16,8 @@ export const StringUtils = {
   /**
    * Returns true if the string is null/undefined/empty after trimming.
    *
-   * @param value - String to check
-   * @returns True when value is empty after trim or not provided
+   * @param {string | null | undefined} value - String to check
+   * @returns {boolean} True when value is empty after trim or not provided
    */
   isEmpty(value: string | null | undefined): boolean {
     return value == null || value.trim().length === 0;
@@ -26,8 +26,8 @@ export const StringUtils = {
   /**
    * Collapses all whitespace (including newlines) to single spaces and trims ends.
    *
-   * @param value - Input string
-   * @returns Normalized string with collapsed whitespace
+   * @param {string} value - Input string
+   * @returns {string} Normalized string with collapsed whitespace
    */
   normalizeWhitespace(value: string): string {
     return value.replace(/\s+/g, " ").trim();
@@ -36,8 +36,8 @@ export const StringUtils = {
   /**
    * Capitalizes the first character of the string.
    *
-   * @param value - Input string
-   * @returns String with first character uppercased
+   * @param {string} value - Input string
+   * @returns {string} String with first character uppercased
    */
   capitalize(value: string): string {
     if (!value) return value as unknown as string;
@@ -47,8 +47,8 @@ export const StringUtils = {
   /**
    * Converts a string to camelCase.
    *
-   * @param value - Input string
-   * @returns camelCased string
+   * @param {string} value - Input string
+   * @returns {string} camelCased string
    */
   toCamelCase(value: string): string {
     return value
@@ -59,8 +59,8 @@ export const StringUtils = {
   /**
    * Converts a string to kebab-case.
    *
-   * @param value - Input string
-   * @returns kebab-cased string
+   * @param {string} value - Input string
+   * @returns {string} kebab-cased string
    */
   toKebabCase(value: string): string {
     return value
@@ -72,8 +72,8 @@ export const StringUtils = {
   /**
    * Converts a string to snake_case.
    *
-   * @param value - Input string
-   * @returns snake_cased string
+   * @param {string} value - Input string
+   * @returns {string} snake_cased string
    */
   toSnakeCase(value: string): string {
     return value
@@ -85,10 +85,10 @@ export const StringUtils = {
   /**
    * Truncates a string and appends an ellipsis if it exceeds the length.
    *
-   * @param value - Input string
-   * @param maxLength - Max output length
-   * @param ellipsis - Ellipsis string (default: …)
-   * @returns Truncated string
+   * @param {string} value - Input string
+   * @param {number} maxLength - Max output length
+   * @param {string} [ellipsis] - Ellipsis string (default: …)
+   * @returns {string} Truncated string
    */
   truncate(value: string, maxLength: number, ellipsis = "…"): string {
     if (maxLength <= 0) return "";
@@ -100,8 +100,9 @@ export const StringUtils = {
   /**
    * Safely parses JSON, returning undefined on error.
    *
-   * @param value - JSON string to parse
-   * @returns Parsed value or undefined on error
+   * @template T - Type of the parsed value
+   * @param {string} value - JSON string to parse
+   * @returns {T | undefined} Parsed value or undefined on error
    */
   tryParseJson<T = unknown>(value: string): T | undefined {
     try {

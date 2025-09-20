@@ -1,5 +1,5 @@
 /**
- * World Properties Module
+ * @fileoverview World Properties Module
  *
  * This module provides a property management system for storing and resolving
  * properties within the test world. It implements a map of properties with methods
@@ -34,17 +34,14 @@ const PROPERTY_REFERENCE_REGEX = /^property:([a-zA-Z0-9_$]+)(?::(.*))?$/;
  * This class provides methods to check for and replace such references.
  */
 export class WorldProperties {
-  /**
-   * Internal property storage using Map for better dynamic key handling
-   * @private
-   */
+  // Internal property storage using Map for better dynamic key handling
   private properties = new Map<string, unknown>();
 
   /**
    * Set a property value
    *
-   * @param key - The property key (must match [a-zA-Z0-9_$]+)
-   * @param value - The value to store (can be any type)
+   * @param {string} key - The property key (must match [a-zA-Z0-9_$]+)
+   * @param {unknown} value - The value to store (can be any type)
    * @throws {SmokerError} if the key is invalid
    */
   set(key: string, value: unknown): void {
@@ -55,9 +52,10 @@ export class WorldProperties {
   /**
    * Get a property value
    *
-   * @param key - The property key
-   * @param defaultValue - Optional default value if property doesn't exist
-   * @returns The property value or default value
+   * @template T - The type of the property value
+   * @param {string} key - The property key
+   * @param {T} [defaultValue] - Optional default value if property doesn't exist
+   * @returns {T | undefined} The property value or default value
    * @throws {SmokerError} if the key is invalid
    */
   get<T = unknown>(key: string, defaultValue?: T): T | undefined {
@@ -68,8 +66,8 @@ export class WorldProperties {
   /**
    * Check if a property exists
    *
-   * @param key - The property key
-   * @returns True if the property exists, false otherwise
+   * @param {string} key - The property key
+   * @returns {boolean} True if the property exists, false otherwise
    * @throws {SmokerError} if the key is invalid
    */
   has(key: string): boolean {
@@ -80,8 +78,8 @@ export class WorldProperties {
   /**
    * Remove a property
    *
-   * @param key - The property key
-   * @returns True if the property was removed, false if it didn't exist
+   * @param {string} key - The property key
+   * @returns {boolean} True if the property was removed, false if it didn't exist
    * @throws {SmokerError} if the key is invalid
    */
   delete(key: string): boolean {
@@ -99,7 +97,7 @@ export class WorldProperties {
   /**
    * Get all property keys
    *
-   * @returns Array of property keys
+   * @returns {string[]} Array of property keys
    */
   keys(): string[] {
     return Array.from(this.properties.keys());
@@ -108,8 +106,8 @@ export class WorldProperties {
   /**
    * Check if a string is a property reference (e.g., "property:someProperty")
    *
-   * @param input - The input string to check
-   * @returns True if the string is a property reference, false otherwise
+   * @param {string} input - The input string to check
+   * @returns {boolean} True if the string is a property reference, `false otherwise
    */
   isPropertyReference(input: string): boolean {
     if (!input || typeof input !== "string") {
@@ -126,8 +124,8 @@ export class WorldProperties {
    * - "property:someProperty:defaultValue" - Returns the property value if exists, or the default value
    * Otherwise, returns the original string if it's not a property reference.
    *
-   * @param input - The input string that may be a property reference
-   * @returns The resolved value or the original string
+   * @param {string} input - The input string that may be a property reference
+   * @returns {string} The resolved value or the original string
    * @throws {SmokerError} if input starts with "property:" but is not a valid property reference
    * @throws {SmokerError} if input is a property reference without a default value and the property doesn't exist
    */
@@ -180,9 +178,8 @@ export class WorldProperties {
   /**
    * Validate a property key
    *
-   * @param key - The key to validate
+   * @param {string} key - The key to validate
    * @throws {SmokerError} if the key is invalid
-   * @private
    */
   private validateKey(key: string): void {
     if (!key || typeof key !== "string") {
@@ -212,7 +209,7 @@ export class WorldProperties {
 /**
  * Create a new instance of WorldProperties
  *
- * @returns A new WorldProperties instance
+ * @returns {WorldProperties} A new WorldProperties instance
  */
 export const createWorldProperties = (): WorldProperties => {
   return new WorldProperties();

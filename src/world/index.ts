@@ -1,5 +1,5 @@
 /**
- * World exports
+ * @packageDocumentation World exports
  *
  * This module exports the SmokeWorld interface and related components for use in BDD step definitions.
  * The SmokeWorld interface provides typed access to service clients, test data

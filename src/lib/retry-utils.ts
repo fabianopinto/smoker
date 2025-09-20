@@ -1,5 +1,5 @@
 /**
- * Retry Utilities
+ * @fileoverview Retry Utilities
  *
  * Provides retry helpers with configurable backoff strategies for wrapping async operations
  * that may fail transiently (e.g., network calls, eventual consistency checks).
@@ -22,23 +22,27 @@ import { SmokerError } from "../errors/smoker-error";
 
 export type BackoffStrategy = "fixed" | "exponential" | "exponential-jitter";
 
+/**
+ * Options for retrying async operations
+ *
+ * @property {number} [retries] - Optional number of retries after the first attempt (total attempts = retries + 1).
+ * @property {number} [delayMs] - Optional base delay in milliseconds used by backoff calculation.
+ * @property {number} [maxDelayMs] - Optional maximum cap for per-attempt delays.
+ * @property {BackoffStrategy} [backoff] - Optional backoff strategy to use for computing successive delays.
+ * @property {number} [jitterRatio] - Optional jitter ratio (0..1) used when backoff = "exponential-jitter".
+ * @property {((error: unknown, attempt: number) => void | Promise<void>)} [onAttemptError] - Optional callback invoked on each attempt error before delaying.
+ */
 export interface RetryOptions {
-  /** Number of retries after the first attempt (total attempts = retries + 1). */
   retries?: number;
-  /** Base delay in milliseconds used by backoff calculation. */
   delayMs?: number;
-  /** Optional maximum cap for per-attempt delays. */
   maxDelayMs?: number;
-  /** Backoff strategy to use for computing successive delays. */
   backoff?: BackoffStrategy;
-  /** Jitter ratio (0..1) used when backoff = "exponential-jitter". */
   jitterRatio?: number;
-  /** Optional callback invoked on each attempt error before delaying. */
   onAttemptError?: (error: unknown, attempt: number) => void | Promise<void>;
 }
 
 const DEFAULTS: Required<Omit<RetryOptions, "onAttemptError" | "maxDelayMs">> & {
-  maxDelayMs: number | undefined;
+  maxDelayMs?: number;
   onAttemptError?: RetryOptions["onAttemptError"];
 } = {
   retries: 3,
@@ -80,9 +84,10 @@ function nextDelay(base: number, attempt: number, opts: Required<RetryOptions>):
 /**
  * Retries an async function according to the provided options.
  *
- * @param operation - Async function to execute
- * @param options - Retry options controlling attempts and backoff
- * @returns Resolves with the operation result or rejects after exhausting attempts
+ * @template T - The return type of the operation
+ * @param {() => Promise<T>} operation - Async function to execute
+ * @param {RetryOptions} options - Retry options controlling attempts and backoff
+ * @returns {Promise<T>} Resolves with the operation result or rejects after exhausting attempts
  */
 export async function retryAsync<T>(
   operation: () => Promise<T>,

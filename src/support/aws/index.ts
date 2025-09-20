@@ -1,5 +1,5 @@
 /**
- * AWS Module Index
+ * @packageDocumentation AWS Module Index
  *
  * This barrel file exports all AWS client implementations and utilities from the aws directory,
  * providing a unified entry point for AWS-related functionality. This includes S3 and SSM

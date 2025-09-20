@@ -1,5 +1,5 @@
 /**
- * Parameter Resolution Module
+ * @fileoverview Parameter Resolution Module
  *
  * This module provides functionality for resolving external parameter references in
  * configuration objects. It supports resolving references to AWS SSM parameters and
@@ -48,9 +48,9 @@ export class ParameterResolver {
    * The resolver can use custom client instances for testing purposes or create
    * new instances with the specified region.
    *
-   * @param region - AWS region to use (defaults to environment variable or us-east-1)
-   * @param s3ClientInstance - Optional S3Client instance for testing
-   * @param ssmClientInstance - Optional SSMClient instance for testing
+   * @param {string} [region] - AWS region to use (defaults to environment variable or us-east-1)
+   * @param {S3Client} [s3ClientInstance] - Optional S3Client instance for testing
+   * @param {SSMClient} [ssmClientInstance] - Optional SSMClient instance for testing
    */
   constructor(region?: string, s3ClientInstance?: S3Client, ssmClientInstance?: SSMClient) {
     this.s3Client = new S3ClientWrapper(region, s3ClientInstance);
@@ -70,9 +70,9 @@ export class ParameterResolver {
    * The method includes circular reference detection and depth limiting to
    * prevent infinite recursion when resolving nested references.
    *
-   * @param value - Configuration value to resolve
-   * @return Promise resolving to the resolved configuration value
-   * @throws {SmokerError} if circular references are detected or maximum depth is exceeded
+   * @param {ConfigValue} value - Configuration value to resolve
+   * @returns {Promise<ConfigValue>} Promise resolving to the resolved configuration value
+   * @throws {ValidationError} if circular references are detected or maximum depth is exceeded
    */
   async resolveValue(value: ConfigValue): Promise<ConfigValue> {
     if (this.resolutionDepth >= this.MAX_DEPTH) {
@@ -216,8 +216,8 @@ export class ParameterResolver {
    * This method calls resolveValue internally but ensures that the result is cast back
    * to a ConfigObject type for easier use with configuration objects.
    *
-   * @param config - Configuration object to resolve
-   * @return Promise resolving to the resolved configuration object
+   * @param {ConfigObject} config - Configuration object to resolve
+   * @returns {Promise<ConfigObject>} Promise resolving to the resolved configuration object
    * @throws {SmokerError} if circular references are detected or maximum depth is exceeded
    */
   async resolveConfig(config: ConfigObject): Promise<ConfigObject> {

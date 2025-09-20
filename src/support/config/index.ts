@@ -1,5 +1,5 @@
 /**
- * Configuration Module Index
+ * @packageDocumentation Module Index
  *
  * This barrel file exports all configuration-related implementations and interfaces from the
  * configuration subsystem, providing a unified entry point for consumers. It centralizes

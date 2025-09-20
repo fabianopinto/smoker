@@ -1,5 +1,5 @@
 /**
- * SSM Client Module
+ * @fileoverview AWS SSM Client Module
  *
  * This module provides interfaces and implementations for AWS Systems Manager (SSM) service clients.
  * It defines the contract for SSM Parameter Store operations such as reading, writing, and deleting
@@ -33,27 +33,27 @@ import { BaseServiceClient, type ServiceClient } from "../core";
  * the details of AWS SDK interactions while providing a simplified API for
  * parameter store operations.
  *
- * @extends {ServiceClient}
- * @see {ServiceClient} The base service client interface
+ * @extends {ServiceClient} The base service client interface
  */
 export interface SsmServiceClient extends ServiceClient {
   /**
    * Read a parameter from SSM Parameter Store
    *
-   * @param name - The parameter name to read
-   * @param withDecryption - Whether to decrypt SecureString parameters
-   * @return Promise resolving to the parameter value as string
-   * @throws {SmokerError} if parameter does not exist or cannot be read
+   * @param {string} name - The parameter name to read
+   * @param {boolean} [withDecryption] - Whether to decrypt SecureString parameters
+   * @returns {Promise<string>} Promise resolving to the parameter value as string
+   * @throws {ValidationError} if input is invalid
+   * @throws {AwsError} if parameter does not exist or cannot be read
    */
   read(name: string, withDecryption?: boolean): Promise<string>;
 
   /**
    * Write a parameter to SSM Parameter Store
    *
-   * @param name - The parameter name to write
-   * @param value - The parameter value to store
-   * @param type - The parameter type (String, StringList, or SecureString)
-   * @param overwrite - Whether to overwrite if parameter already exists
+   * @param {string} name - The parameter name to write
+   * @param {string} value - The parameter value to store
+   * @param {string} [type] - The parameter type (String, StringList, or SecureString)
+   * @param {boolean} [overwrite] - Whether to overwrite if parameter already exists
    * @throws {SmokerError} if parameter cannot be written
    */
   write(name: string, value: string, type?: string, overwrite?: boolean): Promise<void>;
@@ -61,7 +61,7 @@ export interface SsmServiceClient extends ServiceClient {
   /**
    * Delete a parameter from SSM Parameter Store
    *
-   * @param name - The parameter name to delete
+   * @param {string} name - The parameter name to delete
    * @throws {SmokerError} if parameter does not exist or cannot be deleted
    */
   delete(name: string): Promise<void>;
@@ -79,8 +79,8 @@ export interface SsmServiceClient extends ServiceClient {
  * (String, StringList, SecureString) and includes features like parameter overwriting
  * and secure parameter handling with optional KMS encryption.
  *
- * @implements {SsmServiceClient}
- * @extends {BaseServiceClient}
+ * @extends {BaseServiceClient} The base service client class
+ * @implements {SsmServiceClient} The interface for SSM service client
  */
 export class SsmClient extends BaseServiceClient implements SsmServiceClient {
   private client: SSMClient | null = null;
@@ -88,8 +88,8 @@ export class SsmClient extends BaseServiceClient implements SsmServiceClient {
   /**
    * Create a new SSM client
    *
-   * @param clientId - Client identifier (defaults to "SsmClient")
-   * @param config - Optional client configuration with properties:
+   * @param {string} clientId - Client identifier (defaults to "SsmClient")
+   * @param {Record<string, unknown>} [config] - Optional client configuration with properties:
    *   - region: AWS region (default: "us-east-1")
    *   - accessKeyId: AWS access key ID
    *   - secretAccessKey: AWS secret access key
@@ -103,7 +103,7 @@ export class SsmClient extends BaseServiceClient implements SsmServiceClient {
   /**
    * Initialize the SSM client with AWS configuration
    *
-   * @throws {SmokerError} if client creation fails
+   * @throws {AwsError} if client creation fails
    */
   protected async initializeClient(): Promise<void> {
     try {
@@ -143,9 +143,9 @@ export class SsmClient extends BaseServiceClient implements SsmServiceClient {
   /**
    * Read a parameter from SSM Parameter Store
    *
-   * @param name - The parameter name to read
-   * @param withDecryption - Whether to decrypt SecureString parameters
-   * @return Promise resolving to the parameter value as string
+   * @param {string} name - The parameter name to read
+   * @param {boolean} [withDecryption] - Whether to decrypt SecureString parameters
+   * @returns {Promise<string>} Promise resolving to the parameter value as string
    * @throws {SmokerError} if parameter does not exist or cannot be read
    */
   async read(name: string, withDecryption = false): Promise<string> {
@@ -215,11 +215,12 @@ export class SsmClient extends BaseServiceClient implements SsmServiceClient {
   /**
    * Write a parameter to SSM Parameter Store
    *
-   * @param name - The parameter name to write
-   * @param value - The parameter value to store
-   * @param type - The parameter type (String, StringList, or SecureString)
-   * @param overwrite - Whether to overwrite if parameter already exists
-   * @throws {SmokerError} if parameter cannot be written or parameters are invalid
+   * @param {string} name - The parameter name to write
+   * @param {string} value - The parameter value to store
+   * @param {string} [type] - The parameter type (String, StringList, or SecureString)
+   * @param {boolean} [overwrite] - Whether to overwrite if parameter already exists
+   * @throws {ValidationError} if parameters are invalid
+   * @throws {AwsError} if parameter cannot be written
    */
   async write(name: string, value: string, type = "String", overwrite = true): Promise<void> {
     this.ensureInitialized();
@@ -294,8 +295,9 @@ export class SsmClient extends BaseServiceClient implements SsmServiceClient {
   /**
    * Delete a parameter from SSM Parameter Store
    *
-   * @param name - The parameter name to delete
-   * @throws {SmokerError} if parameter does not exist, cannot be deleted, or name is invalid
+   * @param {string} name - The parameter name to delete
+   * @throws {ValidationError} if name is invalid
+   * @throws {AwsError} if parameter does not exist or cannot be deleted
    */
   async delete(name: string): Promise<void> {
     this.ensureInitialized();

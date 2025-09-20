@@ -1,5 +1,5 @@
 /**
- * SQS Client Module
+ * @fileoverview AWS SQS Client Module
  *
  * This module provides interfaces and implementations for AWS SQS service clients.
  * It defines the contract for SQS operations such as sending, receiving, and deleting
@@ -31,10 +31,10 @@ import { BaseServiceClient, type ServiceClient } from "../core";
  * across the application, making it easier to process message data and manage
  * message lifecycle operations like deletion.
  *
- * @property messageId - Unique identifier assigned by SQS to the message
- * @property body - The message content/payload as a string
- * @property receiptHandle - The receipt handle required to delete the message
- * @property attributes - Additional message attributes as key-value pairs
+ * @property {string} messageId - Unique identifier assigned by SQS to the message
+ * @property {string} body - The message content/payload as a string
+ * @property {string} receiptHandle - The receipt handle required to delete the message
+ * @property {Record<string, unknown>} attributes - Additional message attributes as key-value pairs
  */
 export interface SqsMessage {
   messageId: string;
@@ -56,42 +56,43 @@ export interface SqsMessage {
  * handle the details of AWS SDK interactions while providing a simplified API
  * for queue operations.
  *
- * @extends {ServiceClient}
- * @see {ServiceClient} The base service client interface
+ * @extends {ServiceClient} The base service client interface
  */
 export interface SqsServiceClient extends ServiceClient {
   /**
    * Send a message to the SQS queue
    *
-   * @param messageBody - Message content
-   * @param delaySeconds - Delay delivery in seconds (default: 0)
-   * @return Message ID
-   * @throws {SmokerError} if sending fails
+   * @param {string} messageBody - Message content
+   * @param {number} [delaySeconds] - Delay delivery in seconds (default: 0)
+   * @returns {Promise<string>} Message ID
+   * @throws {ValidationError} if parameters are invalid
+   * @throws {SqsError} if sending fails
    */
   sendMessage(messageBody: string, delaySeconds?: number): Promise<string>;
 
   /**
    * Receive messages from the SQS queue
    *
-   * @param maxMessages - Maximum number of messages to retrieve (default: 1)
-   * @param waitTimeSeconds - Time to wait for messages (default: 0)
-   * @return Array of received messages
-   * @throws {SmokerError} if receiving fails
+   * @param {number} [maxMessages] - Maximum number of messages to retrieve (default: 1)
+   * @param {number} [waitTimeSeconds] - Time to wait for messages (default: 0)
+   * @returns {Promise<SqsMessage[]>} Array of received messages
+   * @throws {SqsError} if receiving fails
    */
   receiveMessages(maxMessages?: number, waitTimeSeconds?: number): Promise<SqsMessage[]>;
 
   /**
    * Delete a message from the SQS queue
    *
-   * @param receiptHandle - Receipt handle of the message to delete
-   * @throws {SmokerError} if deletion fails
+   * @param {string} receiptHandle - Receipt handle of the message to delete
+   * @throws {ValidationError} if receipt handle is invalid
+   * @throws {SqsError} if deletion fails
    */
   deleteMessage(receiptHandle: string): Promise<void>;
 
   /**
    * Purge all messages from the SQS queue
    *
-   * @throws {SmokerError} if purge operation fails
+   * @throws {SqsError} if purge operation fails
    */
   purgeQueue(): Promise<void>;
 }
@@ -109,8 +110,8 @@ export interface SqsServiceClient extends ServiceClient {
  * message delivery, long polling for message reception, and proper error
  * handling with detailed error messages.
  *
- * @implements {SqsServiceClient}
- * @extends {BaseServiceClient}
+ * @extends {BaseServiceClient} The base service client class
+ * @implements {SqsServiceClient} The interface for SQS service client
  */
 export class SqsClient extends BaseServiceClient implements SqsServiceClient {
   private client: AwsSqsClient | null = null;
@@ -119,8 +120,8 @@ export class SqsClient extends BaseServiceClient implements SqsServiceClient {
   /**
    * Create a new SQS client
    *
-   * @param clientId - Client identifier (defaults to "SqsClient")
-   * @param config - Optional client configuration with properties:
+   * @param {string} clientId - Client identifier (defaults to "SqsClient")
+   * @param {Record<string, unknown>} [config] - Optional client configuration with properties:
    *   - queueUrl: (required) URL of the SQS queue
    *   - region: AWS region (default: "us-east-1")
    *   - accessKeyId: AWS access key ID
@@ -134,7 +135,9 @@ export class SqsClient extends BaseServiceClient implements SqsServiceClient {
   /**
    * Initialize the client with AWS configuration
    *
-   * @throws {SmokerError} if queueUrl is not provided or client creation fails
+   * @protected
+   * @throws {ValidationError} if queueUrl is not provided
+   * @throws {SqsError} if client creation fails
    */
   protected async initializeClient(): Promise<void> {
     try {
@@ -180,10 +183,11 @@ export class SqsClient extends BaseServiceClient implements SqsServiceClient {
   /**
    * Send a message to the SQS queue
    *
-   * @param messageBody - Message content
-   * @param delaySeconds - Delay delivery in seconds (default: 0)
-   * @return Message ID
-   * @throws {SmokerError} if sending fails or client is not initialized
+   * @param {string} messageBody - Message content
+   * @param {number} [delaySeconds] - Delay delivery in seconds (default: 0)
+   * @returns {Promise<string>} Message ID
+   * @throws {ValidationError} if parameters are invalid
+   * @throws {SqsError} if sending fails or client is not initialized
    */
   async sendMessage(messageBody: string, delaySeconds = 0): Promise<string> {
     this.ensureInitialized();
@@ -232,10 +236,10 @@ export class SqsClient extends BaseServiceClient implements SqsServiceClient {
   /**
    * Receive messages from the SQS queue
    *
-   * @param maxMessages - Maximum number of messages to retrieve (default: 1)
+   * @param {number} maxMessages - Maximum number of messages to retrieve (default: 1)
    * @param waitTimeSeconds - Time to wait for messages (default: 0)
-   * @return Array of received messages
-   * @throws {SmokerError} if receiving fails or client is not initialized
+   * @returns Array of received messages
+   * @throws {SqsError} if receiving fails or client is not initialized
    */
   async receiveMessages(maxMessages = 1, waitTimeSeconds = 0): Promise<SqsMessage[]> {
     this.ensureInitialized();
@@ -284,7 +288,8 @@ export class SqsClient extends BaseServiceClient implements SqsServiceClient {
    * Delete a message from the SQS queue
    *
    * @param receiptHandle - Receipt handle of the message to delete
-   * @throws {SmokerError} if deletion fails or client is not initialized
+   * @throws {ValidationError} if receipt handle is invalid
+   * @throws {SqsError} if deletion fails or client is not initialized
    */
   async deleteMessage(receiptHandle: string): Promise<void> {
     this.ensureInitialized();
@@ -329,7 +334,7 @@ export class SqsClient extends BaseServiceClient implements SqsServiceClient {
   /**
    * Purge all messages from the SQS queue
    *
-   * @throws {SmokerError} if purge operation fails or client is not initialized
+   * @throws {SqsError} if purge operation fails or client is not initialized
    */
   async purgeQueue(): Promise<void> {
     this.ensureInitialized();

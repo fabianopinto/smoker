@@ -1,5 +1,5 @@
 /**
- * Random/Data Generation Utilities
+ * @fileoverview Random/Data Generation Utilities
  *
  * Utilities for generating UUIDs, random integers, random strings, picking
  * elements, and shuffling arrays — handy in smoke tests for temporary data.
@@ -23,7 +23,7 @@ export const RandomUtils = {
   /**
    * Returns a cryptographically strong UUID (v4) when available.
    *
-   * @returns UUID v4 string
+   * @returns {string} UUID v4 string
    */
   uuid(): string {
     // Node 22 has global crypto.randomUUID
@@ -43,10 +43,10 @@ export const RandomUtils = {
   /**
    * Random integer in [min, max] inclusive.
    *
-   * @param min - Lower bound (inclusive)
-   * @param max - Upper bound (inclusive)
-   * @returns Random integer ∈ [min, max]
-   * @throws Error when bounds are invalid
+   * @param {number} min - Lower bound (inclusive)
+   * @param {number} max - Upper bound (inclusive)
+   * @returns {number} Random integer ∈ [min, max]
+   * @throws {SmokerError} Error when bounds are invalid
    */
   randomInt(min: number, max: number): number {
     if (!Number.isFinite(min) || !Number.isFinite(max)) {
@@ -67,9 +67,9 @@ export const RandomUtils = {
   /**
    * Random alphanumeric string of given length.
    *
-   * @param length - Number of characters to generate
-   * @param charset - Characters to sample from (default: A-Za-z0-9)
-   * @returns Random string
+   * @param {number} length - Number of characters to generate
+   * @param {string} charset - Characters to sample from (default: A-Za-z0-9)
+   * @returns {string} Random string
    */
   randomString(
     length: number,
@@ -87,9 +87,10 @@ export const RandomUtils = {
   /**
    * Returns a random element from a non-empty array.
    *
-   * @param arr - Non-empty array
-   * @returns A randomly selected element
-   * @throws Error when array is empty
+   * @template T - The array element type
+   * @param {T[]} arr - Non-empty array
+   * @returns {T} A randomly selected element
+   * @throws {SmokerError} Error when array is empty
    */
   pickOne<T>(arr: T[]): T {
     if (!Array.isArray(arr) || arr.length === 0) {
@@ -111,8 +112,9 @@ export const RandomUtils = {
   /**
    * Returns a new array with elements shuffled (Fisher–Yates).
    *
-   * @param arr - Input array
-   * @returns New shuffled array
+   * @template T - The array element type
+   * @param {T[]} arr - Input array
+   * @returns {T[]} New shuffled array
    */
   shuffle<T>(arr: T[]): T[] {
     const a = arr.slice();

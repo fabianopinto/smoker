@@ -1,5 +1,5 @@
 /**
- * Messaging Service Clients Module
+ * @packageDocumentation Messaging Service Clients Module
  *
  * This barrel file exports all messaging service client implementations and interfaces
  * for easy consumption in other parts of the application. It provides a centralized

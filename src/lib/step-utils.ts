@@ -1,5 +1,5 @@
 /**
- * Step Utilities
+ * @fileoverview Step Utilities
  *
  * A collection of helpers tailored for Cucumber step definitions. These utilities:
  * - Parse key/value tables and CSVs commonly used in steps
@@ -10,8 +10,8 @@
  * - Parse human-friendly durations and perform polling/wait patterns
  *
  * Notes:
- * - No direct dependency on Cucumber types; pass any object with rows(): string[][] for table parsing.
- * - Functions that accept a `world` use it to enhance behavior (e.g., deep resolution + normalization).
+ * - No direct dependency on Cucumber types; pass any object with `rows(): string[][]` for table parsing.
+ * - Functions that accept a world use it to enhance behavior (e.g., deep resolution + normalization).
  */
 
 import { ERR_INVALID_DURATION, SmokerError } from "../errors";
@@ -22,19 +22,32 @@ import { UrlUtils } from "./url-utils";
  * Declared locally to avoid importing world.ts (which registers Cucumber World on load).
  */
 export interface WorldParamResolver {
+  /**
+   * Resolves a parameter using the World's resolution logic.
+   *
+   * @param {unknown} param - The parameter to resolve
+   * @returns {Promise<unknown>} A Promise resolving to the resolved parameter
+   */
   resolveParam(param: unknown): Promise<unknown>;
 }
 
-/** Minimal shape to accept Cucumber DataTable without importing it here. */
+/**
+ * Minimal shape to accept Cucumber DataTable without importing it here.
+ */
 export interface TabularRows {
+  /**
+   * Returns the table rows as an array of string arrays.
+   *
+   * @returns {string[][]} Array of row arrays, each containing string values
+   */
   rows(): string[][];
 }
 
 /**
  * Convert a key/value 2-column table to a plain object of strings.
  *
- * @param table - Any object that exposes `rows(): string[][]` (e.g., Cucumber DataTable)
- * @returns A map of key/value pairs as strings
+ * @param {TabularRows} table - Any object that exposes `rows(): string[][]` (e.g., Cucumber DataTable)
+ * @returns {Record<string, string>} A map of key/value pairs as strings
  *
  * @example
  * const rec = tableToRecord(table); // { baseUrl: "https://api", timeout: "5000" }
@@ -51,8 +64,8 @@ export function tableToRecord(table: TabularRows): Record<string, string> {
  * Parse a doc string as JSON if possible.
  * Falls back to the raw string when parsing fails and returns undefined for empty input.
  *
- * @param doc - The doc string provided by a step (may be undefined)
- * @returns Parsed JSON value, the raw string, or undefined when empty
+ * @param {string | undefined} [doc] - The doc string provided by a step (may be undefined)
+ * @returns {unknown} Parsed JSON value, the raw string, or undefined when empty
  *
  * @example
  * parseJsonDoc('{"a":1}') // => { a: 1 }
@@ -74,8 +87,8 @@ export function parseJsonDoc(doc?: string): unknown {
  * Coerce common string primitives used in steps to appropriate JS types.
  * e.g., "true" -> true, "42" -> 42, "null" -> null. Leaves objects/arrays untouched.
  *
- * @param value - The value to coerce (only strings are coerced)
- * @returns Coerced value or the original when not a coercible string
+ * @param {unknown} value - The value to coerce (only strings are coerced)
+ * @returns {unknown} Coerced value or the original when not a coercible string
  */
 export function coercePrimitive(value: unknown): unknown {
   if (typeof value !== "string") return value;
@@ -88,13 +101,13 @@ export function coercePrimitive(value: unknown): unknown {
 }
 
 /**
- * Deeply resolve any structure using the World's `resolveParam`, applying primitive coercion.
+ * Deeply resolve any structure using the World's resolveParam, applying primitive coercion.
  * Adds value over a single call by recursing arrays/objects and normalizing results for client usage.
  *
- * @template T
- * @param world - An object exposing `resolveParam` (e.g., SmokeWorld)
- * @param input - Any value (string/object/array) potentially containing references
- * @returns The same structure with all values resolved and normalized
+ * @template T - Type of the input structure
+ * @param {WorldParamResolver} world - An object exposing resolveParam (e.g., SmokeWorld)
+ * @param {T} input - Any value (string/object/array) potentially containing references
+ * @returns {Promise<T>} The same structure with all values resolved and normalized
  *
  * @example
  * const cfg = await resolveDeepWithWorld(world, { url: 'config:api.base', retry: '3' });
@@ -138,12 +151,10 @@ export async function resolveDeepWithWorld<T = unknown>(
  * Normalize headers to a case-insensitive map with string values.
  * Arrays are joined with commas, nullish values are skipped.
  *
- * @param headers - Header object (possibly case-varied, array values)
- * @returns Normalized headers with lowercase keys and string values
+ * @param {Record<string, unknown>} headers - Header object (possibly case-varied, array values)
+ * @returns {Record<string, string>} Normalized headers with lowercase keys and string values
  */
-export function normalizeHeaders(
-  headers: Record<string, unknown> | undefined,
-): Record<string, string> {
+export function normalizeHeaders(headers?: Record<string, unknown>): Record<string, string> {
   const out: Record<string, string> = {};
   if (!headers) return out;
   for (const [key, value] of Object.entries(headers)) {
@@ -163,12 +174,12 @@ export function normalizeHeaders(
  * Parse human-friendly durations like "500ms", "2s", "1m", "3h" into milliseconds.
  * Defaults to milliseconds when no suffix is provided.
  *
- * @param input - Duration string (e.g., "2s", "500ms", "1m")
- * @returns Milliseconds value as a number
+ * @param {string} input - Duration string (e.g., "2s", "500ms", "1m")
+ * @returns {number} Milliseconds value as a number
  *
  * @example
- * parseDurationMs('2s')   // 2000
- * parseDurationMs('500')  // 500
+ * parseDurationMs("2s")   // 2000
+ * parseDurationMs("500")  // 500
  */
 export function parseDurationMs(input: string): number {
   const s = input.trim().toLowerCase();
@@ -203,11 +214,11 @@ export function parseDurationMs(input: string): number {
 }
 
 /**
- * Generic polling helper that resolves when `predicate` returns truthy or timeout is reached.
+ * Generic polling helper that resolves when predicate returns truthy or timeout is reached.
  *
- * @param predicate - Function returning a boolean or Promise<boolean>
- * @param options - Polling options: timeoutMs (required), intervalMs (default 250ms)
- * @returns True if predicate became truthy before timeout; false otherwise
+ * @param {() => Promise<boolean> | boolean} predicate - Function returning a boolean or Promise<boolean>
+ * @param {Object} options - Polling options: timeoutMs (required), intervalMs (default 250ms)
+ * @returns {Promise<boolean>} True if predicate became truthy before timeout; false otherwise
  */
 export async function waitFor(
   predicate: () => Promise<boolean> | boolean,
@@ -229,11 +240,11 @@ export async function waitFor(
 /**
  * Build a URL from base + path + query, resolving all parts with the world first.
  *
- * @param world - Object exposing `resolveParam`
- * @param base - Base URL or path (may contain references)
- * @param path - Path segment (may contain references)
- * @param query - Optional query object (values resolved and stringified when needed)
- * @returns Fully built URL with query string appended when provided
+ * @param {WorldParamResolver} world - Object exposing resolveParam
+ * @param {string} base - Base URL or path (may contain references)
+ * @param {string} path - Path segment (may contain references)
+ * @param {Record<string, unknown>} query - Optional query object (values resolved and stringified when needed)
+ * @returns {Promise<string>} Fully built URL with query string appended when provided
  *
  * @example
  * const url = await resolveAndBuildUrl(world, 'config:api.base', '/users', { page: '2' });
@@ -266,8 +277,8 @@ export async function resolveAndBuildUrl(
 /**
  * Convert comma-separated values into an array of trimmed strings.
  *
- * @param input - CSV string
- * @returns Array of trimmed segments; empty array for empty/whitespace input
+ * @param {string} input - CSV string
+ * @returns {string[]} Array of trimmed segments; empty array for empty/whitespace input
  *
  * @example
  * csvToArray('a, b ,c') // => ['a', 'b', 'c']

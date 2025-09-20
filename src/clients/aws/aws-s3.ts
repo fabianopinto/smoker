@@ -1,5 +1,5 @@
 /**
- * S3 Client Module
+ * @fileoverview AWS S3 Client Module
  *
  * This module provides interfaces and implementations for AWS S3 service clients.
  * It defines the contract for S3 operations such as reading, writing, and deleting
@@ -28,16 +28,16 @@ import { BaseServiceClient, type ServiceClient } from "../core";
  * access to JSON objects through TypeScript generics. Implementations handle
  * the details of AWS SDK interactions while providing a simplified API.
  *
- * @extends {ServiceClient}
- * @see {ServiceClient} The base service client interface
+ * @extends {ServiceClient} The base service client interface
  */
 export interface S3ServiceClient extends ServiceClient {
   /**
    * Read an object from S3
    *
-   * @param key - The object key (path within the bucket)
-   * @return Promise resolving to the object content as a string
-   * @throws {SmokerError} if object does not exist or cannot be read
+   * @param {string} key - The object key (path within the bucket)
+   * @returns {Promise<string>} Promise resolving to the object content as a string
+   * @throws {ValidationError} if input is invalid
+   * @throws {S3Error} if object does not exist or cannot be read
    *
    * @example
    * // Read a text file from S3
@@ -49,8 +49,8 @@ export interface S3ServiceClient extends ServiceClient {
    * Read a JSON object from S3 and parse it
    *
    * @template T - The expected type of the parsed JSON
-   * @param key - The object key (path within the bucket)
-   * @return Promise resolving to the parsed JSON object
+   * @param {string} key - The object key (path within the bucket)
+   * @returns {Promise<T>} Promise resolving to the parsed JSON object
    * @throws {SmokerError} if object does not exist, cannot be read, or is invalid JSON
    *
    * @example
@@ -63,9 +63,9 @@ export interface S3ServiceClient extends ServiceClient {
   /**
    * Write a string object to S3
    *
-   * @param key - The object key (path within the bucket)
-   * @param content - The string content to write
-   * @return Promise that resolves when the write operation completes
+   * @param {string} key - The object key (path within the bucket)
+   * @param {string} content - The string content to write
+   * @returns {Promise<void>} Promise that resolves when the write operation completes
    * @throws {SmokerError} if writing fails
    *
    * @example
@@ -77,16 +77,17 @@ export interface S3ServiceClient extends ServiceClient {
   /**
    * Convert data to JSON and write to S3
    *
-   * @param key - The object key (path within the bucket)
-   * @param data - The data object to serialize as JSON
-   * @throws {SmokerError} if serialization or writing fails
+   * @param {string} key - The object key (path within the bucket)
+   * @param {unknown} data - The data object to serialize as JSON
+   * @throws {ValidationError} if parameters are invalid
+   * @throws {S3Error} if serialization or writing fails
    */
   writeJson(key: string, data: unknown): Promise<void>;
 
   /**
    * Delete an object from S3
    *
-   * @param key - The object key (path within the bucket)
+   * @param {string} key - The object key (path within the bucket)
    * @throws {SmokerError} if deletion fails
    */
   delete(key: string): Promise<void>;
@@ -105,8 +106,8 @@ export interface S3ServiceClient extends ServiceClient {
  * formats, with specialized methods for each use case. The implementation
  * includes proper error handling and resource cleanup.
  *
- * @implements {S3ServiceClient}
- * @extends {BaseServiceClient}
+ * @extends {BaseServiceClient} The base service client class
+ * @implements {S3ServiceClient} The interface for S3 service client
  */
 export class S3Client extends BaseServiceClient implements S3ServiceClient {
   private client: AwsS3Client | null = null;
@@ -115,8 +116,8 @@ export class S3Client extends BaseServiceClient implements S3ServiceClient {
   /**
    * Create a new S3 client
    *
-   * @param clientId - Client identifier (defaults to "S3Client")
-   * @param config - Optional client configuration with properties:
+   * @param {string} clientId - Client identifier (defaults to "S3Client")
+   * @param {Record<string, unknown>} config - Optional client configuration with properties:
    *   - bucket: (required) The S3 bucket name to use
    *   - region: AWS region (default: "us-east-1")
    *   - accessKeyId: AWS access key ID
@@ -130,7 +131,8 @@ export class S3Client extends BaseServiceClient implements S3ServiceClient {
   /**
    * Initialize the S3 client with AWS configuration
    *
-   * @throws {SmokerError} if bucket name is not provided or client creation fails
+   * @throws {ValidationError} if bucket name is not provided
+   * @throws {S3Error} if client creation fails
    */
   protected async initializeClient(): Promise<void> {
     // Get configuration with defaults
@@ -187,8 +189,8 @@ export class S3Client extends BaseServiceClient implements S3ServiceClient {
   /**
    * Read an object from S3
    *
-   * @param key - The object key (path within the bucket)
-   * @return Promise resolving to the object content as a string
+   * @param {string} key - The object key (path within the bucket)
+   * @returns {Promise<string>} Promise resolving to the object content as a string
    * @throws {SmokerError} if object does not exist or cannot be read
    */
   async read(key: string): Promise<string> {
@@ -242,8 +244,8 @@ export class S3Client extends BaseServiceClient implements S3ServiceClient {
   /**
    * Convert a readable stream to string
    *
-   * @param stream - The readable stream to convert
-   * @return Promise resolving to the stream content as string
+   * @param {NodeJS.ReadableStream} stream - The readable stream to convert
+   * @returns {Promise<string>} Promise resolving to the stream content as string
    */
   private async streamToString(stream: NodeJS.ReadableStream): Promise<string> {
     const chunks: Buffer[] = [];
@@ -258,8 +260,8 @@ export class S3Client extends BaseServiceClient implements S3ServiceClient {
    * Read a JSON object from S3 and parse it
    *
    * @template T - The expected type of the parsed JSON
-   * @param key - The object key (path within the bucket)
-   * @return Promise resolving to the parsed JSON object
+   * @param {string} key - The object key (path within the bucket)
+   * @returns {Promise<T>} Promise resolving to the parsed JSON object
    * @throws {SmokerError} if object does not exist, cannot be read, or is invalid JSON
    */
   async readJson<T>(key: string): Promise<T> {
@@ -306,9 +308,10 @@ export class S3Client extends BaseServiceClient implements S3ServiceClient {
   /**
    * Write a string object to S3
    *
-   * @param key - The object key (path within the bucket)
-   * @param content - The string content to write
-   * @throws {SmokerError} if writing fails or parameters are invalid
+   * @param {string} key - The object key (path within the bucket)
+   * @param {string} content - The string content to write
+   * @throws {ValidationError} if parameters are invalid
+   * @throws {S3Error} if writing fails
    */
   async write(key: string, content: string): Promise<void> {
     this.ensureInitialized();
@@ -356,8 +359,8 @@ export class S3Client extends BaseServiceClient implements S3ServiceClient {
   /**
    * Convert data to JSON and write to S3
    *
-   * @param key - The object key (path within the bucket)
-   * @param data - The data object to serialize as JSON
+   * @param {string} key - The object key (path within the bucket)
+   * @param {unknown} data - The data object to serialize as JSON
    * @throws {SmokerError} if serialization or writing fails
    */
   async writeJson(key: string, data: unknown): Promise<void> {
@@ -410,8 +413,9 @@ export class S3Client extends BaseServiceClient implements S3ServiceClient {
   /**
    * Delete an object from S3
    *
-   * @param key - The object key (path within the bucket)
-   * @throws {SmokerError} if deletion fails or key is invalid
+   * @param {string} key - The object key (path within the bucket)
+   * @throws {ValidationError} if key is invalid
+   * @throws {S3Error} if deletion fails
    */
   async delete(key: string): Promise<void> {
     this.ensureInitialized();

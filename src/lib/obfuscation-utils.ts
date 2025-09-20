@@ -1,16 +1,16 @@
 /**
- * Obfuscation Utilities
+ * @fileoverview Obfuscation Utilities
  *
  * Lightweight helpers to obfuscate sensitive data in strings, headers, and
  * deep objects. Supports full and partial masking, with pattern-based
- * redaction for common secret-like property names (e.g., `password`, `token`,
- * `apiKey`, `authorization`).
+ * redaction for common secret-like property names (e.g., password, token,
+ * apiKey, authorization).
  *
  * Design:
  * - Pure, non-mutating functions (object obfuscation returns a cloned shape)
  * - Circular reference safe traversal
  * - Opinionated defaults with extensible options
- * - Uses the shared `logger` for safe failure logging (warn level)
+ * - Uses the shared logger for safe failure logging (warn level)
  *
  * Examples:
  * ```ts
@@ -32,19 +32,29 @@
 
 import { logger } from "@fabianopinto/logger";
 
-/** Options for partial masking */
+/**
+ * Options for partial masking
+ *
+ * @property {number} [visibleStart] - How many characters to keep visible at the start. Default: 2
+ * @property {number} [visibleEnd] - How many characters to keep visible at the end. Default: 2
+ * @property {string} [maskChar] - Mask character. Default: "*"
+ * @property {number} [minMasked] - Minimum number of masked characters to enforce. Default: 4
+ */
 export interface PartialMaskOptions {
-  /** How many characters to keep visible at the start. Default: 2 */
   visibleStart?: number;
-  /** How many characters to keep visible at the end. Default: 2 */
   visibleEnd?: number;
-  /** Mask character. Default: "*" */
   maskChar?: string;
-  /** Minimum number of masked characters to enforce. Default: 4 */
   minMasked?: number;
 }
 
-/** Options for object obfuscation */
+/**
+ * Options for object obfuscation
+ *
+ * @extends {PartialMaskOptions} - Extends PartialMaskOptions for options that apply to object obfuscation
+ * @property {Array<string|RegExp>} [patterns] - Property name patterns that should be masked when encountered.
+ * @property {boolean} [fullMask] - If true, fully mask matched values; otherwise partially mask. Default: true
+ * @property {function} [shouldMaskKey] - Custom predicate to decide whether a property should be masked.
+ */
 export interface ObfuscateObjectOptions extends PartialMaskOptions {
   /**
    * Property name patterns that should be masked when encountered.
@@ -57,7 +67,7 @@ export interface ObfuscateObjectOptions extends PartialMaskOptions {
   fullMask?: boolean;
   /**
    * Custom predicate to decide whether a property should be masked.
-   * When provided, this takes precedence over `patterns`.
+   * When provided, this takes precedence over patterns.
    */
   shouldMaskKey?: (key: string, value: unknown, path: string[]) => boolean;
 }
@@ -77,9 +87,10 @@ const DEFAULT_PATTERNS: RegExp[] = [
 /**
  * Fully masks a string with the given character (length preserved).
  *
- * @param value - Input string to mask
- * @param maskChar - Character to use for masking. Default: "*"
- * @returns Masked string with original length
+ * @param {string} value - Input string to mask
+ * @param {string} maskChar - Character to use for masking. Default: "*"
+ * @returns {string} Masked string with original length
+ *
  * @example
  * mask("secret") // => "******"
  */
@@ -90,11 +101,12 @@ function mask(value: string, maskChar = "*"): string {
 
 /**
  * Partially masks a string, preserving start/end visibility.
- * Ensures at least `minMasked` characters are masked when possible.
+ * Ensures at least minMasked characters are masked when possible.
  *
- * @param value - Input string to mask
- * @param opts - Partial mask options, see {@link PartialMaskOptions}
- * @returns A partially masked string
+ * @param {string} value - Input string to mask
+ * @param {PartialMaskOptions} opts - Partial mask options
+ * @returns {string} A partially masked string
+ *
  * @example
  * partialMask("supersecret") // => "su******et"
  */
@@ -126,13 +138,30 @@ function partialMask(value: string, opts: PartialMaskOptions = {}): string {
   return value.slice(0, start) + maskChar.repeat(maskedCount) + value.slice(len - end);
 }
 
-/** Normalize patterns to RegExp */
+/**
+ * Normalize patterns to RegExp
+ *
+ * @param {Array<string|RegExp>} patterns - Array of patterns to normalize
+ * @returns {Array<RegExp>} Array of RegExp objects
+ *
+ * @example
+ * toRegexps(["password", /token/]) // => [ /password/i, /token/i ]
+ */
 function toRegexps(patterns?: (string | RegExp)[]): RegExp[] {
   const base = patterns?.length ? patterns : DEFAULT_PATTERNS;
   return base.map((p) => (typeof p === "string" ? new RegExp(p, "i") : p));
 }
 
-/** Decide whether a key should be masked */
+/**
+ * Decide whether a key should be masked
+ *
+ * @param {string} key - Key to check
+ * @param {Array<RegExp>} regs - Array of RegExp objects to match against
+ * @returns {boolean} True if the key matches any of the patterns
+ *
+ * @example
+ * keyMatches("password", [ /password/i, /token/i ]) // => true
+ */
 function keyMatches(key: string, regs: RegExp[]): boolean {
   return regs.some((r) => r.test(key));
 }
@@ -140,6 +169,15 @@ function keyMatches(key: string, regs: RegExp[]): boolean {
 /**
  * Obfuscates string values by either full or partial masking.
  * Leaves non-string values intact.
+ *
+ * @param {unknown} value - Value to obfuscate
+ * @param {boolean} fullMaskMode - If true, fully mask the value; otherwise partially mask
+ * @param {PartialMaskOptions} opts - Partial mask options to control visibility and mask char
+ * @returns {unknown} The obfuscated value
+ *
+ * @example
+ * obfuscateValue("secret", true) // => "******"
+ * obfuscateValue("supersecret", { visibleStart: 2, visibleEnd: 2 }) // => "su******et"
  */
 function obfuscateValue(value: unknown, fullMaskMode: boolean, opts: PartialMaskOptions): unknown {
   if (typeof value !== "string") return value;
@@ -150,9 +188,10 @@ function obfuscateValue(value: unknown, fullMaskMode: boolean, opts: PartialMask
  * Obfuscates HTTP header values, preserving schemes like "Bearer" while masking
  * the credential part.
  *
- * @param headers - Header name/value pairs
- * @param opts - Partial mask options to control visibility and mask char
- * @returns A new headers object with sensitive values obfuscated
+ * @param {Record<string, string>} headers - Header name/value pairs
+ * @param {PartialMaskOptions} opts - Partial mask options to control visibility and mask char
+ * @returns {Record<string, string>} A new headers object with sensitive values obfuscated
+ *
  * @example
  * obfuscateHeaders({ Authorization: "Bearer abcdef" })
  * // => { Authorization: "Bearer **cdef" } (last 4 visible by default)
@@ -194,10 +233,11 @@ function obfuscateHeaders(
  * - Circular reference safe
  * - Non-string values are left untouched
  *
- * @typeParam T - The input object/array type
- * @param input - Any object/array to obfuscate
- * @param options - Controls matching and masking behavior, see {@link ObfuscateObjectOptions}
- * @returns A new object/array with sensitive values obfuscated
+ * @template T - The input object/array type
+ * @param {T} input - Any object/array to obfuscate
+ * @param {ObfuscateObjectOptions} options - Controls matching and masking behavior
+ * @returns {T} A new object/array with sensitive values obfuscated
+ *
  * @example
  * obfuscateObject({ password: "p@ss", token: "abcd", keep: 1 })
  * // => { password: "****", token: "ab**", keep: 1 }

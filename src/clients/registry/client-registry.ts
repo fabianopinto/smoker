@@ -1,5 +1,5 @@
 /**
- * Client Registry Module
+ * @fileoverview Client Registry Module
  *
  * This module provides a registry for client configurations, allowing
  * client instances to be created with consistent settings. It implements
@@ -25,7 +25,7 @@ import { ClientType } from "../core";
  * application, enhancing type safety and reducing runtime errors.
  *
  * @template T - The type to make deeply readonly
- * @return A type where all properties and nested properties are readonly
+ * @returns {DeepReadonly<T>} A type where all properties and nested properties are readonly
  */
 type DeepReadonly<T> = T extends (infer R)[]
   ? readonly DeepReadonly<R>[]
@@ -79,11 +79,7 @@ export type ReadonlyClientConfig = DeepReadonly<ClientConfig>;
  * @see {ClientRegistry.resetInstance} Method to reset the global registry instance
  */
 export class ClientRegistry {
-  /**
-   * Singleton instance of the client registry
-   *
-   * @private
-   */
+  /** Singleton instance of the client registry */
   private static instance: ClientRegistry | null = null;
 
   /**
@@ -92,7 +88,7 @@ export class ClientRegistry {
    * If the instance doesn't exist yet, it will be created automatically.
    * This provides a true singleton pattern for accessing the global registry.
    *
-   * @return The global singleton instance of the client registry
+   * @returns {ClientRegistry} The global singleton instance of the client registry
    *
    * @example
    * // Get the global registry and register a configuration
@@ -113,7 +109,7 @@ export class ClientRegistry {
    * on the next call to getInstance(). This is primarily useful for testing
    * or when completely resetting the application state.
    *
-   * @param newInstance - Optional new instance to set as the singleton
+   * @param {ClientRegistry} [newInstance] - Optional new instance to set as the singleton
    *
    * @example
    * // Reset the global registry to a clean state
@@ -144,9 +140,9 @@ export class ClientRegistry {
    * Stores a configuration for a specific client type and optional ID.
    * The configuration is deep-copied to ensure immutability of the stored data.
    *
-   * @param clientType - The type of client (REST, MQTT, etc.)
-   * @param config - Configuration object for the client
-   * @param id - Optional client identifier
+   * @param {ClientType | string} clientType - The type of client (REST, MQTT, etc.)
+   * @param {ClientConfig} config - Configuration object for the client
+   * @param {string} [id] - Optional client identifier
    *
    * @example
    * // Register a configuration for an S3 client
@@ -174,7 +170,7 @@ export class ClientRegistry {
    * can be either just the client type or "type:id" to specify a client ID.
    * Non-object values in the configs object are skipped.
    *
-   * @param configs - Object mapping client types to their configurations
+   * @param {Record<string, unknown>} configs - Object mapping client types to their configurations
    *
    * @example
    * // Register multiple client configurations at once
@@ -212,9 +208,9 @@ export class ClientRegistry {
    * to the default configuration for that client type. Returns a deep readonly
    * copy of the configuration to prevent mutations.
    *
-   * @param clientType - The type of client
-   * @param id - Optional client identifier
-   * @return The readonly client configuration or undefined if not found
+   * @param {ClientType | string} clientType - The type of client
+   * @param {string} [id] - Optional client identifier
+   * @returns {ReadonlyClientConfig | undefined} The readonly client configuration or undefined if not found
    *
    * @example
    * // Get the default S3 client configuration
@@ -254,9 +250,9 @@ export class ClientRegistry {
    * and optional ID. This method can be used to check availability before
    * attempting to retrieve a configuration.
    *
-   * @param clientType - The type of client
-   * @param id - Optional client identifier
-   * @return True if a configuration exists, false otherwise
+   * @param {ClientType | string} clientType - The type of client
+   * @param {string} [id] - Optional client identifier
+   * @returns {boolean} True if a configuration exists, false otherwise
    *
    * @example
    * // Check if a specific client configuration exists
@@ -277,7 +273,7 @@ export class ClientRegistry {
    * The map keys are in the format "type:id" or just "type" if no ID was specified.
    * All configuration objects are returned as deeply readonly to prevent mutations.
    *
-   * @return A readonly map of all configurations
+   * @returns {ReadonlyMap<string, ReadonlyClientConfig>} A readonly map of all configurations
    *
    * @example
    * // Get all registered configurations
@@ -326,10 +322,9 @@ export class ClientRegistry {
    * The key format is "type:id" when an ID is provided, or just "type" otherwise.
    * This method ensures consistent key generation across all registry operations.
    *
-   * @param clientType - The type of client
-   * @param id - Optional client identifier
-   * @return The configuration key in the format "type:id" or "type"
-   * @private
+   * @param {ClientType | string} clientType - The type of client
+   * @param {string} [id] - Optional client identifier
+   * @returns {string} The configuration key in the format "type:id" or "type"
    */
   private getConfigKey(clientType: ClientType | string, id?: string): string {
     // Ensure we have a string representation regardless of input type

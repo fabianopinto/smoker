@@ -1,5 +1,5 @@
 /**
- * Object and Collection Utilities
+ * @fileoverview Object and Collection Utilities
  *
  * Utilities for safe deep access/mutation and object shape manipulation
  * (pick/omit), plus collection helpers. Useful for handling structured
@@ -104,9 +104,10 @@ export const ObjectUtils = {
   /**
    * Returns value at path (dot-notation).
    *
-   * @param obj - Source object (may be unknown)
-   * @param path - Dot-separated path (e.g., "a.b.c")
-   * @returns Value at the path or undefined when not found
+   * @template T - The input object type
+   * @param {T} obj - Source object (may be unknown)
+   * @param {string} path - Dot-separated path (e.g., "a.b.c")
+   * @returns {T | undefined} Value at the path or undefined when not found
    */
   deepGet<T = unknown>(obj: unknown, path: string): T | undefined {
     if (obj == null) return undefined;
@@ -131,10 +132,11 @@ export const ObjectUtils = {
    * Sets value at path (dot-notation), returns mutated object.
    * Creates intermediate objects as needed.
    *
-   * @param obj - Target object to mutate
-   * @param path - Dot-separated path (e.g., "a.b.c")
-   * @param value - Value to set
-   * @returns The same object reference with the path set
+   * @template T - The input object type
+   * @param {T} obj - Target object to mutate
+   * @param {string} path - Dot-separated path (e.g., "a.b.c")
+   * @param {unknown} value - Value to set
+   * @returns {T} The same object reference with the path set
    */
   deepSet<T extends Record<string, unknown>>(obj: T, path: string, value: unknown): T {
     const parts = ObjectUtils._parsePath(path);
@@ -178,9 +180,11 @@ export const ObjectUtils = {
   /**
    * Returns a new object with only specified keys.
    *
-   * @param obj - Source object
-   * @param keys - Keys to retain
-   * @returns A new object containing only the provided keys
+   * @template T - The input object type
+   * @template K - The keys to pick
+   * @param {T} obj - Source object
+   * @param {K[]} keys - Keys to retain
+   * @returns {Pick<T, K>} A new object containing only the provided keys
    */
   pick<T extends object, K extends keyof T>(obj: T, keys: K[]): Pick<T, K> {
     const out = {} as Pick<T, K>;
@@ -195,9 +199,11 @@ export const ObjectUtils = {
   /**
    * Returns a new object without specified keys.
    *
-   * @param obj - Source object
-   * @param keys - Keys to omit
-   * @returns A new object without the specified keys
+   * @template T - The input object type
+   * @template K - The keys to omit
+   * @param {T} obj - Source object
+   * @param {K[]} keys - Keys to omit
+   * @returns {Omit<T, K>} A new object without the specified keys
    */
   omit<T extends object, K extends keyof T>(obj: T, keys: K[]): Omit<T, K> {
     const set = new Set<keyof T>(keys as unknown as (keyof T)[]);
@@ -213,10 +219,11 @@ export const ObjectUtils = {
   /**
    * Ensures a value is an array.
    *
-   * @param value - Any value or array
-   * @returns value as an array (wraps non-array values, returns [] for null/undefined)
+   * @template T - The input value type
+   * @param {T | T[] | null} value - Any value or array
+   * @returns {T[]} value as an array (wraps non-array values, returns [] for null/undefined)
    */
-  ensureArray<T>(value: T | T[] | null | undefined): T[] {
+  ensureArray<T>(value?: T | T[] | null): T[] {
     if (value == null) return [] as T[];
     return Array.isArray(value) ? value : [value];
   },

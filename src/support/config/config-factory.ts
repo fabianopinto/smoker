@@ -1,5 +1,5 @@
 /**
- * Configuration Factory Module
+ * @fileoverview Configuration Factory Module
  *
  * This module provides a factory pattern implementation for building configuration objects
  * from multiple sources. It centralizes configuration management and supports loading from
@@ -75,8 +75,8 @@ export class ConfigurationFactory {
    * Adds a custom configuration source to the factory. The source will be loaded
    * and merged with other sources when build() is called.
    *
-   * @param source - The configuration source to add
-   * @return This factory instance for method chaining
+   * @param {ConfigurationSource} source - The configuration source to add
+   * @returns {ConfigurationFactory} This factory instance for method chaining
    *
    * @example
    * // Add a custom configuration source
@@ -94,8 +94,8 @@ export class ConfigurationFactory {
    * the appropriate configuration source. For local files, the path is resolved
    * to an absolute path. For S3 URLs, an S3ConfigurationSource is created.
    *
-   * @param filePath - File path or S3 URL (s3://bucket/path/file.json)
-   * @return This factory instance for method chaining
+   * @param {string} filePath - File path or S3 URL (s3://bucket/path/file.json)
+   * @returns {ConfigurationFactory} This factory instance for method chaining
    *
    * @example
    * // Add a local configuration file
@@ -123,9 +123,9 @@ export class ConfigurationFactory {
    * Creates and adds an S3ConfigurationSource for loading configuration from an S3 object.
    * This method provides explicit control over the AWS region to use for S3 access.
    *
-   * @param s3Url - S3 URL in the format s3://bucket/path/file.json
-   * @param region - Optional AWS region (defaults to environment variable or us-east-1)
-   * @return This factory instance for method chaining
+   * @param {string} s3Url - S3 URL in the format s3://bucket/path/file.json
+   * @param {string} [region] - AWS region (defaults to environment variable or us-east-1)
+   * @returns {ConfigurationFactory} This factory instance for method chaining
    *
    * @example
    * // Add an S3 configuration file with specific region
@@ -143,8 +143,8 @@ export class ConfigurationFactory {
    * an in-memory object. This is useful for providing default values, overrides,
    * or dynamically generated configuration.
    *
-   * @param config - Configuration object to add
-   * @return This factory instance for method chaining
+   * @param {ConfigObject} config - Configuration object to add
+   * @returns {ConfigurationFactory} This factory instance for method chaining
    *
    * @example
    * // Add default configuration values
@@ -168,8 +168,8 @@ export class ConfigurationFactory {
    * This is particularly useful in scenarios where you need multiple configuration
    * instances for different components or when testing with isolated configurations.
    *
-   * @param setAsGlobal - Whether to set as global configuration (default: true)
-   * @return This factory instance for method chaining
+   * @param {boolean} setAsGlobal - Whether to set as global configuration (default: true)
+   * @returns {ConfigurationFactory} This factory instance for method chaining
    *
    * @example
    * // Build a configuration without setting it as global
@@ -197,7 +197,7 @@ export class ConfigurationFactory {
    * but continuing with the remaining sources. This ensures that a partial configuration
    * is still available even if some sources fail to load.
    *
-   * @return Promise resolving to a new immutable Configuration object
+   * @returns {Promise<Configuration>} Promise resolving to a new immutable Configuration object
    *
    * @example
    * // Build a complete configuration
