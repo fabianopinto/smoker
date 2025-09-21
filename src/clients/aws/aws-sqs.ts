@@ -17,7 +17,7 @@ import {
   ReceiveMessageCommand,
   SendMessageCommand,
 } from "@aws-sdk/client-sqs";
-import { ERR_VALIDATION, SmokerError } from "../../errors";
+import { SqsError, ValidationError } from "@fabianopinto/errors";
 import { BaseServiceClient, type ServiceClient } from "../core";
 
 /**
@@ -145,11 +145,10 @@ export class SqsClient extends BaseServiceClient implements SqsServiceClient {
       this.queueUrl = this.getConfig<string>("queueUrl", "");
 
       if (!this.queueUrl) {
-        throw new SmokerError("SQS queue URL is required", {
-          code: ERR_VALIDATION,
-          domain: "aws",
-          details: { component: "sqs" },
-          retryable: false,
+        throw new ValidationError("SQS queue URL is required", {
+          code: "SQS_QUEUE_URL_REQUIRED",
+          context: { component: "sqs" },
+          isOperational: false,
         });
       }
 
@@ -162,18 +161,17 @@ export class SqsClient extends BaseServiceClient implements SqsServiceClient {
         endpoint: this.getConfig<string>("endpoint", "") || undefined,
       });
     } catch (error) {
-      throw new SmokerError(
+      throw new SqsError(
         `Failed to initialize SQS client: ${
           error instanceof Error ? error.message : String(error)
         }`,
         {
-          code: ERR_VALIDATION,
-          domain: "aws",
-          details: {
+          code: "SQS_INIT_FAILED",
+          context: {
             component: "sqs",
             reason: error instanceof Error ? error.message : String(error),
           },
-          retryable: true,
+          isOperational: true,
           cause: error,
         },
       );
@@ -195,11 +193,10 @@ export class SqsClient extends BaseServiceClient implements SqsServiceClient {
 
     // Allow empty message bodies (empty string is valid) - only check for null/undefined
     if (messageBody === null || messageBody === undefined) {
-      throw new SmokerError("SQS sendMessage requires message content", {
-        code: ERR_VALIDATION,
-        domain: "aws",
-        details: { component: "sqs", queueUrl: this.queueUrl },
-        retryable: false,
+      throw new ValidationError("SQS sendMessage requires message content", {
+        code: "SQS_MESSAGE_REQUIRED",
+        context: { component: "sqs", queueUrl: this.queueUrl },
+        isOperational: false,
       });
     }
 
@@ -214,19 +211,18 @@ export class SqsClient extends BaseServiceClient implements SqsServiceClient {
 
       return response.MessageId || `message-id-${Date.now()}`;
     } catch (error) {
-      throw new SmokerError(
+      throw new SqsError(
         `Failed to send message to queue ${this.queueUrl}: ${
           error instanceof Error ? error.message : String(error)
         }`,
         {
-          code: ERR_VALIDATION,
-          domain: "aws",
-          details: {
+          code: "SQS_SEND_FAILED",
+          context: {
             component: "sqs",
             queueUrl: this.queueUrl,
             reason: error instanceof Error ? error.message : String(error),
           },
-          retryable: true,
+          isOperational: true,
           cause: error,
         },
       );
@@ -265,19 +261,18 @@ export class SqsClient extends BaseServiceClient implements SqsServiceClient {
         attributes: message.MessageAttributes || {},
       }));
     } catch (error) {
-      throw new SmokerError(
+      throw new SqsError(
         `Failed to receive messages from queue ${this.queueUrl}: ${
           error instanceof Error ? error.message : String(error)
         }`,
         {
-          code: ERR_VALIDATION,
-          domain: "aws",
-          details: {
+          code: "SQS_RECEIVE_FAILED",
+          context: {
             component: "sqs",
             queueUrl: this.queueUrl,
             reason: error instanceof Error ? error.message : String(error),
           },
-          retryable: true,
+          isOperational: true,
           cause: error,
         },
       );
@@ -296,11 +291,10 @@ export class SqsClient extends BaseServiceClient implements SqsServiceClient {
     this.assertNotNull(this.client);
 
     if (!receiptHandle) {
-      throw new SmokerError("SQS deleteMessage requires a receipt handle", {
-        code: ERR_VALIDATION,
-        domain: "aws",
-        details: { component: "sqs", queueUrl: this.queueUrl },
-        retryable: false,
+      throw new ValidationError("SQS deleteMessage requires a receipt handle", {
+        code: "SQS_RECEIPT_HANDLE_REQUIRED",
+        context: { component: "sqs", queueUrl: this.queueUrl },
+        isOperational: false,
       });
     }
 
@@ -312,19 +306,18 @@ export class SqsClient extends BaseServiceClient implements SqsServiceClient {
 
       await this.client.send(command);
     } catch (error) {
-      throw new SmokerError(
+      throw new SqsError(
         `Failed to delete message from queue ${this.queueUrl}: ${
           error instanceof Error ? error.message : String(error)
         }`,
         {
-          code: ERR_VALIDATION,
-          domain: "aws",
-          details: {
+          code: "SQS_DELETE_FAILED",
+          context: {
             component: "sqs",
             queueUrl: this.queueUrl,
             reason: error instanceof Error ? error.message : String(error),
           },
-          retryable: true,
+          isOperational: true,
           cause: error,
         },
       );
@@ -347,19 +340,18 @@ export class SqsClient extends BaseServiceClient implements SqsServiceClient {
 
       await this.client.send(command);
     } catch (error) {
-      throw new SmokerError(
+      throw new SqsError(
         `Failed to purge queue ${this.queueUrl}: ${
           error instanceof Error ? error.message : String(error)
         }`,
         {
-          code: ERR_VALIDATION,
-          domain: "aws",
-          details: {
+          code: "SQS_PURGE_FAILED",
+          context: {
             component: "sqs",
             queueUrl: this.queueUrl,
             reason: error instanceof Error ? error.message : String(error),
           },
-          retryable: true,
+          isOperational: true,
           cause: error,
         },
       );

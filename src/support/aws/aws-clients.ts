@@ -15,8 +15,8 @@
 
 import { GetObjectCommand, S3Client } from "@aws-sdk/client-s3";
 import { GetParameterCommand, SSMClient } from "@aws-sdk/client-ssm";
+import { AwsError, ValidationError } from "@fabianopinto/errors";
 import { Readable } from "node:stream";
-import { ERR_S3_INVALID_URL, ERR_S3_READ, ERR_SSM_PARAMETER, SmokerError } from "../../errors";
 
 /**
  * Parsed S3 URL components
@@ -213,7 +213,7 @@ export function parseS3Url(s3Url: string | undefined): ParsedS3Url | null {
  *
  * @param {Readable | Buffer | string | unknown} streamOrData - Stream, Buffer, string, or other data from AWS SDK response
  * @returns {Promise<string>} Promise that resolves to the content as string
- * @throws {SmokerError} if the data cannot be converted to a string
+ * @throws {Error} if the underlying stream emits an error while reading
  *
  * @example
  * // Convert an S3 object response to string
@@ -308,7 +308,7 @@ export class S3ClientWrapper implements IS3Client {
    * @param {string} bucket - S3 bucket name
    * @param {string} key - S3 object key
    * @returns {Promise<string>} Promise that resolves to the object content as string
-   * @throws {SmokerError} if the object cannot be retrieved
+   * @throws {AwsError} if the object cannot be retrieved
    */
   async getObjectAsString(bucket: string, key: string): Promise<string> {
     const command = new GetObjectCommand({
@@ -319,27 +319,25 @@ export class S3ClientWrapper implements IS3Client {
     try {
       const response = await this.client.send(command);
       if (!response.Body) {
-        throw new SmokerError("Failed to read S3 object", {
-          code: ERR_S3_READ,
-          domain: "aws",
-          details: { component: "s3", bucket, key, reason: "Empty response body" },
-          retryable: true,
+        throw new AwsError("Failed to read S3 object", {
+          code: "S3_READ_FAILED",
+          context: { component: "s3", bucket, key, reason: "Empty response body" },
+          isOperational: true,
         });
       }
 
       return await streamToString(response.Body as Readable);
     } catch (error) {
-      // Wrap AWS SDK errors into a structured SmokerError
-      throw new SmokerError("Failed to read S3 object", {
-        code: ERR_S3_READ,
-        domain: "aws",
-        details: {
+      // Wrap AWS SDK errors into a structured AwsError
+      throw new AwsError("Failed to read S3 object", {
+        code: "S3_READ_FAILED",
+        context: {
           component: "s3",
           bucket,
           key,
           reason: error instanceof Error ? error.message : String(error),
         },
-        retryable: true,
+        isOperational: true,
         cause: error,
       });
     }
@@ -352,7 +350,7 @@ export class S3ClientWrapper implements IS3Client {
    * @param {string} bucket - S3 bucket name
    * @param {string} key - S3 object key
    * @returns {Promise<T>} Promise that resolves to the parsed JSON object
-   * @throws {SmokerError} if the object cannot be retrieved or parsed
+   * @throws {AwsError} if the object cannot be retrieved or parsed
    */
   async getObjectAsJson<T = Record<string, unknown>>(bucket: string, key: string): Promise<T> {
     const content = await this.getObjectAsString(bucket, key);
@@ -379,16 +377,16 @@ export class S3ClientWrapper implements IS3Client {
    * @template T - Type of the expected return value
    * @param {string} s3Url - S3 URL in the format s3://bucket/path/file[.ext]
    * @returns {Promise<T | string>} Promise that resolves to either a parsed JSON object or a string depending on the file extension
-   * @throws {SmokerError} if the URL is invalid or the object cannot be retrieved
+   * @throws {ValidationError} if the URL is invalid
+   * @throws {AwsError} if the object cannot be retrieved
    */
   async getContentFromUrl<T = Record<string, unknown>>(s3Url: string): Promise<T | string> {
     const parsed = parseS3Url(s3Url);
     if (!parsed) {
-      throw new SmokerError(`Invalid S3 URL format: ${s3Url}`, {
-        code: ERR_S3_INVALID_URL,
-        domain: "aws",
-        details: { component: "s3", url: s3Url },
-        retryable: false,
+      throw new ValidationError(`Invalid S3 URL format: ${s3Url}`, {
+        code: "S3_INVALID_URL",
+        context: { component: "s3", url: s3Url },
+        isOperational: false,
       });
     }
 
@@ -400,15 +398,14 @@ export class S3ClientWrapper implements IS3Client {
       try {
         return JSON.parse(content) as T;
       } catch (error) {
-        throw new SmokerError("Failed to parse JSON from S3", {
-          code: ERR_S3_READ,
-          domain: "aws",
-          details: {
+        throw new AwsError("Failed to parse JSON from S3", {
+          code: "S3_READ_PARSE_FAILED",
+          context: {
             component: "s3",
             url: s3Url,
             reason: error instanceof Error ? error.message : String(error),
           },
-          retryable: false,
+          isOperational: true,
           cause: error,
         });
       }
@@ -483,7 +480,7 @@ export class SSMClientWrapper implements ISSMClient {
    * @param {string} name - Parameter name (without ssm:// prefix)
    * @param {boolean} [useCache] - Whether to use and update the cache (default: true)
    * @returns {Promise<string>} Promise that resolves to the parameter value
-   * @throws {SmokerError} if the parameter cannot be retrieved
+   * @throws {AwsError} if the parameter cannot be retrieved
    */
   async getParameter(name: string, useCache = true): Promise<string> {
     // Check cache first if using cache
@@ -502,11 +499,10 @@ export class SSMClientWrapper implements ISSMClient {
 
       const value = response.Parameter?.Value;
       if (value === undefined) {
-        throw new SmokerError("SSM parameter has no value", {
-          code: ERR_SSM_PARAMETER,
-          domain: "aws",
-          details: { component: "ssm", name, reason: "no value" },
-          retryable: false,
+        throw new AwsError("SSM parameter has no value", {
+          code: "SSM_PARAMETER_MISSING_VALUE",
+          context: { component: "ssm", name, reason: "no value" },
+          isOperational: false,
         });
       }
 
@@ -517,15 +513,20 @@ export class SSMClientWrapper implements ISSMClient {
 
       return value;
     } catch (error) {
-      throw new SmokerError("Failed to fetch SSM parameter", {
-        code: ERR_SSM_PARAMETER,
-        domain: "aws",
-        details: {
+      // If we already created a structured AwsError above (e.g., missing value), rethrow it as-is
+      if (error instanceof AwsError) {
+        throw error;
+      }
+
+      // Otherwise, wrap unknown or native errors into a structured AwsError
+      throw new AwsError("Failed to fetch SSM parameter", {
+        code: "SSM_PARAMETER_FETCH_FAILED",
+        context: {
           component: "ssm",
           name,
           reason: error instanceof Error ? error.message : String(error),
         },
-        retryable: true,
+        isOperational: true,
         cause: error,
       });
     }

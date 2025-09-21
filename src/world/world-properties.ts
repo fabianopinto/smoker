@@ -10,7 +10,8 @@
  * keys that match the regex pattern [a-zA-Z0-9_$]+.
  */
 
-import { ERR_VALIDATION, SmokerError } from "../errors";
+import { ValidationError } from "@fabianopinto/errors";
+import { ERR_VALIDATION } from "../errors";
 
 /**
  * Regular expression to validate property keys
@@ -42,7 +43,7 @@ export class WorldProperties {
    *
    * @param {string} key - The property key (must match [a-zA-Z0-9_$]+)
    * @param {unknown} value - The value to store (can be any type)
-   * @throws {SmokerError} if the key is invalid
+   * @throws {ValidationError} if the key is invalid
    */
   set(key: string, value: unknown): void {
     this.validateKey(key);
@@ -56,7 +57,7 @@ export class WorldProperties {
    * @param {string} key - The property key
    * @param {T} [defaultValue] - Optional default value if property doesn't exist
    * @returns {T | undefined} The property value or default value
-   * @throws {SmokerError} if the key is invalid
+   * @throws {ValidationError} if the key is invalid
    */
   get<T = unknown>(key: string, defaultValue?: T): T | undefined {
     this.validateKey(key);
@@ -68,7 +69,7 @@ export class WorldProperties {
    *
    * @param {string} key - The property key
    * @returns {boolean} True if the property exists, false otherwise
-   * @throws {SmokerError} if the key is invalid
+   * @throws {ValidationError} if the key is invalid
    */
   has(key: string): boolean {
     this.validateKey(key);
@@ -80,7 +81,7 @@ export class WorldProperties {
    *
    * @param {string} key - The property key
    * @returns {boolean} True if the property was removed, false if it didn't exist
-   * @throws {SmokerError} if the key is invalid
+   * @throws {ValidationError} if the key is invalid
    */
   delete(key: string): boolean {
     this.validateKey(key);
@@ -126,8 +127,8 @@ export class WorldProperties {
    *
    * @param {string} input - The input string that may be a property reference
    * @returns {string} The resolved value or the original string
-   * @throws {SmokerError} if input starts with "property:" but is not a valid property reference
-   * @throws {SmokerError} if input is a property reference without a default value and the property doesn't exist
+   * @throws {ValidationError} if input starts with "property:" but is not a valid property reference
+   * @throws {ValidationError} if input is a property reference without a default value and the property doesn't exist
    */
   resolvePropertyValue(input: string): string {
     if (!input || typeof input !== "string") {
@@ -144,11 +145,10 @@ export class WorldProperties {
 
     // If input starts with "property:" but doesn't match the pattern, it's invalid
     if (!match) {
-      throw new SmokerError("Invalid property reference format", {
+      throw new ValidationError("Invalid property reference format", {
         code: ERR_VALIDATION,
-        domain: "world",
-        details: { component: "world-properties", input },
-        retryable: false,
+        context: { component: "world-properties", input },
+        isOperational: false,
       });
     }
 
@@ -167,11 +167,10 @@ export class WorldProperties {
     }
 
     // Property doesn't exist and no default provided
-    throw new SmokerError("Property not found", {
+    throw new ValidationError("Property not found", {
       code: ERR_VALIDATION,
-      domain: "world",
-      details: { component: "world-properties", key: propertyKey },
-      retryable: false,
+      context: { component: "world-properties", key: propertyKey },
+      isOperational: false,
     });
   }
 
@@ -179,28 +178,26 @@ export class WorldProperties {
    * Validate a property key
    *
    * @param {string} key - The key to validate
-   * @throws {SmokerError} if the key is invalid
+   * @throws {ValidationError} if the key is invalid
    */
   private validateKey(key: string): void {
     if (!key || typeof key !== "string") {
-      throw new SmokerError("Property key must be a non-empty string", {
+      throw new ValidationError("Property key must be a non-empty string", {
         code: ERR_VALIDATION,
-        domain: "world",
-        details: { component: "world-properties" },
-        retryable: false,
+        context: { component: "world-properties" },
+        isOperational: false,
       });
     }
 
     if (!PROPERTY_KEY_REGEX.test(key)) {
-      throw new SmokerError("Invalid property key", {
+      throw new ValidationError("Invalid property key", {
         code: ERR_VALIDATION,
-        domain: "world",
-        details: {
+        context: {
           component: "world-properties",
           key,
           pattern: "[a-zA-Z0-9_$]+",
         },
-        retryable: false,
+        isOperational: false,
       });
     }
   }

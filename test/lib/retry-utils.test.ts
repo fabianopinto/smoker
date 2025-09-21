@@ -2,13 +2,14 @@
  * retry-utils.test.ts
  *
  * Coverage:
- * - ensure exhausted retries throw SmokerError with standardized code/domain,
+ * - ensure exhausted retries throw AppError with standardized code/context,
  *   and that logs are produced with appropriate levels
  */
 
+import { AppError } from "@fabianopinto/errors";
 import { logger } from "@fabianopinto/logger";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { ERR_RETRY_EXHAUSTED, SmokerError } from "../../src/errors";
+import { ERR_RETRY_EXHAUSTED } from "../../src/errors";
 import { retryAsync } from "../../src/lib/retry-utils";
 
 describe("RetryUtils", () => {
@@ -31,7 +32,7 @@ describe("RetryUtils", () => {
     vi.useRealTimers();
   });
 
-  it("should throw SmokerError with ERR_RETRY_EXHAUSTED and domain 'retry' when attempts exhausted", async () => {
+  it("should throw AppError with ERR_RETRY_EXHAUSTED when attempts are exhausted", async () => {
     vi.useFakeTimers();
     const op = async () => {
       throw new Error("boom");
@@ -39,10 +40,11 @@ describe("RetryUtils", () => {
     const p = retryAsync(op, { retries: 1, delayMs: 1, backoff: "fixed" }).catch((e) => e);
     await vi.runAllTimersAsync();
     const e = await p;
-    expect(SmokerError.isSmokerError(e)).toBe(true);
-    const err = e as SmokerError;
+    expect(e).toBeInstanceOf(AppError);
+    const err = e as AppError;
     expect(err.code).toBe(ERR_RETRY_EXHAUSTED);
-    expect(err.domain).toBe("retry");
+    // context includes component and retry metadata
+    expect(err.context?.component).toBe("retry-utils");
   });
 
   it("should use fixed backoff delays for each retry", async () => {
@@ -154,7 +156,7 @@ describe("RetryUtils", () => {
     const e = await retryAsync(op, { retries: 0, delayMs: 10, backoff: "fixed" }).catch(
       (err) => err,
     );
-    expect(SmokerError.isSmokerError(e)).toBe(true);
+    expect(e).toBeInstanceOf(AppError);
     expect(setTimeoutSpy).not.toHaveBeenCalled();
     expect(vi.getTimerCount()).toBe(0);
   });

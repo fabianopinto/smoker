@@ -21,10 +21,10 @@ import {
   ListShardsCommand,
   PutRecordCommand,
 } from "@aws-sdk/client-kinesis";
+import { AwsError } from "@fabianopinto/errors";
 import { mockClient } from "aws-sdk-client-mock";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { KinesisClient } from "../../../src/clients/aws/aws-kinesis";
-import { ERR_VALIDATION, SmokerError } from "../../../src/errors";
 
 /**
  * Test fixtures and constants for consistent testing across all test cases
@@ -102,10 +102,9 @@ describe("KinesisClient", () => {
 
       await expect(clientWithoutStreamName.init()).rejects.toSatisfy(
         (err) =>
-          SmokerError.isSmokerError(err) &&
-          err.code === ERR_VALIDATION &&
-          err.domain === "aws" &&
-          err.details?.component === "kinesis",
+          err instanceof AwsError &&
+          err.code === "KINESIS_INIT_FAILED" &&
+          err.context?.component === "kinesis",
       );
     });
 
@@ -149,38 +148,25 @@ describe("KinesisClient", () => {
       });
     });
 
-    it("should throw structured error for empty data", async () => {
-      await expect(client.putRecord("", TEST_FIXTURES.PARTITION_KEY)).rejects.toSatisfy(
-        (err) =>
-          SmokerError.isSmokerError(err) &&
-          err.code === ERR_VALIDATION &&
-          err.domain === "aws" &&
-          err.details?.component === "kinesis",
+    it("should throw error for empty data", async () => {
+      await expect(client.putRecord("", TEST_FIXTURES.PARTITION_KEY)).rejects.toThrow(
+        "Kinesis putRecord requires data content"
       );
     });
 
-    it("should throw structured error when partition key is missing or empty", async () => {
+    it("should throw error when partition key is missing or empty", async () => {
       // Test with empty string partition key
-      await expect(client.putRecord("test data", "")).rejects.toSatisfy(
-        (err) =>
-          SmokerError.isSmokerError(err) &&
-          err.code === ERR_VALIDATION &&
-          err.domain === "aws" &&
-          err.details?.component === "kinesis",
+      await expect(client.putRecord("test data", "")).rejects.toThrow(
+        "Kinesis putRecord requires a partition key"
       );
 
-      // Create a function that passes an explicit empty string to test the validation
-      const testWithEmptyPartitionKey = () => client.putRecord("test data", "");
-      await expect(testWithEmptyPartitionKey()).rejects.toSatisfy(
-        (err) =>
-          SmokerError.isSmokerError(err) &&
-          err.code === ERR_VALIDATION &&
-          err.domain === "aws" &&
-          err.details?.component === "kinesis",
+      // Test with undefined partition key using double type assertion
+      await expect(client.putRecord("test data", undefined as unknown as string)).rejects.toThrow(
+        "Kinesis putRecord requires a partition key"
       );
     });
 
-    it("should throw structured error when client is not initialized", async () => {
+    it("should throw error when client is not initialized", async () => {
       const uninitializedClient = new KinesisClient(
         TEST_FIXTURES.CLIENT_ID,
         TEST_FIXTURES.CONFIG_BASIC,
@@ -188,24 +174,23 @@ describe("KinesisClient", () => {
 
       await expect(
         uninitializedClient.putRecord("data", TEST_FIXTURES.PARTITION_KEY),
-      ).rejects.toSatisfy(
-        (err) =>
-          SmokerError.isSmokerError(err) &&
-          err.code === ERR_VALIDATION &&
-          err.domain === "clients" &&
-          err.details?.component === "core",
+      ).rejects.toThrow(
+        `${TEST_FIXTURES.CLIENT_ID} is not initialized. Call init() first.`
       );
     });
 
-    it("should handle AWS API errors with structured error", async () => {
+    it("should handle AWS API errors with AwsError", async () => {
       kinesisMock.on(PutRecordCommand).rejects(new Error(TEST_FIXTURES.ERROR_RESOURCE_NOT_FOUND));
 
-      await expect(client.putRecord("data", TEST_FIXTURES.PARTITION_KEY)).rejects.toSatisfy(
+      await expect(
+        client.putRecord("data", TEST_FIXTURES.PARTITION_KEY)
+      ).rejects.toSatisfy(
         (err) =>
-          SmokerError.isSmokerError(err) &&
-          err.code === ERR_VALIDATION &&
-          err.domain === "aws" &&
-          err.details?.component === "kinesis",
+          err instanceof AwsError &&
+          err.message.includes('Failed to put record into stream') &&
+          err.message.includes('ResourceNotFoundException') &&
+          err.context?.component === 'kinesis' &&
+          err.context?.streamName === TEST_FIXTURES.STREAM_NAME,
       );
     });
 
@@ -339,30 +324,29 @@ describe("KinesisClient", () => {
       ]);
     });
 
-    it("should throw structured error when client is not initialized", async () => {
+    it("should throw error when client is not initialized", async () => {
       const uninitializedClient = new KinesisClient(
         TEST_FIXTURES.CLIENT_ID,
         TEST_FIXTURES.CONFIG_BASIC,
       );
 
-      await expect(uninitializedClient.getRecords("shard-iterator")).rejects.toSatisfy(
-        (err) =>
-          SmokerError.isSmokerError(err) &&
-          err.code === ERR_VALIDATION &&
-          err.domain === "clients" &&
-          err.details?.component === "core",
+      await expect(uninitializedClient.getRecords("shard-iterator")).rejects.toThrow(
+        `${TEST_FIXTURES.CLIENT_ID} is not initialized. Call init() first.`
       );
     });
 
-    it("should handle AWS API errors with structured error", async () => {
+    it("should handle AWS API errors with AwsError", async () => {
       kinesisMock.on(GetRecordsCommand).rejects(new Error(TEST_FIXTURES.ERROR_EXPIRED_ITERATOR));
 
-      await expect(client.getRecords(TEST_FIXTURES.SHARD_ITERATOR)).rejects.toSatisfy(
+      await expect(
+        client.getRecords(TEST_FIXTURES.SHARD_ITERATOR)
+      ).rejects.toSatisfy(
         (err) =>
-          SmokerError.isSmokerError(err) &&
-          err.code === ERR_VALIDATION &&
-          err.domain === "aws" &&
-          err.details?.component === "kinesis",
+          err instanceof AwsError &&
+          err.message.includes('Failed to get records from stream') &&
+          err.message.includes('ExpiredIteratorException') &&
+          err.context?.component === 'kinesis' &&
+          err.context?.streamName === TEST_FIXTURES.STREAM_NAME,
       );
     });
   });
@@ -438,46 +422,45 @@ describe("KinesisClient", () => {
       });
     });
 
-    it("should throw structured error when client is not initialized", async () => {
+    it("should throw error when client is not initialized", async () => {
       const uninitializedClient = new KinesisClient(
         TEST_FIXTURES.CLIENT_ID,
         TEST_FIXTURES.CONFIG_BASIC,
       );
 
-      await expect(uninitializedClient.getShardIterator("shard-id")).rejects.toSatisfy(
-        (err) =>
-          SmokerError.isSmokerError(err) &&
-          err.code === ERR_VALIDATION &&
-          err.domain === "clients" &&
-          err.details?.component === "core",
+      await expect(
+        uninitializedClient.getShardIterator("shard-1"),
+      ).rejects.toThrow(
+        `${TEST_FIXTURES.CLIENT_ID} is not initialized. Call init() first.`
       );
     });
 
-    it("should handle AWS API errors with structured error", async () => {
+    it("should handle AWS API errors with AwsError", async () => {
       kinesisMock
         .on(GetShardIteratorCommand)
         .rejects(new Error(TEST_FIXTURES.ERROR_RESOURCE_NOT_FOUND));
 
       await expect(client.getShardIterator("invalid-shard")).rejects.toSatisfy(
         (err) =>
-          SmokerError.isSmokerError(err) &&
-          err.code === ERR_VALIDATION &&
-          err.domain === "aws" &&
-          err.details?.component === "kinesis",
+          err instanceof AwsError &&
+          err.message.includes("Failed to get shard iterator for stream") &&
+          err.message.includes(TEST_FIXTURES.ERROR_RESOURCE_NOT_FOUND) &&
+          err.context?.component === "kinesis" &&
+          err.context?.streamName === TEST_FIXTURES.STREAM_NAME,
       );
     });
 
-    it("should throw structured error when ShardIterator is missing from response", async () => {
+    it("should throw AwsError when ShardIterator is missing from response", async () => {
       const shardId = "non-existent-shard-id";
       kinesisMock.on(GetRecordsCommand); // ensure no side-effect
       kinesisMock.on(GetShardIteratorCommand).resolves({});
 
       await expect(client.getShardIterator(shardId)).rejects.toSatisfy(
         (err) =>
-          SmokerError.isSmokerError(err) &&
-          err.code === ERR_VALIDATION &&
-          err.domain === "aws" &&
-          err.details?.component === "kinesis",
+          err instanceof AwsError &&
+          err.message.includes("Failed to get Kinesis shard iterator") &&
+          err.context?.component === "kinesis" &&
+          err.context?.streamName === TEST_FIXTURES.STREAM_NAME,
       );
     });
   });
@@ -577,30 +560,27 @@ describe("KinesisClient", () => {
       expect(result).toEqual([]);
     });
 
-    it("should throw structured error when client is not initialized", async () => {
+    it("should throw error when client is not initialized", async () => {
       const uninitializedClient = new KinesisClient(
         TEST_FIXTURES.CLIENT_ID,
         TEST_FIXTURES.CONFIG_BASIC,
       );
 
-      await expect(uninitializedClient.listShards()).rejects.toSatisfy(
-        (err) =>
-          SmokerError.isSmokerError(err) &&
-          err.code === ERR_VALIDATION &&
-          err.domain === "clients" &&
-          err.details?.component === "core",
+      await expect(uninitializedClient.listShards()).rejects.toThrow(
+        `${TEST_FIXTURES.CLIENT_ID} is not initialized. Call init() first.`
       );
     });
 
-    it("should handle AWS API errors with structured error", async () => {
+    it("should handle AWS API errors with AwsError", async () => {
       kinesisMock.on(ListShardsCommand).rejects(new Error(TEST_FIXTURES.ERROR_RESOURCE_NOT_FOUND));
 
       await expect(client.listShards()).rejects.toSatisfy(
         (err) =>
-          SmokerError.isSmokerError(err) &&
-          err.code === ERR_VALIDATION &&
-          err.domain === "aws" &&
-          err.details?.component === "kinesis",
+          err instanceof AwsError &&
+          err.message.includes("Failed to list shards for stream") &&
+          err.message.includes(TEST_FIXTURES.ERROR_RESOURCE_NOT_FOUND) &&
+          err.context?.component === "kinesis" &&
+          err.context?.streamName === TEST_FIXTURES.STREAM_NAME,
       );
     });
   });

@@ -16,9 +16,9 @@
  * ```
  */
 
+import { ValidationError } from "@fabianopinto/errors";
 import { logger } from "@fabianopinto/logger";
 import { ERR_INVALID_DURATION } from "../errors";
-import { SmokerError } from "../errors/smoker-error";
 
 export const DateUtils = {
   /**
@@ -68,12 +68,10 @@ export const DateUtils = {
     const match = trimmed.match(/^(-?\d+(?:\.\d+)?)(ms|s|m|h|d)?$/i);
     if (!match) {
       logger.warn({ input }, "date-utils: invalid duration format");
-      throw new SmokerError("Invalid duration", {
+      throw new ValidationError("Invalid duration", {
         code: ERR_INVALID_DURATION,
-        domain: "date",
-        details: { input },
-        retryable: false,
-        severity: "error",
+        context: { component: "date-utils", input },
+        isOperational: false,
       });
     }
     const value = parseFloat(match[1]);

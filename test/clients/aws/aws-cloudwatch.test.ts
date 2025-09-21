@@ -22,10 +22,10 @@ import {
   type LogGroup,
   type OutputLogEvent,
 } from "@aws-sdk/client-cloudwatch-logs";
+import { AwsError, ValidationError } from "@fabianopinto/errors";
 import { mockClient } from "aws-sdk-client-mock";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { CloudWatchClient } from "../../../src/clients/aws/aws-cloudwatch";
-import { ERR_VALIDATION, SmokerError } from "../../../src/errors";
 
 /**
  * Test fixtures for consistent testing across all test cases
@@ -241,10 +241,9 @@ describe("CloudWatchClient", () => {
         client.searchLogStream(TEST_FIXTURES.STREAM_NAME, TEST_FIXTURES.PATTERN),
       ).rejects.toSatisfy(
         (err) =>
-          SmokerError.isSmokerError(err) &&
-          err.code === ERR_VALIDATION &&
-          err.domain === "aws" &&
-          err.details?.component === "cloudwatch",
+          err instanceof AwsError &&
+          err.code === "CLOUDWATCH_SEARCH_FAILED" &&
+          err.context?.component === "cloudwatch",
       );
     });
 
@@ -256,10 +255,9 @@ describe("CloudWatchClient", () => {
         client.searchLogStream(TEST_FIXTURES.STREAM_NAME, TEST_FIXTURES.PATTERN),
       ).rejects.toSatisfy(
         (err) =>
-          SmokerError.isSmokerError(err) &&
-          err.code === ERR_VALIDATION &&
-          err.domain === "aws" &&
-          err.details?.component === "cloudwatch",
+          err instanceof AwsError &&
+          err.code === "CLOUDWATCH_SEARCH_FAILED" &&
+          err.context?.component === "cloudwatch",
       );
     });
   });
@@ -363,13 +361,9 @@ describe("CloudWatchClient", () => {
         region: TEST_FIXTURES.REGION,
       });
 
-      await expect(uninitializedClient.getLogEvents(TEST_FIXTURES.STREAM_NAME)).rejects.toSatisfy(
-        (err) =>
-          SmokerError.isSmokerError(err) &&
-          err.code === ERR_VALIDATION &&
-          err.domain === "clients" &&
-          err.details?.component === "core",
-      );
+      await expect(
+        uninitializedClient.getLogEvents(TEST_FIXTURES.STREAM_NAME),
+      ).rejects.toSatisfy((err) => err instanceof ValidationError && /not initialized/i.test(err.message));
     });
 
     it("should handle AWS API errors with Error object", async () => {
@@ -379,10 +373,9 @@ describe("CloudWatchClient", () => {
 
       await expect(client.getLogEvents(TEST_FIXTURES.STREAM_NAME)).rejects.toSatisfy(
         (err) =>
-          SmokerError.isSmokerError(err) &&
-          err.code === ERR_VALIDATION &&
-          err.domain === "aws" &&
-          err.details?.component === "cloudwatch",
+          err instanceof AwsError &&
+          err.code === "CLOUDWATCH_GET_EVENTS_FAILED" &&
+          err.context?.component === "cloudwatch",
       );
     });
   });
@@ -504,11 +497,7 @@ describe("CloudWatchClient", () => {
       });
 
       await expect(uninitializedClient.listLogStreams()).rejects.toSatisfy(
-        (err) =>
-          SmokerError.isSmokerError(err) &&
-          err.code === ERR_VALIDATION &&
-          err.domain === "clients" &&
-          err.details?.component === "core",
+        (err) => err instanceof ValidationError && /not initialized/i.test(err.message),
       );
     });
 
@@ -519,10 +508,9 @@ describe("CloudWatchClient", () => {
 
       await expect(client.listLogStreams()).rejects.toSatisfy(
         (err) =>
-          SmokerError.isSmokerError(err) &&
-          err.code === ERR_VALIDATION &&
-          err.domain === "aws" &&
-          err.details?.component === "cloudwatch",
+          err instanceof AwsError &&
+          err.code === "CLOUDWATCH_LIST_STREAMS_FAILED" &&
+          err.context?.component === "cloudwatch",
       );
     });
   });
@@ -575,13 +563,9 @@ describe("CloudWatchClient", () => {
         region: TEST_FIXTURES.REGION,
       });
 
-      await expect(uninitializedClient.waitForPattern("stream", "pattern")).rejects.toSatisfy(
-        (err) =>
-          SmokerError.isSmokerError(err) &&
-          err.code === ERR_VALIDATION &&
-          err.domain === "clients" &&
-          err.details?.component === "core",
-      );
+      await expect(
+        uninitializedClient.waitForPattern("stream", "pattern"),
+      ).rejects.toSatisfy((err) => err instanceof ValidationError && /not initialized/i.test(err.message));
     });
 
     it("should handle searchLogStream errors with Error object", async () => {
@@ -594,10 +578,9 @@ describe("CloudWatchClient", () => {
         client.waitForPattern(TEST_FIXTURES.STREAM_NAME, "pattern", 100),
       ).rejects.toSatisfy(
         (err) =>
-          SmokerError.isSmokerError(err) &&
-          err.code === ERR_VALIDATION &&
-          err.domain === "aws" &&
-          err.details?.component === "cloudwatch",
+          err instanceof AwsError &&
+          err.code === "CLOUDWATCH_WAIT_FAILED" &&
+          err.context?.component === "cloudwatch",
       );
     });
   });

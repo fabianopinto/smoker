@@ -5,8 +5,9 @@
  * - parseDuration invalid format throws SmokerError with standardized code/domain
  */
 
+import { ValidationError } from "@fabianopinto/errors";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { ERR_INVALID_DURATION, SmokerError } from "../../src/errors";
+import { ERR_INVALID_DURATION } from "../../src/errors";
 import { DateUtils } from "../../src/lib/date-utils";
 
 describe("DateUtils", () => {
@@ -42,15 +43,16 @@ describe("DateUtils", () => {
   });
 
   describe("parseDuration", () => {
-    it("should throw SmokerError with ERR_INVALID_DURATION and domain 'date' for invalid input", () => {
+    it("should throw ValidationError with ERR_INVALID_DURATION and component 'date-utils' for invalid input", () => {
       try {
         DateUtils.parseDuration("abc");
         throw new Error("Expected to throw");
       } catch (e) {
-        expect(SmokerError.isSmokerError(e)).toBe(true);
-        const err = e as SmokerError;
+        expect(e).toBeInstanceOf(ValidationError);
+        const err = e as ValidationError;
         expect(err.code).toBe(ERR_INVALID_DURATION);
-        expect(err.domain).toBe("date");
+        // context added in refactor
+        expect(err.context?.component).toBe("date-utils");
       }
     });
 

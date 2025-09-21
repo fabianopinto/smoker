@@ -17,7 +17,7 @@ import {
   PutParameterCommand,
   SSMClient,
 } from "@aws-sdk/client-ssm";
-import { ERR_SSM_PARAMETER, ERR_VALIDATION, SmokerError } from "../../errors";
+import { AwsError, ValidationError } from "@fabianopinto/errors";
 import { BaseServiceClient, type ServiceClient } from "../core";
 
 /**
@@ -54,7 +54,8 @@ export interface SsmServiceClient extends ServiceClient {
    * @param {string} value - The parameter value to store
    * @param {string} [type] - The parameter type (String, StringList, or SecureString)
    * @param {boolean} [overwrite] - Whether to overwrite if parameter already exists
-   * @throws {SmokerError} if parameter cannot be written
+   * @throws {ValidationError} if parameters are invalid
+   * @throws {AwsError} if parameter cannot be written
    */
   write(name: string, value: string, type?: string, overwrite?: boolean): Promise<void>;
 
@@ -62,7 +63,8 @@ export interface SsmServiceClient extends ServiceClient {
    * Delete a parameter from SSM Parameter Store
    *
    * @param {string} name - The parameter name to delete
-   * @throws {SmokerError} if parameter does not exist or cannot be deleted
+   * @throws {ValidationError} if name is invalid
+   * @throws {AwsError} if parameter does not exist or cannot be deleted
    */
   delete(name: string): Promise<void>;
 }
@@ -119,22 +121,20 @@ export class SsmClient extends BaseServiceClient implements SsmServiceClient {
       });
 
       if (!this.client) {
-        throw new SmokerError("Failed to create SSM client instance", {
-          code: ERR_SSM_PARAMETER,
-          domain: "aws",
-          details: { component: "ssm", reason: "client null" },
-          retryable: false,
+        throw new AwsError("Failed to create SSM client instance", {
+          code: "SSM_INIT_FAILED",
+          context: { component: "ssm", reason: "client null" },
+          isOperational: false,
         });
       }
     } catch (error) {
-      throw new SmokerError("Failed to initialize SSM client", {
-        code: ERR_SSM_PARAMETER,
-        domain: "aws",
-        details: {
+      throw new AwsError("Failed to initialize SSM client", {
+        code: "SSM_INIT_FAILED",
+        context: {
           component: "ssm",
           reason: error instanceof Error ? error.message : String(error),
         },
-        retryable: true,
+        isOperational: true,
         cause: error,
       });
     }
@@ -146,18 +146,18 @@ export class SsmClient extends BaseServiceClient implements SsmServiceClient {
    * @param {string} name - The parameter name to read
    * @param {boolean} [withDecryption] - Whether to decrypt SecureString parameters
    * @returns {Promise<string>} Promise resolving to the parameter value as string
-   * @throws {SmokerError} if parameter does not exist or cannot be read
+   * @throws {ValidationError} if input is invalid
+   * @throws {AwsError} if parameter does not exist or cannot be read
    */
   async read(name: string, withDecryption = false): Promise<string> {
     this.ensureInitialized();
     this.assertNotNull(this.client);
 
     if (!name) {
-      throw new SmokerError("SSM read operation requires a parameter name", {
-        code: ERR_VALIDATION,
-        domain: "aws",
-        details: { component: "ssm" },
-        retryable: false,
+      throw new ValidationError("SSM read operation requires a parameter name", {
+        code: "SSM_PARAM_NAME_REQUIRED",
+        context: { component: "ssm" },
+        isOperational: false,
       });
     }
 
@@ -170,42 +170,38 @@ export class SsmClient extends BaseServiceClient implements SsmServiceClient {
       const response = await this.client.send(command);
 
       if (!response.Parameter) {
-        throw new SmokerError(`Parameter not found: ${name}`, {
-          code: ERR_SSM_PARAMETER,
-          domain: "aws",
-          details: { component: "ssm", name, reason: "no parameter" },
-          retryable: false,
+        throw new AwsError(`Parameter not found: ${name}`, {
+          code: "SSM_PARAMETER_NOT_FOUND",
+          context: { component: "ssm", name, reason: "no parameter" },
+          isOperational: false,
         });
       }
 
       if (response.Parameter.Value === undefined || response.Parameter.Value === null) {
-        throw new SmokerError(`Parameter not found: ${name}`, {
-          code: ERR_SSM_PARAMETER,
-          domain: "aws",
-          details: { component: "ssm", name, reason: "no value" },
-          retryable: false,
+        throw new AwsError(`Parameter not found: ${name}`, {
+          code: "SSM_PARAMETER_NOT_FOUND",
+          context: { component: "ssm", name, reason: "no value" },
+          isOperational: false,
         });
       }
 
       return response.Parameter.Value;
     } catch (error) {
-      if (SmokerError.isSmokerError(error)) {
-        // Preserve structured SmokerError (code/details) without wrapping
+      if (error instanceof AwsError || error instanceof ValidationError) {
         throw error;
       }
-      throw new SmokerError(
+      throw new AwsError(
         `Failed to read parameter ${name}: ${
           error instanceof Error ? error.message : String(error)
         }`,
         {
-          code: ERR_SSM_PARAMETER,
-          domain: "aws",
-          details: {
+          code: "SSM_READ_FAILED",
+          context: {
             component: "ssm",
             name,
             reason: error instanceof Error ? error.message : String(error),
           },
-          retryable: true,
+          isOperational: true,
           cause: error,
         },
       );
@@ -228,20 +224,18 @@ export class SsmClient extends BaseServiceClient implements SsmServiceClient {
 
     // Validate input parameters
     if (!name) {
-      throw new SmokerError("SSM write operation requires a parameter name", {
-        code: ERR_VALIDATION,
-        domain: "aws",
-        details: { component: "ssm" },
-        retryable: false,
+      throw new ValidationError("SSM write operation requires a parameter name", {
+        code: "SSM_PARAM_NAME_REQUIRED",
+        context: { component: "ssm" },
+        isOperational: false,
       });
     }
 
     if (value === undefined) {
-      throw new SmokerError("SSM write operation requires a parameter value", {
-        code: ERR_VALIDATION,
-        domain: "aws",
-        details: { component: "ssm" },
-        retryable: false,
+      throw new ValidationError("SSM write operation requires a parameter value", {
+        code: "SSM_PARAM_VALUE_REQUIRED",
+        context: { component: "ssm" },
+        isOperational: false,
       });
     }
 
@@ -273,19 +267,18 @@ export class SsmClient extends BaseServiceClient implements SsmServiceClient {
 
       await this.client.send(command);
     } catch (error) {
-      throw new SmokerError(
+      throw new AwsError(
         `Failed to write parameter ${name}: ${
           error instanceof Error ? error.message : String(error)
         }`,
         {
-          code: ERR_SSM_PARAMETER,
-          domain: "aws",
-          details: {
+          code: "SSM_WRITE_FAILED",
+          context: {
             component: "ssm",
             name,
             reason: error instanceof Error ? error.message : String(error),
           },
-          retryable: true,
+          isOperational: true,
           cause: error,
         },
       );
@@ -304,11 +297,10 @@ export class SsmClient extends BaseServiceClient implements SsmServiceClient {
     this.assertNotNull(this.client);
 
     if (!name) {
-      throw new SmokerError("SSM delete operation requires a parameter name", {
-        code: ERR_VALIDATION,
-        domain: "aws",
-        details: { component: "ssm" },
-        retryable: false,
+      throw new ValidationError("SSM delete operation requires a parameter name", {
+        code: "SSM_PARAM_NAME_REQUIRED",
+        context: { component: "ssm" },
+        isOperational: false,
       });
     }
 
@@ -319,19 +311,18 @@ export class SsmClient extends BaseServiceClient implements SsmServiceClient {
 
       await this.client.send(command);
     } catch (error) {
-      throw new SmokerError(
+      throw new AwsError(
         `Failed to delete parameter ${name}: ${
           error instanceof Error ? error.message : String(error)
         }`,
         {
-          code: ERR_SSM_PARAMETER,
-          domain: "aws",
-          details: {
+          code: "SSM_DELETE_FAILED",
+          context: {
             component: "ssm",
             name,
             reason: error instanceof Error ? error.message : String(error),
           },
-          retryable: true,
+          isOperational: true,
           cause: error,
         },
       );

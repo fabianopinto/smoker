@@ -22,7 +22,7 @@ import {
   FilterLogEventsCommand,
   GetLogEventsCommand,
 } from "@aws-sdk/client-cloudwatch-logs";
-import { ERR_VALIDATION, SmokerError } from "../../errors";
+import { AwsError, ValidationError } from "@fabianopinto/errors";
 import { BaseServiceClient, type ServiceClient } from "../core";
 
 /**
@@ -215,11 +215,10 @@ export class CloudWatchClient extends BaseServiceClient implements CloudWatchSer
     this.logGroupName = this.getConfig<string>("logGroupName", "");
 
     if (!this.logGroupName) {
-      throw new SmokerError("CloudWatch log group name is required", {
-        code: ERR_VALIDATION,
-        domain: "aws",
-        details: { component: "cloudwatch" },
-        retryable: false,
+      throw new ValidationError("CloudWatch log group name is required", {
+        code: "CLOUDWATCH_LOG_GROUP_REQUIRED",
+        context: { component: "cloudwatch" },
+        isOperational: false,
       });
     }
 
@@ -243,14 +242,13 @@ export class CloudWatchClient extends BaseServiceClient implements CloudWatchSer
         endpoint: this.getConfig<string>("metricsEndpoint", "") || undefined,
       });
     } catch (error) {
-      throw new SmokerError("Failed to initialize CloudWatch client", {
-        code: ERR_VALIDATION,
-        domain: "aws",
-        details: {
+      throw new AwsError("Failed to initialize CloudWatch client", {
+        code: "CLOUDWATCH_INIT_FAILED",
+        context: {
           component: "cloudwatch",
           reason: error instanceof Error ? error.message : String(error),
         },
-        retryable: true,
+        isOperational: true,
         cause: error,
       });
     }
@@ -292,15 +290,14 @@ export class CloudWatchClient extends BaseServiceClient implements CloudWatchSer
 
       return response.events.map((event) => event.message || "");
     } catch (error) {
-      throw new SmokerError("Failed to search CloudWatch log stream", {
-        code: ERR_VALIDATION,
-        domain: "aws",
-        details: {
+      throw new AwsError("Failed to search CloudWatch log stream", {
+        code: "CLOUDWATCH_SEARCH_FAILED",
+        context: {
           component: "cloudwatch",
           logGroupName: this.logGroupName,
           reason: error instanceof Error ? error.message : String(error),
         },
-        retryable: true,
+        isOperational: true,
         cause: error,
       });
     }
@@ -346,16 +343,15 @@ export class CloudWatchClient extends BaseServiceClient implements CloudWatchSer
         logStreamName,
       }));
     } catch (error) {
-      throw new SmokerError("Failed to get CloudWatch log events", {
-        code: ERR_VALIDATION,
-        domain: "aws",
-        details: {
+      throw new AwsError("Failed to get CloudWatch log events", {
+        code: "CLOUDWATCH_GET_EVENTS_FAILED",
+        context: {
           component: "cloudwatch",
           logGroupName: this.logGroupName,
           logStreamName,
           reason: error instanceof Error ? error.message : String(error),
         },
-        retryable: true,
+        isOperational: true,
         cause: error,
       });
     }
@@ -387,15 +383,14 @@ export class CloudWatchClient extends BaseServiceClient implements CloudWatchSer
         .filter((group) => group.logGroupName)
         .map((group) => group.logGroupName || "");
     } catch (error) {
-      throw new SmokerError("Failed to list CloudWatch log streams", {
-        code: ERR_VALIDATION,
-        domain: "aws",
-        details: {
+      throw new AwsError("Failed to list CloudWatch log streams", {
+        code: "CLOUDWATCH_LIST_STREAMS_FAILED",
+        context: {
           component: "cloudwatch",
           logGroupName: this.logGroupName,
           reason: error instanceof Error ? error.message : String(error),
         },
-        retryable: true,
+        isOperational: true,
         cause: error,
       });
     }
@@ -438,15 +433,14 @@ export class CloudWatchClient extends BaseServiceClient implements CloudWatchSer
       // Pattern not found within timeout
       return false;
     } catch (error) {
-      throw new SmokerError("Failed while waiting for pattern in CloudWatch logs", {
-        code: ERR_VALIDATION,
-        domain: "aws",
-        details: {
+      throw new AwsError("Failed while waiting for pattern in CloudWatch logs", {
+        code: "CLOUDWATCH_WAIT_FAILED",
+        context: {
           component: "cloudwatch",
           logGroupName: this.logGroupName,
           reason: error instanceof Error ? error.message : String(error),
         },
-        retryable: true,
+        isOperational: true,
         cause: error,
       });
     }
@@ -472,15 +466,14 @@ export class CloudWatchClient extends BaseServiceClient implements CloudWatchSer
     try {
       await this.metricsClient.send(command);
     } catch (error) {
-      throw new SmokerError("Failed to publish CloudWatch metric", {
-        code: ERR_VALIDATION,
-        domain: "aws",
-        details: {
+      throw new AwsError("Failed to publish CloudWatch metric", {
+        code: "CLOUDWATCH_PUBLISH_METRIC_FAILED",
+        context: {
           component: "cloudwatch",
           namespace,
           reason: error instanceof Error ? error.message : String(error),
         },
-        retryable: true,
+        isOperational: true,
         cause: error,
       });
     }
@@ -506,16 +499,15 @@ export class CloudWatchClient extends BaseServiceClient implements CloudWatchSer
       try {
         await this.metricsClient.send(command);
       } catch (error) {
-        throw new SmokerError("Failed to publish CloudWatch metrics batch", {
-          code: ERR_VALIDATION,
-          domain: "aws",
-          details: {
+        throw new AwsError("Failed to publish CloudWatch metrics batch", {
+          code: "CLOUDWATCH_PUBLISH_METRICS_FAILED",
+          context: {
             component: "cloudwatch",
             namespace,
             batchSize: batch.length,
             reason: error instanceof Error ? error.message : String(error),
           },
-          retryable: true,
+          isOperational: true,
           cause: error,
         });
       }

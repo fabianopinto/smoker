@@ -2,12 +2,13 @@
  * random-utils.test.ts
  *
  * Coverage:
- * - randomInt invalid bounds throws SmokerError with ERR_RANDOM_INVALID_BOUNDS/domain 'random'
- * - pickOne([]) throws SmokerError with ERR_RANDOM_EMPTY_ARRAY/domain 'random'
+ * - randomInt invalid bounds throws ValidationError with ERR_RANDOM_INVALID_BOUNDS
+ * - pickOne([]) throws ValidationError with ERR_RANDOM_EMPTY_ARRAY
  */
 
+import { ValidationError } from "@fabianopinto/errors";
 import { afterEach, describe, expect, it, vi } from "vitest";
-import { ERR_RANDOM_EMPTY_ARRAY, ERR_RANDOM_INVALID_BOUNDS, SmokerError } from "../../src/errors";
+import { ERR_RANDOM_EMPTY_ARRAY, ERR_RANDOM_INVALID_BOUNDS } from "../../src/errors";
 import { RandomUtils } from "../../src/lib/random-utils";
 
 describe("RandomUtils", () => {
@@ -58,15 +59,16 @@ describe("RandomUtils", () => {
     });
   });
   describe("randomInt", () => {
-    it("should throw with ERR_RANDOM_INVALID_BOUNDS when bounds are not finite", () => {
+    it("should throw ValidationError with ERR_RANDOM_INVALID_BOUNDS when bounds are not finite", () => {
       expect(() => RandomUtils.randomInt(Number.NaN, 10)).toThrowError();
       try {
         RandomUtils.randomInt(Number.NaN, 10);
       } catch (e) {
-        expect(SmokerError.isSmokerError(e)).toBe(true);
-        const err = e as SmokerError;
+        expect(e).toBeInstanceOf(ValidationError);
+        const err = e as ValidationError;
         expect(err.code).toBe(ERR_RANDOM_INVALID_BOUNDS);
-        expect(err.domain).toBe("random");
+        // optional: context contains bounds metadata
+        expect(err.context).toEqual(expect.objectContaining({ max: 10 }));
       }
     });
 
@@ -85,27 +87,29 @@ describe("RandomUtils", () => {
   });
 
   describe("pickOne", () => {
-    it("should throw with ERR_RANDOM_EMPTY_ARRAY when array is empty", () => {
+    it("should throw ValidationError with ERR_RANDOM_EMPTY_ARRAY when array is empty", () => {
       try {
         RandomUtils.pickOne([]);
         throw new Error("Expected to throw");
       } catch (e) {
-        expect(SmokerError.isSmokerError(e)).toBe(true);
-        const err = e as SmokerError;
+        expect(e).toBeInstanceOf(ValidationError);
+        const err = e as ValidationError;
         expect(err.code).toBe(ERR_RANDOM_EMPTY_ARRAY);
-        expect(err.domain).toBe("random");
+        // optional: context contains array length
+        expect(err.context).toEqual(expect.objectContaining({ length: 0 }));
       }
     });
 
-    it("should throw with ERR_RANDOM_EMPTY_ARRAY when input is not an array", () => {
+    it("should throw ValidationError with ERR_RANDOM_EMPTY_ARRAY when input is not an array", () => {
       try {
         RandomUtils.pickOne(123 as unknown as unknown[]);
         throw new Error("Expected to throw");
       } catch (e) {
-        expect(SmokerError.isSmokerError(e)).toBe(true);
-        const err = e as SmokerError;
+        expect(e).toBeInstanceOf(ValidationError);
+        const err = e as ValidationError;
         expect(err.code).toBe(ERR_RANDOM_EMPTY_ARRAY);
-        expect(err.domain).toBe("random");
+        // length is undefined for non-array input
+        expect(err.context).toEqual(expect.objectContaining({ length: undefined }));
       }
     });
   });

@@ -15,9 +15,9 @@
  * ```
  */
 
+import { ValidationError } from "@fabianopinto/errors";
 import { logger } from "@fabianopinto/logger";
 import { ERR_RANDOM_EMPTY_ARRAY, ERR_RANDOM_INVALID_BOUNDS } from "../errors";
-import { SmokerError } from "../errors/smoker-error";
 
 export const RandomUtils = {
   /**
@@ -46,17 +46,15 @@ export const RandomUtils = {
    * @param {number} min - Lower bound (inclusive)
    * @param {number} max - Upper bound (inclusive)
    * @returns {number} Random integer ∈ [min, max]
-   * @throws {SmokerError} Error when bounds are invalid
+   * @throws {ValidationError} Error when bounds are invalid
    */
   randomInt(min: number, max: number): number {
     if (!Number.isFinite(min) || !Number.isFinite(max)) {
       logger.warn({ min, max }, "random-utils: invalid bounds");
-      throw new SmokerError("Invalid randomInt bounds", {
+      throw new ValidationError("Invalid randomInt bounds", {
         code: ERR_RANDOM_INVALID_BOUNDS,
-        domain: "random",
-        details: { min, max },
-        retryable: false,
-        severity: "error",
+        context: { min, max },
+        isOperational: false,
       });
     }
     if (max < min) [min, max] = [max, min];
@@ -90,7 +88,7 @@ export const RandomUtils = {
    * @template T - The array element type
    * @param {T[]} arr - Non-empty array
    * @returns {T} A randomly selected element
-   * @throws {SmokerError} Error when array is empty
+   * @throws {ValidationError} Error when array is empty
    */
   pickOne<T>(arr: T[]): T {
     if (!Array.isArray(arr) || arr.length === 0) {
@@ -98,12 +96,10 @@ export const RandomUtils = {
         { length: Array.isArray(arr) ? arr.length : undefined },
         "random-utils: pickOne on empty array",
       );
-      throw new SmokerError("pickOne requires a non-empty array", {
+      throw new ValidationError("pickOne requires a non-empty array", {
         code: ERR_RANDOM_EMPTY_ARRAY,
-        domain: "random",
-        details: { length: Array.isArray(arr) ? arr.length : undefined },
-        retryable: false,
-        severity: "error",
+        context: { length: Array.isArray(arr) ? arr.length : undefined },
+        isOperational: false,
       });
     }
     return arr[this.randomInt(0, arr.length - 1)];

@@ -11,9 +11,9 @@
  * - Error type handling (Error objects vs string errors)
  */
 
+import { S3Error, ValidationError } from "@fabianopinto/errors";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { S3Client } from "../../../src/clients/aws/aws-s3";
-import { ERR_S3_READ, ERR_VALIDATION, SmokerError } from "../../../src/errors";
 
 /**
  * Mocks the AWS SDK S3Client module
@@ -92,10 +92,9 @@ describe("S3Client Error Handling", () => {
       const clientWithoutBucket = new S3Client("test-client");
       await expect(clientWithoutBucket.init()).rejects.toSatisfy(
         (err) =>
-          SmokerError.isSmokerError(err) &&
-          err.code === ERR_VALIDATION &&
-          err.domain === "aws" &&
-          err.details?.component === "s3",
+          err instanceof ValidationError &&
+          err.code === "S3_BUCKET_REQUIRED" &&
+          err.context?.component === "s3",
       );
     });
 
@@ -105,11 +104,7 @@ describe("S3Client Error Handling", () => {
       shouldThrowInCommand = true; // This will make the S3Client throw an error
 
       await expect(client.init()).rejects.toSatisfy(
-        (err) =>
-          SmokerError.isSmokerError(err) &&
-          err.code === ERR_S3_READ &&
-          err.domain === "aws" &&
-          err.details?.component === "s3",
+        (err) => err instanceof S3Error && err.code === "S3_INIT_FAILED" && err.context?.component === "s3",
       );
       expect(client.isInitialized()).toBe(false);
     });
@@ -121,10 +116,9 @@ describe("S3Client Error Handling", () => {
 
       await expect(client.init()).rejects.toSatisfy(
         (err) =>
-          SmokerError.isSmokerError(err) &&
-          err.code === ERR_S3_READ &&
-          err.domain === "aws" &&
-          err.details?.component === "s3",
+          err instanceof S3Error &&
+          err.code === "S3_INIT_FAILED" &&
+          err.context?.component === "s3",
       );
       expect(client.isInitialized()).toBe(false);
     });
@@ -145,11 +139,18 @@ describe("S3Client Error Handling", () => {
         // bucket is deliberately missing to trigger validation error
       });
 
-      // Initialization should fail with a structured SmokerError
-      await expect(client.init()).rejects.toMatchObject({
-        code: ERR_VALIDATION,
-        domain: "aws",
-        details: expect.objectContaining({ component: "s3" }),
+      // Initialization should fail with a structured validation error
+      // Note: After vi.resetModules() + dynamic import, instanceof checks may fail due to different module instances
+      await expect(client.init()).rejects.toSatisfy((err) => {
+        // Duck-type by shape to avoid instanceof pitfalls with module reloads
+        return (
+          !!err &&
+          typeof err === "object" &&
+          // eslint-disable-next-line @typescript-eslint/no-explicit-any
+          (err as any).code === "S3_BUCKET_REQUIRED" &&
+          // eslint-disable-next-line @typescript-eslint/no-explicit-any
+          (err as any).context?.component === "s3"
+        );
       });
 
       // Verify the client is not initialized
@@ -169,13 +170,9 @@ describe("S3Client Error Handling", () => {
         region: TEST_FIXTURES.REGION,
       });
 
-      // Initialization should fail with structured SmokerError
+      // Initialization should fail with structured S3Error
       await expect(client.init()).rejects.toSatisfy(
-        (err) =>
-          SmokerError.isSmokerError(err) &&
-          err.code === ERR_S3_READ &&
-          err.domain === "aws" &&
-          err.details?.component === "s3",
+        (err) => err instanceof S3Error && err.code === "S3_INIT_FAILED" && err.context?.component === "s3",
       );
 
       // Verify the client is not initialized
@@ -195,11 +192,7 @@ describe("S3Client Error Handling", () => {
 
       // Test the initialization which should properly handle non-Error values
       await expect(client.init()).rejects.toSatisfy(
-        (err) =>
-          SmokerError.isSmokerError(err) &&
-          err.code === ERR_S3_READ &&
-          err.domain === "aws" &&
-          err.details?.component === "s3",
+        (err) => err instanceof S3Error && err.code === "S3_INIT_FAILED" && err.context?.component === "s3",
       );
 
       // Verify the client is not initialized
@@ -233,7 +226,7 @@ describe("S3Client Error Handling", () => {
       shouldThrowInCommand = true;
 
       await expect(client.read("test-file.txt")).rejects.toSatisfy(
-        (err) => SmokerError.isSmokerError(err) && err.code === ERR_S3_READ,
+        (err) => err instanceof S3Error && err.code === "S3_READ_FAILED",
       );
     });
 
@@ -242,7 +235,7 @@ describe("S3Client Error Handling", () => {
       shouldThrowInCommand = true;
 
       await expect(client.read("test-file.txt")).rejects.toSatisfy(
-        (err) => SmokerError.isSmokerError(err) && err.code === ERR_S3_READ,
+        (err) => err instanceof S3Error && err.code === "S3_READ_FAILED",
       );
     });
 
@@ -252,7 +245,7 @@ describe("S3Client Error Handling", () => {
       shouldThrowInCommand = true;
 
       await expect(client.write("test-file.txt", "test content")).rejects.toSatisfy(
-        (err) => SmokerError.isSmokerError(err) && err.code === ERR_S3_READ,
+        (err) => err instanceof S3Error && err.code === "S3_WRITE_FAILED",
       );
     });
 
@@ -262,7 +255,7 @@ describe("S3Client Error Handling", () => {
       shouldThrowInCommand = true;
 
       await expect(client.delete("test-file.txt")).rejects.toSatisfy(
-        (err) => SmokerError.isSmokerError(err) && err.code === ERR_S3_READ,
+        (err) => err instanceof S3Error && err.code === "S3_DELETE_FAILED",
       );
     });
   });

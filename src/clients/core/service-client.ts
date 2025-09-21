@@ -10,7 +10,7 @@
  * for configuration management, initialization tracking, and lifecycle state management.
  */
 
-import { ERR_VALIDATION, SmokerError } from "../../errors";
+import { AppError, ValidationError } from "@fabianopinto/errors";
 
 /**
  * Client type enumeration
@@ -200,17 +200,16 @@ export abstract class BaseServiceClient implements ServiceClient {
       await this.init();
     } catch (error) {
       // Propagate error with context and include reason in message
-      throw new SmokerError(
+      throw new AppError(
         `Failed to reset client: ${error instanceof Error ? error.message : String(error)}`,
         {
-          code: ERR_VALIDATION,
-          domain: "clients",
-          details: {
+          code: "CLIENT_RESET_FAILED",
+          context: {
             component: "core",
             client: this.getName(),
             reason: error instanceof Error ? error.message : String(error),
           },
-          retryable: true,
+          isOperational: true,
           cause: error,
         },
       );
@@ -233,17 +232,16 @@ export abstract class BaseServiceClient implements ServiceClient {
       // Mark as not initialized after successful cleanup
       this.initialized = false;
     } catch (error) {
-      throw new SmokerError(
+      throw new AppError(
         `Failed to destroy client: ${error instanceof Error ? error.message : String(error)}`,
         {
-          code: ERR_VALIDATION,
-          domain: "clients",
-          details: {
+          code: "CLIENT_DESTROY_FAILED",
+          context: {
             component: "core",
             client: this.getName(),
             reason: error instanceof Error ? error.message : String(error),
           },
-          retryable: true,
+          isOperational: true,
           cause: error,
         },
       );
@@ -280,11 +278,10 @@ export abstract class BaseServiceClient implements ServiceClient {
    */
   protected ensureInitialized(): void {
     if (!this.isInitialized()) {
-      throw new SmokerError(`${this.getName()} is not initialized. Call init() first.`, {
-        code: ERR_VALIDATION,
-        domain: "clients",
-        details: { component: "core", client: this.getName() },
-        retryable: false,
+      throw new ValidationError(`${this.getName()} is not initialized. Call init() first.`, {
+        code: "CLIENT_NOT_INITIALIZED",
+        context: { component: "core", client: this.getName() },
+        isOperational: false,
       });
     }
   }
@@ -298,11 +295,10 @@ export abstract class BaseServiceClient implements ServiceClient {
    */
   protected assertNotNull<T>(client: T | null): asserts client is NonNullable<T> {
     if (client === null || client === undefined) {
-      throw new SmokerError("Client not initialized", {
-        code: ERR_VALIDATION,
-        domain: "clients",
-        details: { component: "core", client: this.getName() },
-        retryable: false,
+      throw new ValidationError("Client not initialized", {
+        code: "CLIENT_NOT_INITIALIZED",
+        context: { component: "core", client: this.getName() },
+        isOperational: false,
       });
     }
   }

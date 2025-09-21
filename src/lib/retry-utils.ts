@@ -16,9 +16,9 @@
  * ```
  */
 
+import { AppError } from "@fabianopinto/errors";
 import { logger } from "@fabianopinto/logger";
 import { ERR_RETRY_EXHAUSTED } from "../errors";
-import { SmokerError } from "../errors/smoker-error";
 
 export type BackoffStrategy = "fixed" | "exponential" | "exponential-jitter";
 
@@ -116,18 +116,17 @@ export async function retryAsync<T>(
       }
       if (opts.onAttemptError) await opts.onAttemptError(err, attempt);
       if (attempt >= totalAttempts)
-        throw new SmokerError("Retry attempts exhausted", {
+        throw new AppError("Retry attempts exhausted", {
           code: ERR_RETRY_EXHAUSTED,
-          domain: "retry",
-          details: {
+          context: {
+            component: "retry-utils",
             retries: opts.retries,
             delayMs: opts.delayMs,
             backoff: opts.backoff,
             maxDelayMs: opts.maxDelayMs,
             lastAttempt: attempt,
           },
-          retryable: false,
-          severity: "error",
+          isOperational: true,
           cause: err,
         });
       let delay = nextDelay(opts.delayMs, attempt, opts);

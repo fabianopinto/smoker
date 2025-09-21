@@ -15,10 +15,10 @@
  */
 
 import { type IWorldOptions } from "@cucumber/cucumber";
+import { ValidationError } from "@fabianopinto/errors";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { ClientType, type ServiceClient } from "../../src/clients/core";
 import { type ClientConfig, ClientFactory, ClientRegistry } from "../../src/clients/registry";
-import { ERR_VALIDATION, SmokerError } from "../../src/errors";
 import { Configuration, DefaultConfigurationProvider } from "../../src/support/config";
 import { SmokeWorldImpl } from "../../src/world/world";
 import { WorldProperties } from "../../src/world/world-properties";
@@ -321,17 +321,13 @@ describe("SmokeWorldImpl", () => {
         expect((client as MockServiceClient).getType()).toBe(TEST_FIXTURES.CLIENT_TYPE_REST);
       });
 
-      it("should throw a structured error for non-existent client", () => {
-        try {
-          world.getClient(TEST_FIXTURES.NON_EXISTENT_CLIENT);
-          throw new Error("expected getClient to throw");
-        } catch (err) {
-          expect(SmokerError.isSmokerError(err)).toBe(true);
-          if (SmokerError.isSmokerError(err)) {
-            expect(err.code).toBe(ERR_VALIDATION);
-            expect(err.domain).toBe("world");
-          }
-        }
+      it("should throw ValidationError for non-existent client", () => {
+        expect(() => world.getClient(TEST_FIXTURES.NON_EXISTENT_CLIENT)).toThrowError(
+          ValidationError,
+        );
+        expect(() => world.getClient(TEST_FIXTURES.NON_EXISTENT_CLIENT)).toThrow(
+          /Client not found/,
+        );
       });
     });
 
@@ -682,31 +678,21 @@ describe("SmokeWorldImpl", () => {
         expect(result).toBe(TEST_FIXTURES.PROPERTY_VALUE);
       });
 
-      it("should throw a structured error for invalid property reference format", () => {
+      it("should throw ValidationError for invalid property reference format", () => {
         const input = "property:invalid.format";
-        try {
-          world.resolvePropertyValue(input);
-          throw new Error("expected resolvePropertyValue to throw");
-        } catch (err) {
-          expect(SmokerError.isSmokerError(err)).toBe(true);
-          if (SmokerError.isSmokerError(err)) {
-            expect(err.code).toBe(ERR_VALIDATION);
-            expect(err.domain).toBe("world");
-          }
-        }
+        expect(() => world.resolvePropertyValue(input)).toThrowError(ValidationError);
+        expect(() => world.resolvePropertyValue(input)).toThrow(
+          /Invalid property reference format/,
+        );
       });
 
-      it("should throw a structured error if property is not found", () => {
-        try {
-          world.resolvePropertyValue("property:missing");
-          throw new Error("expected resolvePropertyValue to throw");
-        } catch (err) {
-          expect(SmokerError.isSmokerError(err)).toBe(true);
-          if (SmokerError.isSmokerError(err)) {
-            expect(err.code).toBe(ERR_VALIDATION);
-            expect(err.domain).toBe("world");
-          }
-        }
+      it("should throw ValidationError if property is not found", () => {
+        expect(() => world.resolvePropertyValue("property:missing")).toThrowError(
+          ValidationError,
+        );
+        expect(() => world.resolvePropertyValue("property:missing")).toThrow(
+          /Property not found/,
+        );
       });
     });
 

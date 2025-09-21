@@ -32,6 +32,7 @@ vi.mock("@fabianopinto/logger", () => {
 
 import { S3Client } from "@aws-sdk/client-s3";
 import { SSMClient } from "@aws-sdk/client-ssm";
+import { ValidationError } from "@fabianopinto/errors";
 import { BaseLogger } from "@fabianopinto/logger";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { S3ClientWrapper, SSMClientWrapper } from "../../../src/support/aws";
@@ -628,7 +629,11 @@ describe("ParameterResolver", () => {
       });
 
       it("should rethrow circular reference errors from S3 resolution", async () => {
-        const circularError = new Error("Circular reference detected: test");
+        const circularError = new ValidationError("Circular reference detected: test", {
+          code: "CONFIG_CIRCULAR_REFERENCE",
+          context: { component: "parameter-resolver" },
+          isOperational: false,
+        });
         mockSSMClient.isSSMReference.mockReturnValue(false);
         mockSSMClient.isS3JsonReference.mockReturnValue(true);
         mockS3Client.getContentFromUrl.mockRejectedValue(circularError);

@@ -10,15 +10,9 @@
  * and managing consumer groups for distributed message processing.
  */
 
+import { AppError, ValidationError } from "@fabianopinto/errors";
 import { BaseLogger } from "@fabianopinto/logger";
 import { type Consumer, Kafka, type KafkaConfig, logLevel, type Producer } from "kafkajs";
-import {
-  ERR_KAFKA_CONNECT,
-  ERR_KAFKA_CONSUMER,
-  ERR_KAFKA_PRODUCER,
-  KafkaConnectionError,
-  SmokerError,
-} from "../../errors";
 import { BaseServiceClient, type ServiceClient } from "../core";
 
 // Create a logger instance for this module
@@ -215,20 +209,18 @@ export class KafkaClient extends BaseServiceClient implements KafkaServiceClient
     this.groupId = this.getConfig<string>("groupId", "smoke-test-group");
 
     if (this.brokers.length === 0) {
-      throw new SmokerError("Kafka brokers must be provided", {
-        code: ERR_KAFKA_CONNECT,
-        domain: "messaging",
-        details: { component: "kafka" },
-        retryable: false,
+      throw new ValidationError("Kafka brokers must be provided", {
+        code: "KAFKA_BROKERS_REQUIRED",
+        context: { component: "kafka" },
+        isOperational: false,
       });
     }
 
     if (this.topics.length === 0) {
-      throw new SmokerError("Kafka topics must be provided", {
-        code: ERR_KAFKA_CONSUMER,
-        domain: "messaging",
-        details: { component: "kafka" },
-        retryable: false,
+      throw new ValidationError("Kafka topics must be provided", {
+        code: "KAFKA_TOPICS_REQUIRED",
+        context: { component: "kafka" },
+        isOperational: false,
       });
     }
 
@@ -263,27 +255,26 @@ export class KafkaClient extends BaseServiceClient implements KafkaServiceClient
         await this.consumer.subscribe({ topic });
       }
     } catch (error) {
-      // Structured error log (keeps existing behavior unchanged)
-      const errObj = KafkaConnectionError.connecting(this.brokers);
       logger.error(
-        errObj,
-        `Failed to initialize Kafka client: ${
-          error instanceof Error ? error.message : String(error)
-        }`,
+        {
+          component: "kafka",
+          brokers: this.brokers,
+          reason: error instanceof Error ? error.message : String(error),
+        },
+        `Failed to initialize Kafka client`,
       );
-      throw new SmokerError(
+      throw new AppError(
         `Failed to initialize Kafka client: ${
           error instanceof Error ? error.message : String(error)
         }`,
         {
-          code: ERR_KAFKA_CONNECT,
-          domain: "messaging",
-          details: {
+          code: "KAFKA_INIT_FAILED",
+          context: {
             component: "kafka",
             brokers: this.brokers,
             reason: error instanceof Error ? error.message : String(error),
           },
-          retryable: true,
+          isOperational: true,
           cause: error,
         },
       );
@@ -341,11 +332,10 @@ export class KafkaClient extends BaseServiceClient implements KafkaServiceClient
     this.assertNotNull(this.producer);
 
     if (!topic) {
-      throw new SmokerError("Kafka topic is required for sending a message", {
-        code: ERR_KAFKA_PRODUCER,
-        domain: "messaging",
-        details: { component: "kafka" },
-        retryable: false,
+      throw new ValidationError("Kafka topic is required for sending a message", {
+        code: "KAFKA_TOPIC_REQUIRED",
+        context: { component: "kafka" },
+        isOperational: false,
       });
     }
 
@@ -371,15 +361,14 @@ export class KafkaClient extends BaseServiceClient implements KafkaServiceClient
         timestamp: Date.now(),
       };
     } catch (error) {
-      throw new SmokerError("Failed to send Kafka message", {
-        code: ERR_KAFKA_PRODUCER,
-        domain: "messaging",
-        details: {
+      throw new AppError("Failed to send Kafka message", {
+        code: "KAFKA_PRODUCER_FAILED",
+        context: {
           component: "kafka",
           topic,
           reason: error instanceof Error ? error.message : String(error),
         },
-        retryable: true,
+        isOperational: true,
         cause: error,
       });
     }
@@ -405,11 +394,10 @@ export class KafkaClient extends BaseServiceClient implements KafkaServiceClient
       // Create a new consumer with the given group ID
 
       if (topicsArray.length === 0) {
-        throw new SmokerError("At least one Kafka topic is required for subscription", {
-          code: ERR_KAFKA_CONSUMER,
-          domain: "messaging",
-          details: { component: "kafka" },
-          retryable: false,
+        throw new ValidationError("At least one Kafka topic is required for subscription", {
+          code: "KAFKA_TOPICS_REQUIRED",
+          context: { component: "kafka" },
+          isOperational: false,
         });
       }
 
@@ -433,15 +421,14 @@ export class KafkaClient extends BaseServiceClient implements KafkaServiceClient
       this.topics = [...new Set([...this.topics, ...topicsArray])];
       this.groupId = groupId;
     } catch (error) {
-      throw new SmokerError("Failed to subscribe to Kafka topics", {
-        code: ERR_KAFKA_CONSUMER,
-        domain: "messaging",
-        details: {
+      throw new AppError("Failed to subscribe to Kafka topics", {
+        code: "KAFKA_SUBSCRIBE_FAILED",
+        context: {
           component: "kafka",
           topics: topicsArray,
           reason: error instanceof Error ? error.message : String(error),
         },
-        retryable: true,
+        isOperational: true,
         cause: error,
       });
     }
@@ -503,14 +490,13 @@ export class KafkaClient extends BaseServiceClient implements KafkaServiceClient
         await this.consumer.stop();
       }
     } catch (error) {
-      throw new SmokerError("Failed to consume Kafka messages", {
-        code: ERR_KAFKA_CONSUMER,
-        domain: "messaging",
-        details: {
+      throw new AppError("Failed to consume Kafka messages", {
+        code: "KAFKA_CONSUME_FAILED",
+        context: {
           component: "kafka",
           reason: error instanceof Error ? error.message : String(error),
         },
-        retryable: true,
+        isOperational: true,
         cause: error,
       });
     }

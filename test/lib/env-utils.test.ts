@@ -5,8 +5,9 @@
  * - requireEnv throws SmokerError with standardized code/domain when missing
  */
 
+import { ValidationError } from "@fabianopinto/errors";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
-import { ERR_ENV_MISSING, SmokerError } from "../../src/errors";
+import { ERR_ENV_MISSING } from "../../src/errors";
 import { EnvUtils } from "../../src/lib/env-utils";
 
 describe("EnvUtils", () => {
@@ -35,18 +36,17 @@ describe("EnvUtils", () => {
       expect(EnvUtils.getEnv(VAR)).toBe("value");
     });
 
-    it("should throw when variable is empty string", () => {
+    it("should throw ValidationError when variable is empty string", () => {
       const name = VAR;
       process.env[name] = "";
       try {
         EnvUtils.requireEnv(name);
         throw new Error("Expected to throw");
       } catch (e) {
-        expect(SmokerError.isSmokerError(e)).toBe(true);
-        const err = e as SmokerError;
+        expect(e).toBeInstanceOf(ValidationError);
+        const err = e as ValidationError;
         expect(err.code).toBe(ERR_ENV_MISSING);
-        expect(err.domain).toBe("env");
-        expect(err.details).toEqual(expect.objectContaining({ name }));
+        expect(err.context).toEqual(expect.objectContaining({ name }));
       }
     });
 
@@ -58,18 +58,17 @@ describe("EnvUtils", () => {
   });
 
   describe("requireEnv", () => {
-    it("should throw SmokerError with ERR_ENV_MISSING and domain 'env' when variable is missing", () => {
+    it("should throw ValidationError with ERR_ENV_MISSING when variable is missing", () => {
       const name = VAR;
       Reflect.deleteProperty(process.env, name);
       try {
         EnvUtils.requireEnv(name);
         throw new Error("Expected to throw");
       } catch (e) {
-        expect(SmokerError.isSmokerError(e)).toBe(true);
-        const err = e as SmokerError;
+        expect(e).toBeInstanceOf(ValidationError);
+        const err = e as ValidationError;
         expect(err.code).toBe(ERR_ENV_MISSING);
-        expect(err.domain).toBe("env");
-        expect(err.details).toEqual(expect.objectContaining({ name }));
+        expect(err.context).toEqual(expect.objectContaining({ name }));
       }
     });
   });

@@ -7,7 +7,7 @@
  * multiple client types through a unified interface.
  */
 
-import { ERR_VALIDATION, SmokerError } from "../../errors";
+import { AppError, ValidationError } from "@fabianopinto/errors";
 import { ClientType, type ServiceClient } from "../core";
 import { ClientRegistry } from "./client-registry";
 
@@ -127,11 +127,10 @@ export class ClientFactory {
       case ClientType.KAFKA:
         return new KafkaClient(clientId, config);
       default:
-        throw new SmokerError("Unknown client type", {
-          code: ERR_VALIDATION,
-          domain: "clients",
-          details: { component: "registry", type: String(type) },
-          retryable: false,
+        throw new ValidationError("Unknown client type", {
+          code: "CLIENT_TYPE_UNKNOWN",
+          context: { component: "registry", type: String(type) },
+          isOperational: false,
         });
     }
   }
@@ -164,20 +163,18 @@ export class ClientFactory {
       await client.init();
       return client;
     } catch (error) {
-      // Propagate original errors (including SmokerError and standard Error) without wrapping
-      if (error instanceof Error) {
+      if (error instanceof ValidationError || error instanceof AppError || error instanceof Error) {
         throw error;
       }
-      throw new SmokerError(`Failed to create and initialize client: ${String(error)}`, {
-        code: ERR_VALIDATION,
-        domain: "clients",
-        details: {
+      throw new AppError(`Failed to create and initialize client: ${String(error)}`, {
+        code: "CLIENT_INIT_FAILED",
+        context: {
           component: "registry",
           type: String(clientType),
           id,
           reason: error instanceof Error ? error.message : String(error),
         },
-        retryable: true,
+        isOperational: true,
         cause: error,
       });
     }

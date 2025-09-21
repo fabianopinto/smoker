@@ -16,9 +16,10 @@ import {
   type IWorldOptions,
   setWorldConstructor,
 } from "@cucumber/cucumber";
+import { AppError, ValidationError } from "@fabianopinto/errors";
 import { ClientType, type ServiceClient } from "../clients/core";
 import { type ClientConfig, ClientFactory, ClientRegistry } from "../clients/registry";
-import { ERR_CONFIG_MISSING, ERR_CONFIG_PARSE, ERR_VALIDATION, SmokerError } from "../errors";
+import { ERR_CONFIG_MISSING, ERR_CONFIG_PARSE, ERR_VALIDATION } from "../errors";
 import { type ConfigurationProvider, DefaultConfigurationProvider } from "../support/config";
 import { createWorldProperties, WorldProperties } from "./world-properties";
 
@@ -120,7 +121,7 @@ export interface SmokeWorld<T = unknown> extends IWorld<T> {
    * @template T - The type of client to retrieve
    * @param {string} name - The name of the client to retrieve
    * @returns {T} The client instance with the specified type
-   * @throws {SmokerError} if no client is registered with the given name
+   * @throws {ValidationError} if no client is registered with the given name
    *
    * @example
    * // Get a previously registered client
@@ -167,7 +168,7 @@ export interface SmokeWorld<T = unknown> extends IWorld<T> {
    *
    * @param {Record<string, unknown>} [config] - Optional configuration object for client initialization
    * @returns {Promise<void>} Promise that resolves when all clients are initialized
-   * @throws {SmokerError} if any client initialization fails
+   * @throws {AppError} if any client initialization fails
    *
    * @example
    * // Initialize all clients before starting tests
@@ -189,7 +190,7 @@ export interface SmokeWorld<T = unknown> extends IWorld<T> {
    * reinitialize all clients.
    *
    * @returns {Promise<void>} Promise that resolves when all clients are reset
-   * @throws {SmokerError} if any client reset fails
+   * @throws {AppError} if any client reset fails
    *
    * @example
    * // Reset clients between test scenarios
@@ -205,7 +206,7 @@ export interface SmokeWorld<T = unknown> extends IWorld<T> {
    * execution to ensure proper cleanup.
    *
    * @returns {Promise<void>} Promise that resolves when all clients are destroyed
-   * @throws {SmokerError} if any client destruction fails
+   * @throws {AppError} if any client destruction fails
    *
    * @example
    * // Clean up after tests are complete
@@ -453,16 +454,15 @@ export class SmokeWorldImpl<T = unknown> extends CucumberWorld<T> implements Smo
    * @template T - The type of the client
    * @param {string} name - The client name
    * @returns {T} The client instance
-   * @throws {SmokerError} if the client does not exist
+   * @throws {ValidationError} if the client does not exist
    */
   getClient<T extends ServiceClient = ServiceClient>(name: string): T {
     const client = this.clients.get(name);
     if (!client) {
-      throw new SmokerError("Client not found", {
+      throw new ValidationError("Client not found", {
         code: ERR_VALIDATION,
-        domain: "world",
-        details: { component: "world", clientName: name },
-        retryable: false,
+        context: { component: "world", clientName: name },
+        isOperational: false,
       });
     }
     return client as T;
@@ -586,7 +586,7 @@ export class SmokeWorldImpl<T = unknown> extends CucumberWorld<T> implements Smo
    *
    * @param {string} key - The key to store the value under
    * @param {unknown} value - The value to store (primitive, array, or plain object)
-   * @throws {SmokerError} if the key is empty or contains invalid characters
+   * @throws {ValidationError} if the key is empty or contains invalid characters
    */
   setProperty(key: string, value: unknown): void {
     // Delegate to WorldProperties instance
@@ -600,7 +600,7 @@ export class SmokeWorldImpl<T = unknown> extends CucumberWorld<T> implements Smo
    * @param {string} key - The key of the property to retrieve
    * @param {T} [defaultValue] - Optional default value to return if the property doesn't exist
    * @returns {T | undefined} The property value, or the default value if the property doesn't exist
-   * @throws {SmokerError} if the key is empty or contains invalid characters
+   * @throws {ValidationError} if the key is empty or contains invalid characters
    */
   getProperty<T = unknown>(key: string, defaultValue?: T): T | undefined {
     // Delegate to WorldProperties instance
@@ -611,7 +611,7 @@ export class SmokeWorldImpl<T = unknown> extends CucumberWorld<T> implements Smo
    * Check if a property exists with the specified key
    *
    * @param {string} key - The key of the property to check
-   * @throws {SmokerError} if the key is empty or contains invalid characters
+   * @throws {ValidationError} if the key is empty or contains invalid characters
    * @returns {boolean} True if the property exists, false otherwise
    */
   hasProperty(key: string): boolean {
@@ -623,17 +623,16 @@ export class SmokeWorldImpl<T = unknown> extends CucumberWorld<T> implements Smo
    * Delete a property with the specified key
    *
    * @param {string} key - The key of the property to delete
-   * @throws {SmokerError} if the key is empty or contains invalid characters
-   * @throws {SmokerError} if the property doesn't exist
+   * @throws {ValidationError} if the key is empty or contains invalid characters
+   * @throws {ValidationError} if the property doesn't exist
    */
   deleteProperty(key: string): void {
     // Check if property exists before attempting deletion
     if (!this.hasProperty(key)) {
-      throw new SmokerError(`Property not found: ${key}`, {
+      throw new ValidationError(`Property not found: ${key}`, {
         code: ERR_VALIDATION,
-        domain: "world",
-        details: { component: "world", key },
-        retryable: false,
+        context: { component: "world", key },
+        isOperational: false,
       });
     }
 
@@ -646,7 +645,7 @@ export class SmokeWorldImpl<T = unknown> extends CucumberWorld<T> implements Smo
    *
    * @param {string} input - The input string that may be a configuration reference
    * @returns {Promise<string>} The configuration value if input is a configuration reference, or the original string if not
-   * @throws {SmokerError} if input is a configuration reference but the configuration value is not found
+   * @throws {AppError | ValidationError} if the reference is invalid or the configuration value is not found
    */
   async resolveConfigValue(input: string): Promise<string> {
     // Define the pattern to find configuration references
@@ -658,15 +657,14 @@ export class SmokeWorldImpl<T = unknown> extends CucumberWorld<T> implements Smo
       const match = exactPattern.exec(input);
 
       if (!match) {
-        throw new SmokerError("Invalid configuration reference format", {
+        throw new ValidationError("Invalid configuration reference format", {
           code: ERR_VALIDATION,
-          domain: "world",
-          details: {
+          context: {
             component: "world",
             input,
             pattern: "config:[segment](.[segment])*, where segment matches [a-zA-Z0-9_$]+",
           },
-          retryable: false,
+          isOperational: false,
         });
       }
 
@@ -703,7 +701,7 @@ export class SmokeWorldImpl<T = unknown> extends CucumberWorld<T> implements Smo
    *
    * @param {string} configPath - Path to the configuration value
    * @returns {Promise<string>} The configuration value as a string
-   * @throws {SmokerError} if the configuration value is not found
+   * @throws {AppError} if the configuration value is not found or parsing fails
    */
   private async getConfigValue(configPath: string): Promise<string> {
     try {
@@ -713,23 +711,21 @@ export class SmokeWorldImpl<T = unknown> extends CucumberWorld<T> implements Smo
         return String(value);
       }
 
-      throw new SmokerError("Configuration value not found", {
+      throw new AppError("Configuration value not found", {
         code: ERR_CONFIG_MISSING,
-        domain: "config",
-        details: { component: "configuration", path: configPath },
-        retryable: false,
+        context: { component: "configuration", path: configPath },
+        isOperational: true,
       });
     } catch (error: unknown) {
-      if (SmokerError.isSmokerError(error)) {
+      if (error instanceof ValidationError || error instanceof AppError) {
         // Re-throw structured errors directly (including ERR_CONFIG_MISSING)
         throw error;
       }
       const errorMessage = error instanceof Error ? error.message : String(error);
-      throw new SmokerError("Failed to resolve configuration reference", {
+      throw new AppError("Failed to resolve configuration reference", {
         code: ERR_CONFIG_PARSE,
-        domain: "config",
-        details: { component: "configuration", reason: errorMessage },
-        retryable: false,
+        context: { component: "configuration", reason: errorMessage },
+        isOperational: true,
         cause: error,
       });
     }
@@ -759,7 +755,7 @@ export class SmokeWorldImpl<T = unknown> extends CucumberWorld<T> implements Smo
    *
    * @param {string} input - The input string that may be a property reference
    * @returns {string} The property value if input is a property reference, or the original string if not
-   * @throws {SmokerError} if input is a property reference but the property is not found
+   * @throws {ValidationError} if input is a property reference but the property is not found
    */
   resolvePropertyValue(input: string): string {
     // Delegate to WorldProperties instance
@@ -771,7 +767,7 @@ export class SmokeWorldImpl<T = unknown> extends CucumberWorld<T> implements Smo
    *
    * @param {string} param - The parameter string that may contain configuration or property references
    * @returns {Promise<string>} The parameter with all references resolved, or the original parameter if it contains no references
-   * @throws {SmokerError} if a referenced configuration or property value is not found
+   * @throws {AppError | ValidationError} if a referenced configuration or property value is not found
    */
   async resolveStepParameter(param: string): Promise<string> {
     let result = param;
@@ -798,7 +794,7 @@ export class SmokeWorldImpl<T = unknown> extends CucumberWorld<T> implements Smo
    *
    * @param {unknown} param - The parameter value to resolve
    * @returns {Promise<unknown>} Promise that resolves to the resolved parameter value
-   * @throws {SmokerError} if a referenced configuration or property value is not found
+   * @throws {AppError | ValidationError} if a referenced configuration or property value is not found
    */
   async resolveParam(param: unknown): Promise<unknown> {
     // If param is null or undefined, return it as is

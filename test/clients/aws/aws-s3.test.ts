@@ -20,11 +20,11 @@ import {
   GetObjectCommand,
   PutObjectCommand,
 } from "@aws-sdk/client-s3";
+import { S3Error, ValidationError } from "@fabianopinto/errors";
 import { mockClient } from "aws-sdk-client-mock";
 import { Readable } from "stream";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { S3Client } from "../../../src/clients/aws/aws-s3";
-import { ERR_S3_READ, ERR_VALIDATION, SmokerError } from "../../../src/errors";
 
 /**
  * Test fixtures for consistent testing across all test cases
@@ -106,10 +106,9 @@ describe("S3Client", () => {
 
       await expect(clientWithoutBucket.init()).rejects.toSatisfy(
         (err) =>
-          SmokerError.isSmokerError(err) &&
-          err.code === ERR_VALIDATION &&
-          err.domain === "aws" &&
-          err.details?.component === "s3",
+          err instanceof ValidationError &&
+          err.code === "S3_BUCKET_REQUIRED" &&
+          err.context?.component === "s3",
       );
     });
 
@@ -209,7 +208,7 @@ describe("S3Client", () => {
       });
 
       await expect(client.read(TEST_FIXTURES.TEXT_FILE_PATH)).rejects.toSatisfy(
-        (err) => SmokerError.isSmokerError(err) && err.code === ERR_S3_READ,
+        (err) => err instanceof S3Error && err.code === "S3_READ_FAILED",
       );
     });
 
@@ -218,10 +217,9 @@ describe("S3Client", () => {
 
       await expect(client.read(TEST_FIXTURES.NON_EXISTENT_FILE_PATH)).rejects.toSatisfy(
         (err) =>
-          SmokerError.isSmokerError(err) &&
-          err.code === ERR_S3_READ &&
-          err.domain === "aws" &&
-          err.details?.component === "s3",
+          err instanceof S3Error &&
+          err.code === "S3_READ_FAILED" &&
+          err.context?.component === "s3",
       );
     });
 
@@ -241,10 +239,9 @@ describe("S3Client", () => {
 
       await expect(client.read(TEST_FIXTURES.TEXT_FILE_PATH)).rejects.toSatisfy(
         (err) =>
-          SmokerError.isSmokerError(err) &&
-          err.code === ERR_S3_READ &&
-          err.domain === "aws" &&
-          err.details?.component === "s3",
+          err instanceof S3Error &&
+          err.code === "S3_READ_FAILED" &&
+          err.context?.component === "s3",
       );
     });
   });
@@ -295,11 +292,11 @@ describe("S3Client", () => {
         Body: mockStream as any,
       });
 
-      await expect(client.readJson(TEST_FIXTURES.JSON_FILE_PATH)).rejects.toMatchObject({
-        code: ERR_S3_READ,
-        domain: "aws",
-        details: expect.objectContaining({ component: "s3" }),
-      });
+      await expect(
+        client.readJson(TEST_FIXTURES.JSON_FILE_PATH),
+      ).rejects.toSatisfy(
+        (err) => err instanceof S3Error && err.code === "S3_JSON_PARSE_FAILED" && err.context?.component === "s3",
+      );
     });
 
     it("should throw structured error when client is not initialized", async () => {
@@ -308,13 +305,9 @@ describe("S3Client", () => {
         region: TEST_FIXTURES.REGION,
       });
 
-      await expect(uninitializedClient.readJson(TEST_FIXTURES.JSON_FILE_PATH)).rejects.toSatisfy(
-        (err) =>
-          SmokerError.isSmokerError(err) &&
-          err.code === ERR_VALIDATION &&
-          err.domain === "clients" &&
-          err.details?.component === "core",
-      );
+      await expect(
+        uninitializedClient.readJson(TEST_FIXTURES.JSON_FILE_PATH),
+      ).rejects.toSatisfy((err) => err instanceof ValidationError && /not initialized/i.test(err.message));
     });
 
     it("should wrap unexpected read errors into SmokerError (retryable) in readJson", async () => {
@@ -328,12 +321,11 @@ describe("S3Client", () => {
 
       await expect(client.readJson(TEST_FIXTURES.JSON_FILE_PATH)).rejects.toSatisfy((err) => {
         return (
-          SmokerError.isSmokerError(err) &&
-          err.code === ERR_S3_READ &&
-          err.domain === "aws" &&
-          err.retryable === true &&
-          typeof err.details?.reason === "string" &&
-          (err.details?.reason as string).includes("unexpected")
+          err instanceof S3Error &&
+          err.code === "S3_READ_FAILED" &&
+          err.isOperational === true &&
+          typeof err.context?.reason === "string" &&
+          (err.context?.reason as string).includes("unexpected")
         );
       });
 
@@ -404,13 +396,11 @@ describe("S3Client", () => {
       await expect(
         client.write(TEST_FIXTURES.TEXT_FILE_PATH, TEST_FIXTURES.TEXT_CONTENT),
       ).rejects.toSatisfy((err) => {
-        if (!SmokerError.isSmokerError(err)) return false;
-        // Message should contain the string reason due to ternary branch
+        if (!(err instanceof S3Error)) return false;
         expect(err.message).toContain(reason);
-        expect(err.code).toBe(ERR_S3_READ);
-        expect(err.domain).toBe("aws");
-        expect(err.retryable).toBe(true);
-        expect(err.details).toMatchObject({
+        expect(err.code).toBe("S3_WRITE_FAILED");
+        expect(err.isOperational).toBe(true);
+        expect(err.context).toMatchObject({
           component: "s3",
           bucket: TEST_FIXTURES.BUCKET,
           key: TEST_FIXTURES.TEXT_FILE_PATH,
@@ -423,11 +413,10 @@ describe("S3Client", () => {
     it("should throw validation error when key is empty in write", async () => {
       await expect(client.write("", "content")).rejects.toSatisfy((err) => {
         return (
-          SmokerError.isSmokerError(err) &&
-          err.code === ERR_VALIDATION &&
-          err.domain === "aws" &&
-          err.details?.component === "s3" &&
-          err.details?.bucket === TEST_FIXTURES.BUCKET
+          err instanceof ValidationError &&
+          err.code === "S3_KEY_REQUIRED" &&
+          err.context?.component === "s3" &&
+          err.context?.bucket === TEST_FIXTURES.BUCKET
         );
       });
     });

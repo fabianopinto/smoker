@@ -15,8 +15,8 @@
 
 import { S3Client } from "@aws-sdk/client-s3";
 import { SSMClient } from "@aws-sdk/client-ssm";
+import { ValidationError } from "@fabianopinto/errors";
 import { BaseLogger } from "@fabianopinto/logger";
-import { ERR_VALIDATION, SmokerError } from "../../errors";
 import { S3ClientWrapper, SSMClientWrapper } from "../aws";
 import type { ConfigObject, ConfigValue } from "./configuration";
 
@@ -76,16 +76,15 @@ export class ParameterResolver {
    */
   async resolveValue(value: ConfigValue): Promise<ConfigValue> {
     if (this.resolutionDepth >= this.MAX_DEPTH) {
-      throw new SmokerError(
+      throw new ValidationError(
         `Maximum parameter resolution depth (${this.MAX_DEPTH}) exceeded. Possible circular reference detected.`,
         {
-          code: ERR_VALIDATION,
-          domain: "config",
-          details: {
+          code: "CONFIG_MAX_DEPTH_EXCEEDED",
+          context: {
             component: "parameter-resolver",
             reason: `Maximum parameter resolution depth (${this.MAX_DEPTH}) exceeded. Possible circular reference detected.`,
           },
-          retryable: false,
+          isOperational: false,
         },
       );
     }
@@ -99,15 +98,14 @@ export class ParameterResolver {
           if (paramName) {
             // Check for circular references
             if (this.processingStack.includes(value)) {
-              throw new SmokerError("Circular reference detected", {
-                code: ERR_VALIDATION,
-                domain: "config",
-                details: {
+              throw new ValidationError("Circular reference detected", {
+                code: "CONFIG_CIRCULAR_REFERENCE",
+                context: {
                   component: "parameter-resolver",
                   path: [...this.processingStack, value].join(" -> "),
                   reference: value,
                 },
-                retryable: false,
+                isOperational: false,
               });
             }
 
@@ -137,15 +135,14 @@ export class ParameterResolver {
         if (this.ssmClient.isS3JsonReference(value)) {
           // Check for circular references
           if (this.processingStack.includes(value)) {
-            throw new SmokerError("Circular reference detected", {
-              code: ERR_VALIDATION,
-              domain: "config",
-              details: {
+            throw new ValidationError("Circular reference detected", {
+              code: "CONFIG_CIRCULAR_REFERENCE",
+              context: {
                 component: "parameter-resolver",
                 path: [...this.processingStack, value].join(" -> "),
                 reference: value,
               },
-              retryable: false,
+              isOperational: false,
             });
           }
 
@@ -157,16 +154,12 @@ export class ParameterResolver {
             // Recursively resolve references in the JSON content
             return await this.resolveValue(jsonContent);
           } catch (error) {
-            // Rethrow circular reference errors (structured)
-            if (SmokerError.isSmokerError(error) && error.domain === "config") {
-              const details = (error.details ?? {}) as Record<string, unknown>;
-              if (details.component === "parameter-resolver") {
-                throw error;
-              }
-            }
-
-            // Also rethrow plain errors that indicate circular reference by message
-            if (error instanceof Error && /Circular reference detected/i.test(error.message)) {
+            // Rethrow circular/depth validation errors produced by this resolver
+            if (
+              error instanceof ValidationError &&
+              (error.code === "CONFIG_CIRCULAR_REFERENCE" ||
+                error.code === "CONFIG_MAX_DEPTH_EXCEEDED")
+            ) {
               throw error;
             }
 
@@ -218,7 +211,7 @@ export class ParameterResolver {
    *
    * @param {ConfigObject} config - Configuration object to resolve
    * @returns {Promise<ConfigObject>} Promise resolving to the resolved configuration object
-   * @throws {SmokerError} if circular references are detected or maximum depth is exceeded
+   * @throws {ValidationError} if circular references are detected or maximum depth is exceeded
    */
   async resolveConfig(config: ConfigObject): Promise<ConfigObject> {
     return (await this.resolveValue(config)) as ConfigObject;

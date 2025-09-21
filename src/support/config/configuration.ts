@@ -15,8 +15,8 @@
  * helper functions for common configuration operations.
  */
 
+import { AppError } from "@fabianopinto/errors";
 import { BaseLogger } from "@fabianopinto/logger";
-import { ERR_CONFIG_MISSING, SmokerError } from "../../errors";
 import { S3ClientWrapper, SSMClientWrapper } from "../aws";
 import { ConfigurationFactory } from "./config-factory";
 
@@ -134,11 +134,10 @@ export class Configuration {
    */
   public static getInstance(): Configuration {
     if (Configuration.instance === null) {
-      throw new SmokerError("Global configuration is not initialized", {
-        code: ERR_CONFIG_MISSING,
-        domain: "config",
-        details: { component: "configuration", source: "Configuration.getInstance" },
-        retryable: false,
+      throw new AppError("Global configuration is not initialized", {
+        code: "CONFIG_MISSING",
+        context: { component: "configuration", source: "Configuration.getInstance" },
+        isOperational: false,
       });
     }
     return Configuration.instance;

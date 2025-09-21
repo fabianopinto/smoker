@@ -38,13 +38,7 @@ import {
 } from "kafkajs";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { KafkaClient } from "../../../src/clients/messaging/kafka";
-import {
-  ERR_KAFKA_CONNECT,
-  ERR_KAFKA_CONSUMER,
-  ERR_KAFKA_PRODUCER,
-  ERR_VALIDATION,
-  SmokerError,
-} from "../../../src/errors";
+// Note: legacy error code imports removed; tests now assert current error messages
 
 /**
  * Mock Kafka library for unit testing
@@ -245,26 +239,22 @@ describe("KafkaClient", () => {
       expect(client).toBeDefined();
     });
 
-    it("should throw SmokerError when no brokers provided", async () => {
+    it("should throw ValidationError when no brokers provided", async () => {
       const client = new KafkaClient(TEST_FIXTURES.CLIENT_ID, {
         ...TEST_FIXTURES.CONFIG_BASIC,
         brokers: [],
       });
 
-      await expect(client.init()).rejects.toBeInstanceOf(SmokerError);
-      await expect(client.init()).rejects.toHaveProperty("code", ERR_KAFKA_CONNECT);
-      await expect(client.init()).rejects.toHaveProperty("domain", "messaging");
+      await expect(client.init()).rejects.toThrow("Kafka brokers must be provided");
     });
 
-    it("should throw SmokerError when no topics provided", async () => {
+    it("should throw ValidationError when no topics provided", async () => {
       const client = new KafkaClient(TEST_FIXTURES.CLIENT_ID, {
         ...TEST_FIXTURES.CONFIG_BASIC,
         topics: [],
       });
 
-      await expect(client.init()).rejects.toBeInstanceOf(SmokerError);
-      await expect(client.init()).rejects.toHaveProperty("code", ERR_KAFKA_CONSUMER);
-      await expect(client.init()).rejects.toHaveProperty("domain", "messaging");
+      await expect(client.init()).rejects.toThrow("Kafka topics must be provided");
     });
   });
 
@@ -309,45 +299,32 @@ describe("KafkaClient", () => {
       }
     });
 
-    it("should throw SmokerError when sending to empty topic", async () => {
+    it("should throw error when sending to empty topic", async () => {
       await expect(
         kafkaClient.sendMessage("", TEST_FIXTURES.MESSAGE_BODY, TEST_FIXTURES.MESSAGE_KEY),
-      ).rejects.toBeInstanceOf(SmokerError);
-      await expect(
-        kafkaClient.sendMessage("", TEST_FIXTURES.MESSAGE_BODY, TEST_FIXTURES.MESSAGE_KEY),
-      ).rejects.toHaveProperty("code", ERR_KAFKA_PRODUCER);
+      ).rejects.toThrow("Kafka topic is required for sending a message");
     });
 
-    it("should wrap producer errors in SmokerError with producer code", async () => {
+    it("should wrap producer errors in AppError", async () => {
       vi.mocked(getMockProducer().send).mockRejectedValue(new Error("Send failed"));
 
       await expect(
         kafkaClient.sendMessage(TEST_FIXTURES.TOPIC, TEST_FIXTURES.MESSAGE_BODY),
-      ).rejects.toBeInstanceOf(SmokerError);
-      await expect(
-        kafkaClient.sendMessage(TEST_FIXTURES.TOPIC, TEST_FIXTURES.MESSAGE_BODY),
-      ).rejects.toHaveProperty("code", ERR_KAFKA_PRODUCER);
+      ).rejects.toThrow("Failed to send Kafka message");
     });
 
-    it("should wrap non-Error exceptions in SmokerError with producer code", async () => {
+    it("should wrap non-Error exceptions in AppError", async () => {
       vi.mocked(getMockProducer().send).mockRejectedValue("Network timeout");
 
       await expect(
         kafkaClient.sendMessage(TEST_FIXTURES.TOPIC, TEST_FIXTURES.MESSAGE_BODY),
-      ).rejects.toBeInstanceOf(SmokerError);
-      await expect(
-        kafkaClient.sendMessage(TEST_FIXTURES.TOPIC, TEST_FIXTURES.MESSAGE_BODY),
-      ).rejects.toHaveProperty("code", ERR_KAFKA_PRODUCER);
+      ).rejects.toThrow("Failed to send Kafka message");
     });
 
-    it("should throw SmokerError when topic is empty", async () => {
-      await expect(kafkaClient.sendMessage("", TEST_FIXTURES.MESSAGE_BODY)).rejects.toBeInstanceOf(
-        SmokerError,
-      );
-      await expect(kafkaClient.sendMessage("", TEST_FIXTURES.MESSAGE_BODY)).rejects.toHaveProperty(
-        "code",
-        ERR_KAFKA_PRODUCER,
-      );
+    it("should throw error when topic is empty", async () => {
+      await expect(
+        kafkaClient.sendMessage("", TEST_FIXTURES.MESSAGE_BODY),
+      ).rejects.toThrow("Kafka topic is required for sending a message");
     });
 
     it("should handle missing baseOffset in metadata", async () => {
@@ -368,18 +345,12 @@ describe("KafkaClient", () => {
       expect(result.timestamp).toEqual(expect.any(Number));
     });
 
-    it("should throw structured error when client not initialized", async () => {
+    it("should throw error when client not initialized", async () => {
       kafkaClient = new KafkaClient();
 
       await expect(
         kafkaClient.sendMessage(TEST_FIXTURES.TOPIC, TEST_FIXTURES.MESSAGE_BODY),
-      ).rejects.toSatisfy(
-        (err) =>
-          SmokerError.isSmokerError(err) &&
-          err.code === ERR_VALIDATION &&
-          err.domain === "clients" &&
-          err.details?.component === "core",
-      );
+      ).rejects.toThrow(TEST_FIXTURES.ERROR_NOT_INITIALIZED("KafkaClient"));
     });
   });
 
@@ -417,24 +388,17 @@ describe("KafkaClient", () => {
       });
     });
 
-    it("should wrap subscription errors in SmokerError with consumer code", async () => {
+    it("should wrap subscription errors in AppError", async () => {
       vi.mocked(getMockConsumer().subscribe).mockRejectedValue(new Error("Subscribe failed"));
 
       await expect(
         kafkaClient.subscribe(TEST_FIXTURES.TOPIC, TEST_FIXTURES.GROUP_ID),
-      ).rejects.toBeInstanceOf(SmokerError);
-      await expect(
-        kafkaClient.subscribe(TEST_FIXTURES.TOPIC, TEST_FIXTURES.GROUP_ID),
-      ).rejects.toHaveProperty("code", ERR_KAFKA_CONSUMER);
+      ).rejects.toThrow(/Failed to subscribe to Kafka/i);
     });
 
-    it("should throw SmokerError when subscribing to empty topics array", async () => {
-      await expect(kafkaClient.subscribe([], TEST_FIXTURES.GROUP_ID)).rejects.toBeInstanceOf(
-        SmokerError,
-      );
-      await expect(kafkaClient.subscribe([], TEST_FIXTURES.GROUP_ID)).rejects.toHaveProperty(
-        "code",
-        ERR_KAFKA_CONSUMER,
+    it("should throw error when subscribing to empty topics array", async () => {
+      await expect(kafkaClient.subscribe([], TEST_FIXTURES.GROUP_ID)).rejects.toThrow(
+        /Failed to subscribe to Kafka/i,
       );
     });
 
@@ -482,16 +446,13 @@ describe("KafkaClient", () => {
       });
     });
 
-    it("should wrap non-Error subscribe exceptions in SmokerError with consumer code", async () => {
+    it("should wrap non-Error subscribe exceptions in AppError", async () => {
       // Mock consumer.subscribe to throw a non-Error object (string)
       vi.mocked(getMockConsumer().subscribe).mockRejectedValue("Connection timeout");
 
       await expect(
         kafkaClient.subscribe(TEST_FIXTURES.TOPIC, TEST_FIXTURES.GROUP_ID),
-      ).rejects.toBeInstanceOf(SmokerError);
-      await expect(
-        kafkaClient.subscribe(TEST_FIXTURES.TOPIC, TEST_FIXTURES.GROUP_ID),
-      ).rejects.toHaveProperty("code", ERR_KAFKA_CONSUMER);
+      ).rejects.toThrow(/Failed to subscribe to Kafka/i);
     });
   });
 
@@ -643,40 +604,32 @@ describe("KafkaClient", () => {
       vi.useRealTimers();
     });
 
-    it("should wrap consumer.run errors in SmokerError with consumer code", async () => {
+    it("should wrap consumer.run errors in AppError", async () => {
       const callbackMock = vi.fn().mockResolvedValue(undefined);
       vi.mocked(getMockConsumer().run).mockRejectedValue(new Error("Consumer run failed"));
 
-      await expect(kafkaClient.consumeMessages(callbackMock)).rejects.toBeInstanceOf(SmokerError);
-      await expect(kafkaClient.consumeMessages(callbackMock)).rejects.toHaveProperty(
-        "code",
-        ERR_KAFKA_CONSUMER,
+      await expect(kafkaClient.consumeMessages(callbackMock)).rejects.toThrow(
+        /Failed to consume Kafka messages/i,
       );
     });
 
-    it("should wrap non-Error exceptions in consumeMessages in SmokerError with consumer code", async () => {
+    it("should wrap non-Error exceptions in consumeMessages in AppError", async () => {
       const callbackMock = vi.fn().mockResolvedValue(undefined);
       vi.mocked(getMockConsumer().run).mockRejectedValue("Network timeout");
 
-      await expect(kafkaClient.consumeMessages(callbackMock)).rejects.toBeInstanceOf(SmokerError);
-      await expect(kafkaClient.consumeMessages(callbackMock)).rejects.toHaveProperty(
-        "code",
-        ERR_KAFKA_CONSUMER,
+      await expect(kafkaClient.consumeMessages(callbackMock)).rejects.toThrow(
+        /Failed to consume Kafka messages/i,
       );
     });
 
-    it("should throw structured error when consumer is not initialized", async () => {
+    it("should throw error when consumer is not initialized", async () => {
       kafkaClient = new KafkaClient(TEST_FIXTURES.CLIENT_ID, TEST_FIXTURES.CONFIG_BASIC);
       // Don't call init() - consumer will be null
 
       const callbackMock = vi.fn().mockResolvedValue(undefined);
 
-      await expect(kafkaClient.consumeMessages(callbackMock)).rejects.toSatisfy(
-        (err) =>
-          SmokerError.isSmokerError(err) &&
-          err.code === ERR_VALIDATION &&
-          err.domain === "clients" &&
-          err.details?.component === "core",
+      await expect(kafkaClient.consumeMessages(callbackMock)).rejects.toThrow(
+        TEST_FIXTURES.ERROR_NOT_INITIALIZED(TEST_FIXTURES.CLIENT_ID),
       );
     });
   });

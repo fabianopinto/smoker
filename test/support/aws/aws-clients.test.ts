@@ -15,10 +15,10 @@
 
 import { GetObjectCommand, type GetObjectCommandOutput, S3Client } from "@aws-sdk/client-s3";
 import { GetParameterCommand, SSMClient } from "@aws-sdk/client-ssm";
+import { AwsError } from "@fabianopinto/errors";
 import { mockClient } from "aws-sdk-client-mock";
 import { Readable } from "node:stream";
 import { afterAll, afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { ERR_S3_READ, ERR_SSM_PARAMETER, SmokerError } from "../../../src/errors";
 import {
   DEFAULT_AWS_REGION,
   type IS3Client,
@@ -284,12 +284,11 @@ describe("AWS Clients Module", () => {
           ),
         ).rejects.toSatisfy(
           (err) =>
-            SmokerError.isSmokerError(err) &&
-            err.code === ERR_S3_READ &&
-            err.domain === "aws" &&
-            err.details?.component === "s3" &&
-            err.details?.bucket === TEST_FIXTURES.S3_BUCKET_NAME &&
-            err.details?.key === TEST_FIXTURES.S3_TEXT_KEY,
+            err instanceof AwsError &&
+            err.code === "S3_READ_FAILED" &&
+            err.context?.component === "s3" &&
+            err.context?.bucket === TEST_FIXTURES.S3_BUCKET_NAME &&
+            err.context?.key === TEST_FIXTURES.S3_TEXT_KEY,
         );
       });
 
@@ -303,11 +302,7 @@ describe("AWS Clients Module", () => {
             TEST_FIXTURES.S3_TEXT_KEY,
           ),
         ).rejects.toSatisfy(
-          (err) =>
-            SmokerError.isSmokerError(err) &&
-            err.code === ERR_S3_READ &&
-            err.domain === "aws" &&
-            err.details?.component === "s3",
+          (err) => err instanceof AwsError && err.code === "S3_READ_FAILED" && err.context?.component === "s3",
         );
       });
     });
@@ -404,10 +399,10 @@ describe("AWS Clients Module", () => {
           s3ClientWrapper.getContentFromUrl(TEST_FIXTURES.URL_VALID_S3_JSON),
         ).rejects.toSatisfy(
           (err) =>
-            SmokerError.isSmokerError(err) &&
-            err.code === ERR_S3_READ &&
-            err.domain === "aws" &&
-            err.details?.component === "s3",
+            err instanceof AwsError &&
+            err.code === "S3_READ_PARSE_FAILED" &&
+            err.context?.component === "s3" &&
+            err.context?.url === TEST_FIXTURES.URL_VALID_S3_JSON,
         );
       });
 
@@ -500,36 +495,42 @@ describe("AWS Clients Module", () => {
       it("should throw structured error when Parameter has no value", async () => {
         ssmClientMock.on(GetParameterCommand).resolves({ $metadata: {} });
 
-        await expect(ssmClientWrapper.getParameter(TEST_FIXTURES.SSM_PARAM_NAME)).rejects.toSatisfy(
+        await expect(
+          ssmClientWrapper.getParameter(TEST_FIXTURES.SSM_PARAM_NAME),
+        ).rejects.toSatisfy(
           (err) =>
-            SmokerError.isSmokerError(err) &&
-            err.code === ERR_SSM_PARAMETER &&
-            err.domain === "aws" &&
-            err.details?.component === "ssm",
+            err instanceof AwsError &&
+            err.code === "SSM_PARAMETER_MISSING_VALUE" &&
+            err.context?.component === "ssm" &&
+            err.context?.name === TEST_FIXTURES.SSM_PARAM_NAME,
         );
       });
 
-      it("should wrap AWS Error objects with structured SmokerError", async () => {
+      it("should wrap AWS Error objects with AwsError", async () => {
         ssmClientMock.on(GetParameterCommand).rejects(new Error("AccessDenied"));
 
-        await expect(ssmClientWrapper.getParameter(TEST_FIXTURES.SSM_PARAM_NAME)).rejects.toSatisfy(
+        await expect(
+          ssmClientWrapper.getParameter(TEST_FIXTURES.SSM_PARAM_NAME),
+        ).rejects.toSatisfy(
           (err) =>
-            SmokerError.isSmokerError(err) &&
-            err.code === ERR_SSM_PARAMETER &&
-            err.domain === "aws" &&
-            err.details?.component === "ssm",
+            err instanceof AwsError &&
+            err.code === "SSM_PARAMETER_FETCH_FAILED" &&
+            err.context?.component === "ssm" &&
+            err.context?.name === TEST_FIXTURES.SSM_PARAM_NAME,
         );
       });
 
-      it("should wrap non-Error values with structured SmokerError", async () => {
+      it("should wrap non-Error values with AwsError", async () => {
         ssmClientMock.on(GetParameterCommand).rejects("String SSM error");
 
-        await expect(ssmClientWrapper.getParameter(TEST_FIXTURES.SSM_PARAM_NAME)).rejects.toSatisfy(
+        await expect(
+          ssmClientWrapper.getParameter(TEST_FIXTURES.SSM_PARAM_NAME),
+        ).rejects.toSatisfy(
           (err) =>
-            SmokerError.isSmokerError(err) &&
-            err.code === ERR_SSM_PARAMETER &&
-            err.domain === "aws" &&
-            err.details?.component === "ssm",
+            err instanceof AwsError &&
+            err.code === "SSM_PARAMETER_FETCH_FAILED" &&
+            err.context?.component === "ssm" &&
+            err.context?.name === TEST_FIXTURES.SSM_PARAM_NAME,
         );
       });
     });

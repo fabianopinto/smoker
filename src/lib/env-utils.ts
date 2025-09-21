@@ -16,8 +16,8 @@
  * ```
  */
 
+import { ValidationError } from "@fabianopinto/errors";
 import { ERR_ENV_MISSING } from "../errors";
-import { SmokerError } from "../errors/smoker-error";
 
 export const EnvUtils = {
   /**
@@ -40,12 +40,12 @@ export const EnvUtils = {
   /**
    * Gets a required env var or throws when missing/empty.
    *
-   * Throws a SmokerError with code "ENV_MISSING" including the variable name
-   * in details when the variable is not present or empty.
+   * Throws a ValidationError with code "ENV_MISSING" including the variable name
+   * in context when the variable is not present or empty.
    *
    * @param {string} name - Environment variable name (required)
    * @returns {string} The trimmed env var value
-   * @throws {SmokerError} When the variable is missing or empty
+   * @throws {ValidationError} When the variable is missing or empty
    *
    * @example
    * // Throws if PORT is not set
@@ -54,12 +54,10 @@ export const EnvUtils = {
   requireEnv(name: string): string {
     const v = this.getEnv(name);
     if (v == null || v === "")
-      throw new SmokerError("Missing required environment variable", {
+      throw new ValidationError("Missing required environment variable", {
         code: ERR_ENV_MISSING,
-        domain: "env",
-        details: { name },
-        severity: "error",
-        retryable: false,
+        context: { name },
+        isOperational: false,
       });
     return v;
   },

@@ -12,10 +12,11 @@ import {
   CloudWatchClient as AwsCloudWatchMetricsClient,
   PutMetricDataCommand,
 } from "@aws-sdk/client-cloudwatch";
+import { AwsError } from "@fabianopinto/errors";
 import { mockClient } from "aws-sdk-client-mock";
 import { beforeEach, describe, expect, it } from "vitest";
 import { CloudWatchClient } from "../../../src/clients/aws/aws-cloudwatch";
-import { ERR_VALIDATION, SmokerError } from "../../../src/errors";
+
 
 const METRICS_MOCK = mockClient(AwsCloudWatchMetricsClient);
 
@@ -96,14 +97,13 @@ describe("CloudWatch metrics", () => {
       });
     });
 
-    it("should wrap errors into SmokerError with context", async () => {
+    it("should wrap errors into AwsError with context", async () => {
       await client.init();
 
       METRICS_MOCK.on(PutMetricDataCommand).rejects(new Error("PutMetricData failed"));
 
       await expect(client.publishMetric({ MetricName: "Errors", Value: 1 })).rejects.toSatisfy(
-        (err) =>
-          SmokerError.isSmokerError(err) && err.code === ERR_VALIDATION && err.domain === "aws",
+        (err) => err instanceof AwsError && err.code === "CLOUDWATCH_PUBLISH_METRIC_FAILED",
       );
     });
   });
@@ -150,11 +150,10 @@ describe("CloudWatch metrics", () => {
 
       await expect(client.publishMetrics(metrics)).rejects.toSatisfy(
         (err) =>
-          SmokerError.isSmokerError(err) &&
-          err.code === ERR_VALIDATION &&
-          err.domain === "aws" &&
-          err.details?.component === "cloudwatch" &&
-          err.details?.batchSize === 1,
+          err instanceof AwsError &&
+          err.code === "CLOUDWATCH_PUBLISH_METRICS_FAILED" &&
+          err.context?.component === "cloudwatch" &&
+          err.context?.batchSize === 1,
       );
 
       // Two attempts were made (one success, one failed)
@@ -174,11 +173,10 @@ describe("CloudWatch metrics", () => {
 
       await expect(client.publishMetrics(metrics)).rejects.toSatisfy(
         (err) =>
-          SmokerError.isSmokerError(err) &&
-          err.code === ERR_VALIDATION &&
-          err.domain === "aws" &&
-          typeof err.details?.reason === "string" &&
-          err.details?.batchSize === 1,
+          err instanceof AwsError &&
+          err.code === "CLOUDWATCH_PUBLISH_METRICS_FAILED" &&
+          typeof err.context?.reason === "string" &&
+          err.context?.batchSize === 1,
       );
 
       expect(METRICS_MOCK.commandCalls(PutMetricDataCommand).length).toBe(2);
@@ -200,11 +198,10 @@ describe("CloudWatch metrics", () => {
 
       await expect(client.publishMetrics(metrics)).rejects.toSatisfy(
         (err) =>
-          SmokerError.isSmokerError(err) &&
-          err.code === ERR_VALIDATION &&
-          err.domain === "aws" &&
-          typeof err.details?.reason === "string" &&
-          err.details?.batchSize === 1,
+          err instanceof AwsError &&
+          err.code === "CLOUDWATCH_PUBLISH_METRICS_FAILED" &&
+          typeof err.context?.reason === "string" &&
+          err.context?.batchSize === 1,
       );
 
       expect(METRICS_MOCK.commandCalls(PutMetricDataCommand).length).toBe(2);

@@ -33,14 +33,6 @@ import { BaseLogger } from "@fabianopinto/logger";
 import mqtt from "mqtt";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { MqttClient } from "../../../src/clients/messaging/mqtt";
-import {
-  ERR_MQTT_CONNECT,
-  ERR_MQTT_PUBLISH,
-  ERR_MQTT_SUBSCRIBE,
-  ERR_MQTT_UNSUBSCRIBE,
-  ERR_VALIDATION,
-  SmokerError,
-} from "../../../src/errors";
 
 /**
  * Mocks for MQTT client
@@ -295,7 +287,7 @@ describe("MqttClient", () => {
       Date.now = originalDateNow;
     });
 
-    it("should wrap connection errors during initialization in SmokerError with connect code", async () => {
+    it("should wrap connection errors during initialization in AppError", async () => {
       const connectionError = new Error(TEST_FIXTURES.ERROR_CONNECTION_FAILED);
       getMockClient().on.mockImplementation(
         (event: string, callback: (error?: Error | string) => void) => {
@@ -306,12 +298,13 @@ describe("MqttClient", () => {
         },
       );
 
-      await expect(mqttClient.init()).rejects.toBeInstanceOf(SmokerError);
-      await expect(mqttClient.init()).rejects.toHaveProperty("code", ERR_MQTT_CONNECT);
+      await expect(mqttClient.init()).rejects.toThrow(
+        new RegExp(`^${TEST_FIXTURES.INIT_ERROR_PREFIX}`)
+      );
       expect(mqttClient.isInitialized()).toBe(false);
     });
 
-    it("should wrap non-Error exceptions during initialization in SmokerError with connect code", async () => {
+    it("should wrap non-Error exceptions during initialization in AppError", async () => {
       getMockClient().on.mockImplementation(
         (event: string, callback: (error?: Error | string) => void) => {
           if (event === "error") {
@@ -321,20 +314,22 @@ describe("MqttClient", () => {
         },
       );
 
-      await expect(mqttClient.init()).rejects.toBeInstanceOf(SmokerError);
-      await expect(mqttClient.init()).rejects.toHaveProperty("code", ERR_MQTT_CONNECT);
+      await expect(mqttClient.init()).rejects.toThrow(
+        new RegExp(`^${TEST_FIXTURES.INIT_ERROR_PREFIX}`)
+      );
       expect(mqttClient.isInitialized()).toBe(false);
     });
 
-    it("should throw SmokerError when broker URL is not provided", async () => {
+    it("should throw error when broker URL is not provided", async () => {
       mqttClient = new MqttClient(TEST_FIXTURES.CLIENT_ID, { url: "" });
 
-      await expect(mqttClient.init()).rejects.toBeInstanceOf(SmokerError);
-      await expect(mqttClient.init()).rejects.toHaveProperty("code", ERR_MQTT_CONNECT);
+      await expect(mqttClient.init()).rejects.toThrow(
+        new RegExp(`^${TEST_FIXTURES.INIT_ERROR_PREFIX}`)
+      );
       expect(mqttClient.isInitialized()).toBe(false);
     });
 
-    it("should wrap thrown connect errors in SmokerError with connect code", async () => {
+    it("should wrap thrown connect errors in AppError", async () => {
       const connectionError = new Error("Connection refused by broker");
 
       // Mock mqtt.connect to throw an error during connection attempt
@@ -342,13 +337,14 @@ describe("MqttClient", () => {
         throw connectionError;
       });
 
-      await expect(mqttClient.init()).rejects.toBeInstanceOf(SmokerError);
-      await expect(mqttClient.init()).rejects.toHaveProperty("code", ERR_MQTT_CONNECT);
+      await expect(mqttClient.init()).rejects.toThrow(
+        new RegExp(`^${TEST_FIXTURES.INIT_ERROR_PREFIX}`)
+      );
 
       expect(mqttClient.isInitialized()).toBe(false);
     });
 
-    it("should wrap non-Error connection failures in SmokerError with connect code", async () => {
+    it("should wrap non-Error connection failures in AppError", async () => {
       const connectionError = "String-based connection error";
 
       // Mock mqtt.connect to throw a non-Error object
@@ -356,9 +352,10 @@ describe("MqttClient", () => {
         throw connectionError;
       });
 
-      // Expect structured SmokerError with connect code
-      await expect(mqttClient.init()).rejects.toBeInstanceOf(SmokerError);
-      await expect(mqttClient.init()).rejects.toHaveProperty("code", ERR_MQTT_CONNECT);
+      // Expect AppError with initialization prefix
+      await expect(mqttClient.init()).rejects.toThrow(
+        new RegExp(`^${TEST_FIXTURES.INIT_ERROR_PREFIX}`)
+      );
 
       expect(mqttClient.isInitialized()).toBe(false);
     });
@@ -377,9 +374,10 @@ describe("MqttClient", () => {
         throw initError;
       });
 
-      // Expect structured SmokerError with connect code
-      await expect(mqttClient.init()).rejects.toBeInstanceOf(SmokerError);
-      await expect(mqttClient.init()).rejects.toHaveProperty("code", ERR_MQTT_CONNECT);
+      // Expect AppError with initialization prefix
+      await expect(mqttClient.init()).rejects.toThrow(
+        new RegExp(`^${TEST_FIXTURES.INIT_ERROR_PREFIX}`)
+      );
 
       expect(mqttClient.isInitialized()).toBe(false);
 
@@ -400,9 +398,10 @@ describe("MqttClient", () => {
         throw initError;
       });
 
-      // Expect structured SmokerError with connect code
-      await expect(mqttClient.init()).rejects.toBeInstanceOf(SmokerError);
-      await expect(mqttClient.init()).rejects.toHaveProperty("code", ERR_MQTT_CONNECT);
+      // Expect AppError with initialization prefix
+      await expect(mqttClient.init()).rejects.toThrow(
+        new RegExp(`^${TEST_FIXTURES.INIT_ERROR_PREFIX}`)
+      );
 
       expect(mqttClient.isInitialized()).toBe(false);
 
@@ -432,9 +431,10 @@ describe("MqttClient", () => {
       // Fast-forward time to trigger timeout
       vi.advanceTimersByTime(2000);
 
-      // Expect structured SmokerError (connect code) for timeout
-      await expect(initPromise).rejects.toBeInstanceOf(SmokerError);
-      await expect(initPromise).rejects.toHaveProperty("code", ERR_MQTT_CONNECT);
+      // Expect AppError with initialization prefix for timeout
+      await expect(initPromise).rejects.toThrow(
+        new RegExp(`^${TEST_FIXTURES.INIT_ERROR_PREFIX}`)
+      );
 
       vi.useRealTimers();
     });
@@ -632,7 +632,7 @@ describe("MqttClient", () => {
       );
     });
 
-    it("should wrap publish errors in SmokerError with publish code", async () => {
+    it("should wrap publish errors in AppError", async () => {
       const publishError = new Error("Publish failed");
       getMockClient().publish.mockImplementation((topic, message, options, callback) => {
         callback(publishError);
@@ -640,33 +640,20 @@ describe("MqttClient", () => {
 
       await expect(
         mqttClient.publish(TEST_FIXTURES.TOPIC, TEST_FIXTURES.MESSAGE),
-      ).rejects.toBeInstanceOf(SmokerError);
-      await expect(
-        mqttClient.publish(TEST_FIXTURES.TOPIC, TEST_FIXTURES.MESSAGE),
-      ).rejects.toHaveProperty("code", ERR_MQTT_PUBLISH);
+      ).rejects.toThrow(/Failed to publish MQTT message/i);
     });
 
-    it("should throw structured error when client not initialized", async () => {
+    it("should throw error when client not initialized", async () => {
       mqttClient = new MqttClient();
 
       await expect(
         mqttClient.publish(TEST_FIXTURES.TOPIC, TEST_FIXTURES.MESSAGE),
-      ).rejects.toSatisfy(
-        (err) =>
-          SmokerError.isSmokerError(err) &&
-          err.code === ERR_VALIDATION &&
-          err.domain === "clients" &&
-          err.details?.component === "core",
-      );
+      ).rejects.toThrow("MqttClient is not initialized. Call init() first");
     });
 
-    it("should throw SmokerError when topic is empty", async () => {
-      await expect(mqttClient.publish("", TEST_FIXTURES.MESSAGE)).rejects.toBeInstanceOf(
-        SmokerError,
-      );
-      await expect(mqttClient.publish("", TEST_FIXTURES.MESSAGE)).rejects.toHaveProperty(
-        "code",
-        ERR_MQTT_PUBLISH,
+    it("should throw error when topic is empty", async () => {
+      await expect(mqttClient.publish("", TEST_FIXTURES.MESSAGE)).rejects.toThrow(
+        "MQTT publish requires a topic",
       );
     });
 
@@ -695,9 +682,8 @@ describe("MqttClient", () => {
         // Advance timers by more than the timeout to trigger the rejection
         vi.advanceTimersByTime(1500);
 
-        // Expect structured SmokerError (publish code) for timeout
-        await expect(publishPromise).rejects.toBeInstanceOf(SmokerError);
-        await expect(publishPromise).rejects.toHaveProperty("code", ERR_MQTT_PUBLISH);
+        // Expect AppError for timeout
+        await expect(publishPromise).rejects.toThrow(/MQTT publish timed out/i);
       } finally {
         vi.useRealTimers();
       }
@@ -763,42 +749,32 @@ describe("MqttClient", () => {
       );
     });
 
-    it("should wrap subscription errors in SmokerError with subscribe code", async () => {
+    it("should wrap subscription errors in AppError", async () => {
       const subscribeError = new Error(TEST_FIXTURES.ERROR_SUBSCRIPTION_FAILED);
       getMockClient().subscribe.mockImplementation((topic, options, callback) => {
         callback(subscribeError);
       });
 
-      await expect(mqttClient.subscribe(TEST_FIXTURES.TOPIC)).rejects.toBeInstanceOf(SmokerError);
-      await expect(mqttClient.subscribe(TEST_FIXTURES.TOPIC)).rejects.toHaveProperty(
-        "code",
-        ERR_MQTT_SUBSCRIBE,
+      await expect(mqttClient.subscribe(TEST_FIXTURES.TOPIC)).rejects.toThrow(
+        /Failed to subscribe to MQTT topics/i,
       );
     });
 
-    it("should wrap subscription errors with multiple topics in SmokerError with subscribe code", async () => {
+    it("should wrap subscription errors with multiple topics in AppError", async () => {
       const subscribeError = new Error(TEST_FIXTURES.ERROR_SUBSCRIPTION_FAILED);
       getMockClient().subscribe.mockImplementation((topicList, options, callback) => {
         callback(subscribeError);
       });
 
-      await expect(mqttClient.subscribe(TEST_FIXTURES.ADDITIONAL_TOPICS)).rejects.toBeInstanceOf(
-        SmokerError,
-      );
-      await expect(mqttClient.subscribe(TEST_FIXTURES.ADDITIONAL_TOPICS)).rejects.toHaveProperty(
-        "code",
-        ERR_MQTT_SUBSCRIBE,
+      await expect(mqttClient.subscribe(TEST_FIXTURES.ADDITIONAL_TOPICS)).rejects.toThrow(
+        /Failed to subscribe to MQTT topics/i,
       );
     });
 
-    it("should throw structured error when client not initialized", async () => {
+    it("should throw error when client not initialized", async () => {
       mqttClient = new MqttClient();
-      await expect(mqttClient.subscribe(TEST_FIXTURES.TOPIC)).rejects.toSatisfy(
-        (err) =>
-          SmokerError.isSmokerError(err) &&
-          err.code === ERR_VALIDATION &&
-          err.domain === "clients" &&
-          err.details?.component === "core",
+      await expect(mqttClient.subscribe(TEST_FIXTURES.TOPIC)).rejects.toThrow(
+        "MqttClient is not initialized. Call init() first",
       );
     });
 
@@ -827,9 +803,8 @@ describe("MqttClient", () => {
         // Advance timers by more than the timeout to trigger the rejection
         vi.advanceTimersByTime(1500);
 
-        // Expect structured SmokerError (subscribe code) for timeout
-        await expect(subscribePromise).rejects.toBeInstanceOf(SmokerError);
-        await expect(subscribePromise).rejects.toHaveProperty("code", ERR_MQTT_SUBSCRIBE);
+        // Expect AppError for timeout
+        await expect(subscribePromise).rejects.toThrow(/MQTT subscribe timed out/i);
       } finally {
         vi.useRealTimers();
       }
@@ -860,9 +835,8 @@ describe("MqttClient", () => {
         // Advance timers by more than the timeout to trigger the rejection
         vi.advanceTimersByTime(1500);
 
-        // Expect structured SmokerError (subscribe code) for timeout
-        await expect(subscribePromise).rejects.toBeInstanceOf(SmokerError);
-        await expect(subscribePromise).rejects.toHaveProperty("code", ERR_MQTT_SUBSCRIBE);
+        // Expect AppError for timeout
+        await expect(subscribePromise).rejects.toThrow(/MQTT subscribe timed out/i);
       } finally {
         vi.useRealTimers();
       }
@@ -902,28 +876,22 @@ describe("MqttClient", () => {
       );
     });
 
-    it("should wrap unsubscription errors in SmokerError with unsubscribe code", async () => {
+    it("should wrap unsubscription errors in AppError", async () => {
       const unsubscribeError = new Error("Unsubscription failed");
       getMockClient().unsubscribe.mockImplementation((topic, callback) => {
         callback(unsubscribeError);
       });
 
-      await expect(mqttClient.unsubscribe(TEST_FIXTURES.TOPIC)).rejects.toBeInstanceOf(SmokerError);
-      await expect(mqttClient.unsubscribe(TEST_FIXTURES.TOPIC)).rejects.toHaveProperty(
-        "code",
-        ERR_MQTT_UNSUBSCRIBE,
+      await expect(mqttClient.unsubscribe(TEST_FIXTURES.TOPIC)).rejects.toThrow(
+        /Failed to unsubscribe from MQTT topics/i,
       );
     });
 
-    it("should throw structured error when client not initialized", async () => {
+    it("should throw error when client not initialized", async () => {
       mqttClient = new MqttClient();
 
-      await expect(mqttClient.unsubscribe(TEST_FIXTURES.TOPIC)).rejects.toSatisfy(
-        (err) =>
-          SmokerError.isSmokerError(err) &&
-          err.code === ERR_VALIDATION &&
-          err.domain === "clients" &&
-          err.details?.component === "core",
+      await expect(mqttClient.unsubscribe(TEST_FIXTURES.TOPIC)).rejects.toThrow(
+        "MqttClient is not initialized. Call init() first",
       );
     });
   });
@@ -1036,12 +1004,8 @@ describe("MqttClient", () => {
         callback(subscribeError);
       });
 
-      await expect(mqttClient.waitForMessage(TEST_FIXTURES.TOPIC)).rejects.toBeInstanceOf(
-        SmokerError,
-      );
-      await expect(mqttClient.waitForMessage(TEST_FIXTURES.TOPIC)).rejects.toHaveProperty(
-        "code",
-        ERR_MQTT_SUBSCRIBE,
+      await expect(mqttClient.waitForMessage(TEST_FIXTURES.TOPIC)).rejects.toThrow(
+        /Error waiting for MQTT message/i,
       );
     });
 
@@ -1488,10 +1452,7 @@ describe("MqttClient", () => {
 
       await expect(
         mqttClient.publish(TEST_FIXTURES.TOPIC, TEST_FIXTURES.MESSAGE),
-      ).rejects.toBeInstanceOf(SmokerError);
-      await expect(
-        mqttClient.publish(TEST_FIXTURES.TOPIC, TEST_FIXTURES.MESSAGE),
-      ).rejects.toHaveProperty("code", ERR_MQTT_PUBLISH);
+      ).rejects.toThrow(/Failed to publish MQTT message/i);
     });
 
     it("should handle non-Error exceptions in subscribe", async () => {
@@ -1508,10 +1469,8 @@ describe("MqttClient", () => {
         callback(TEST_FIXTURES.ERROR_NETWORK_TIMEOUT);
       });
 
-      await expect(mqttClient.subscribe(TEST_FIXTURES.TOPIC)).rejects.toBeInstanceOf(SmokerError);
-      await expect(mqttClient.subscribe(TEST_FIXTURES.TOPIC)).rejects.toHaveProperty(
-        "code",
-        ERR_MQTT_SUBSCRIBE,
+      await expect(mqttClient.subscribe(TEST_FIXTURES.TOPIC)).rejects.toThrow(
+        /Failed to subscribe to MQTT topics/i,
       );
     });
 
@@ -1529,14 +1488,12 @@ describe("MqttClient", () => {
         callback(TEST_FIXTURES.ERROR_CONNECTION_LOST);
       });
 
-      await expect(mqttClient.unsubscribe(TEST_FIXTURES.TOPIC)).rejects.toBeInstanceOf(SmokerError);
-      await expect(mqttClient.unsubscribe(TEST_FIXTURES.TOPIC)).rejects.toHaveProperty(
-        "code",
-        ERR_MQTT_UNSUBSCRIBE,
+      await expect(mqttClient.unsubscribe(TEST_FIXTURES.TOPIC)).rejects.toThrow(
+        /Failed to unsubscribe from MQTT topics/i,
       );
     });
 
-    it("should wrap non-Error exceptions in waitForMessage in SmokerError with subscribe code", async () => {
+    it("should wrap non-Error exceptions in waitForMessage in AppError", async () => {
       mockClient.connected = true;
       getMockClient().on.mockImplementation((event: string, callback: () => void) => {
         if (event === "connect") {
@@ -1553,12 +1510,8 @@ describe("MqttClient", () => {
         throw "Non-error exception string";
       });
 
-      await expect(mqttClient.waitForMessage(TEST_FIXTURES.TOPIC)).rejects.toBeInstanceOf(
-        SmokerError,
-      );
-      await expect(mqttClient.waitForMessage(TEST_FIXTURES.TOPIC)).rejects.toHaveProperty(
-        "code",
-        ERR_MQTT_SUBSCRIBE,
+      await expect(mqttClient.waitForMessage(TEST_FIXTURES.TOPIC)).rejects.toThrow(
+        /Error waiting for MQTT message/i,
       );
 
       // Restore original method

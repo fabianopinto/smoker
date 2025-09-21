@@ -14,7 +14,8 @@
  * - Functions that accept a world use it to enhance behavior (e.g., deep resolution + normalization).
  */
 
-import { ERR_INVALID_DURATION, SmokerError } from "../errors";
+import { ValidationError } from "@fabianopinto/errors";
+import { ERR_INVALID_DURATION } from "../errors";
 import { UrlUtils } from "./url-utils";
 
 /**
@@ -176,6 +177,7 @@ export function normalizeHeaders(headers?: Record<string, unknown>): Record<stri
  *
  * @param {string} input - Duration string (e.g., "2s", "500ms", "1m")
  * @returns {number} Milliseconds value as a number
+ * @throws {ValidationError} When the duration format is invalid
  *
  * @example
  * parseDurationMs("2s")   // 2000
@@ -186,11 +188,10 @@ export function parseDurationMs(input: string): number {
   // Accept any alphabetic unit, validate in switch below
   const match = /^(-?\d+(?:\.\d+)?)([a-z]+)?$/i.exec(s);
   if (!match)
-    throw new SmokerError("Invalid duration format", {
+    throw new ValidationError("Invalid duration format", {
       code: ERR_INVALID_DURATION,
-      domain: "date",
-      details: { component: "step-utils", input },
-      retryable: false,
+      context: { component: "step-utils", input },
+      isOperational: false,
     });
   const value = Number(match[1]);
   const unit = match[2] ? match[2].toLowerCase() : "ms";
@@ -204,11 +205,10 @@ export function parseDurationMs(input: string): number {
     case "h":
       return value * 3_600_000;
     default:
-      throw new SmokerError("Unsupported duration unit", {
+      throw new ValidationError("Unsupported duration unit", {
         code: ERR_INVALID_DURATION,
-        domain: "date",
-        details: { component: "step-utils", unit },
-        retryable: false,
+        context: { component: "step-utils", unit },
+        isOperational: false,
       });
   }
 }

@@ -9,8 +9,8 @@
  * supporting features like automatic request retries, response parsing, and error handling.
  */
 
+import { AppError, ValidationError } from "@fabianopinto/errors";
 import axios, { type AxiosInstance, type AxiosRequestConfig, type AxiosResponse } from "axios";
-import { ERR_VALIDATION, SmokerError } from "../../errors";
 import { BaseServiceClient, type ServiceClient } from "../core";
 
 /**
@@ -53,7 +53,8 @@ export interface RestServiceClient extends ServiceClient {
    * @param {unknown} [data] - The data to send in the request body
    * @param {AxiosRequestConfig} [config] - Optional axios request configuration
    * @returns {Promise<AxiosResponse<T>>} Promise resolving to Axios response
-   * @throws {SmokerError} if request fails
+   * @throws {ValidationError} if input is invalid
+   * @throws {AppError} if request fails
    */
   post<T = unknown>(
     url: string,
@@ -69,7 +70,8 @@ export interface RestServiceClient extends ServiceClient {
    * @param {unknown} [data] - The data to send in the request body
    * @param {AxiosRequestConfig} [config] - Optional axios request configuration
    * @returns {Promise<AxiosResponse<T>>} Promise resolving to Axios response
-   * @throws {SmokerError} if request fails
+   * @throws {ValidationError} if input is invalid
+   * @throws {AppError} if request fails
    */
   put<T = unknown>(
     url: string,
@@ -85,7 +87,8 @@ export interface RestServiceClient extends ServiceClient {
    * @param {unknown} [data] - The data to send in the request body
    * @param {AxiosRequestConfig} [config] - Optional axios request configuration
    * @returns {Promise<AxiosResponse<T>>} Promise resolving to Axios response
-   * @throws {SmokerError} if request fails
+   * @throws {ValidationError} if input is invalid
+   * @throws {AppError} if request fails
    */
   patch<T = unknown>(
     url: string,
@@ -100,7 +103,8 @@ export interface RestServiceClient extends ServiceClient {
    * @param {string} url - The URL to request
    * @param {AxiosRequestConfig} [config] - Optional axios request configuration
    * @returns {Promise<AxiosResponse<T>>} Promise resolving to Axios response
-   * @throws {SmokerError} if request fails
+   * @throws {ValidationError} if input is invalid
+   * @throws {AppError} if request fails
    */
   delete<T = unknown>(url: string, config?: AxiosRequestConfig): Promise<AxiosResponse<T>>;
 }
@@ -153,11 +157,10 @@ export class RestClient extends BaseServiceClient implements RestServiceClient {
 
       // Optional validation of baseURL
       if (baseURL && !this.isValidUrl(baseURL)) {
-        throw new SmokerError(`Invalid baseURL: ${baseURL}`, {
-          code: ERR_VALIDATION,
-          domain: "http",
-          details: { component: "rest", baseURL },
-          retryable: false,
+        throw new ValidationError(`Invalid baseURL: ${baseURL}`, {
+          code: "HTTP_BASE_URL_INVALID",
+          context: { component: "rest", baseURL },
+          isOperational: false,
         });
       }
 
@@ -168,21 +171,20 @@ export class RestClient extends BaseServiceClient implements RestServiceClient {
         headers,
       });
     } catch (error) {
-      if (SmokerError.isSmokerError(error)) {
+      if (error instanceof ValidationError) {
         throw error;
       }
-      throw new SmokerError(
+      throw new AppError(
         `Failed to initialize REST client: ${
           error instanceof Error ? error.message : String(error)
         }`,
         {
-          code: ERR_VALIDATION,
-          domain: "http",
-          details: {
+          code: "HTTP_INIT_FAILED",
+          context: {
             component: "rest",
             reason: error instanceof Error ? error.message : String(error),
           },
-          retryable: true,
+          isOperational: true,
           cause: error,
         },
       );
@@ -220,29 +222,27 @@ export class RestClient extends BaseServiceClient implements RestServiceClient {
     this.assertNotNull(this.client);
 
     if (!url) {
-      throw new SmokerError("REST GET request requires a URL", {
-        code: ERR_VALIDATION,
-        domain: "http",
-        details: { component: "rest" },
-        retryable: false,
+      throw new ValidationError("REST GET request requires a URL", {
+        code: "HTTP_URL_REQUIRED",
+        context: { component: "rest", method: "GET" },
+        isOperational: false,
       });
     }
 
     try {
       return await this.client.get<T>(url, config);
     } catch (error) {
-      throw new SmokerError(
+      throw new AppError(
         `GET request to ${url} failed: ${error instanceof Error ? error.message : String(error)}`,
         {
-          code: ERR_VALIDATION,
-          domain: "http",
-          details: {
+          code: "HTTP_GET_FAILED",
+          context: {
             component: "rest",
             method: "GET",
             url,
             reason: error instanceof Error ? error.message : String(error),
           },
-          retryable: true,
+          isOperational: true,
           cause: error,
         },
       );
@@ -269,29 +269,27 @@ export class RestClient extends BaseServiceClient implements RestServiceClient {
     this.assertNotNull(this.client);
 
     if (!url) {
-      throw new SmokerError("REST POST request requires a URL", {
-        code: ERR_VALIDATION,
-        domain: "http",
-        details: { component: "rest" },
-        retryable: false,
+      throw new ValidationError("REST POST request requires a URL", {
+        code: "HTTP_URL_REQUIRED",
+        context: { component: "rest", method: "POST" },
+        isOperational: false,
       });
     }
 
     try {
       return await this.client.post<T>(url, data, config);
     } catch (error) {
-      throw new SmokerError(
+      throw new AppError(
         `POST request to ${url} failed: ${error instanceof Error ? error.message : String(error)}`,
         {
-          code: ERR_VALIDATION,
-          domain: "http",
-          details: {
+          code: "HTTP_POST_FAILED",
+          context: {
             component: "rest",
             method: "POST",
             url,
             reason: error instanceof Error ? error.message : String(error),
           },
-          retryable: true,
+          isOperational: true,
           cause: error,
         },
       );
@@ -318,29 +316,27 @@ export class RestClient extends BaseServiceClient implements RestServiceClient {
     this.assertNotNull(this.client);
 
     if (!url) {
-      throw new SmokerError("REST PUT request requires a URL", {
-        code: ERR_VALIDATION,
-        domain: "http",
-        details: { component: "rest" },
-        retryable: false,
+      throw new ValidationError("REST PUT request requires a URL", {
+        code: "HTTP_URL_REQUIRED",
+        context: { component: "rest", method: "PUT" },
+        isOperational: false,
       });
     }
 
     try {
       return await this.client.put<T>(url, data, config);
     } catch (error) {
-      throw new SmokerError(
+      throw new AppError(
         `PUT request to ${url} failed: ${error instanceof Error ? error.message : String(error)}`,
         {
-          code: ERR_VALIDATION,
-          domain: "http",
-          details: {
+          code: "HTTP_PUT_FAILED",
+          context: {
             component: "rest",
             method: "PUT",
             url,
             reason: error instanceof Error ? error.message : String(error),
           },
-          retryable: true,
+          isOperational: true,
           cause: error,
         },
       );
@@ -367,29 +363,27 @@ export class RestClient extends BaseServiceClient implements RestServiceClient {
     this.assertNotNull(this.client);
 
     if (!url) {
-      throw new SmokerError("REST PATCH request requires a URL", {
-        code: ERR_VALIDATION,
-        domain: "http",
-        details: { component: "rest" },
-        retryable: false,
+      throw new ValidationError("REST PATCH request requires a URL", {
+        code: "HTTP_URL_REQUIRED",
+        context: { component: "rest", method: "PATCH" },
+        isOperational: false,
       });
     }
 
     try {
       return await this.client.patch<T>(url, data, config);
     } catch (error) {
-      throw new SmokerError(
+      throw new AppError(
         `PATCH request to ${url} failed: ${error instanceof Error ? error.message : String(error)}`,
         {
-          code: ERR_VALIDATION,
-          domain: "http",
-          details: {
+          code: "HTTP_PATCH_FAILED",
+          context: {
             component: "rest",
             method: "PATCH",
             url,
             reason: error instanceof Error ? error.message : String(error),
           },
-          retryable: true,
+          isOperational: true,
           cause: error,
         },
       );
@@ -411,31 +405,27 @@ export class RestClient extends BaseServiceClient implements RestServiceClient {
     this.assertNotNull(this.client);
 
     if (!url) {
-      throw new SmokerError("REST DELETE request requires a URL", {
-        code: ERR_VALIDATION,
-        domain: "http",
-        details: { component: "rest" },
-        retryable: false,
+      throw new ValidationError("REST DELETE request requires a URL", {
+        code: "HTTP_URL_REQUIRED",
+        context: { component: "rest", method: "DELETE" },
+        isOperational: false,
       });
     }
 
     try {
       return await this.client.delete<T>(url, config);
     } catch (error) {
-      throw new SmokerError(
-        `DELETE request to ${url} failed: ${
-          error instanceof Error ? error.message : String(error)
-        }`,
+      throw new AppError(
+        `DELETE request to ${url} failed: ${error instanceof Error ? error.message : String(error)}`,
         {
-          code: ERR_VALIDATION,
-          domain: "http",
-          details: {
+          code: "HTTP_DELETE_FAILED",
+          context: {
             component: "rest",
             method: "DELETE",
             url,
             reason: error instanceof Error ? error.message : String(error),
           },
-          retryable: true,
+          isOperational: true,
           cause: error,
         },
       );
